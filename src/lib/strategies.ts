@@ -10,6 +10,15 @@ import {
   atr,
   volumeOscillator,
   pivotPoints,
+  obv,
+  adl,
+  stochastic,
+  adx,
+  cci,
+  aroon,
+  mfi,
+  forceIndex,
+  roc,
 } from "./indicators";
 
 export interface StrategyResult {
@@ -2921,6 +2930,686 @@ export const STRATEGIES: Strategy[] = [
         }
       }
       return { signal: "NEUTRAL", strength: 0, details: `10-EMA ${bullish ? "above" : "below"} 40-EMA. ${nearEma10 ? "Near" : "Not near"} 10-EMA.` };
+    },
+  },
+
+  // ─── OpenBB-Inspired Signal Concepts ───
+
+  {
+    id: "obv-trend-confirm",
+    name: "OBV Trend Confirmation",
+    chapter: "OB1",
+    category: "Trend Following",
+    description: "On Balance Volume rising with price confirms buying pressure. Divergence warns of reversal.",
+    indicators: ["OBV", "SMA (20)"],
+    book: "OpenBB Signals",
+    evaluate: (candles: OHLCV[]): StrategyResult => {
+      if (candles.length < 30) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
+      const closes = candles.map(c => c.close);
+      const volumes = candles.map(c => c.volume);
+      const obvValues = obv(closes, volumes);
+      const last = closes.length - 1;
+      const obvSma = sma(obvValues, 20);
+      const priceRising = closes[last] > closes[last - 5];
+      const obvRising = obvValues[last] > obvValues[last - 5];
+      const obvAboveSma = obvSma[last] !== null && obvValues[last] > obvSma[last]!;
+
+      if (priceRising && obvRising && obvAboveSma) {
+        return { signal: "BUY", strength: Math.min(80, 65 + Math.round((obvValues[last] - obvValues[last - 5]) / Math.abs(obvValues[last - 5] || 1) * 50)), details: `OBV confirms uptrend: both price and volume momentum rising. OBV above 20-SMA.` };
+      }
+      if (!priceRising && !obvRising) {
+        return { signal: "SELL", strength: 60, details: `OBV confirms downtrend: price and volume pressure declining.` };
+      }
+      if (priceRising && !obvRising) {
+        return { signal: "SELL", strength: 55, details: `Bearish OBV divergence: price rising but volume not confirming. Weak rally.` };
+      }
+      if (!priceRising && obvRising) {
+        return { signal: "BUY", strength: 60, details: `Bullish OBV divergence: smart money accumulating despite price weakness.` };
+      }
+      return { signal: "NEUTRAL", strength: 0, details: `OBV flat. No clear volume-price relationship.` };
+    },
+  },
+  {
+    id: "adl-accumulation",
+    name: "Accumulation/Distribution",
+    chapter: "OB2",
+    category: "Trend Following",
+    description: "Tracks money flow into/out of a stock. Rising ADL = institutional accumulation.",
+    indicators: ["ADL", "EMA (21)"],
+    book: "OpenBB Signals",
+    evaluate: (candles: OHLCV[]): StrategyResult => {
+      if (candles.length < 30) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
+      const highs = candles.map(c => c.high);
+      const lows = candles.map(c => c.low);
+      const closes = candles.map(c => c.close);
+      const volumes = candles.map(c => c.volume);
+      const adlValues = adl(highs, lows, closes, volumes);
+      const last = adlValues.length - 1;
+      const adlEma = ema(adlValues, 21);
+
+      const adlRising = adlValues[last] > adlValues[last - 5] && adlValues[last - 5] > adlValues[last - 10];
+      const priceRising = closes[last] > closes[last - 5];
+      const aboveEma = adlEma[last] !== null && adlValues[last] > adlEma[last]!;
+
+      if (adlRising && aboveEma && priceRising) {
+        return { signal: "BUY", strength: 75, details: `Strong accumulation: ADL trending up, above 21-EMA. Institutional buying confirmed.` };
+      }
+      if (adlRising && !priceRising) {
+        return { signal: "BUY", strength: 70, details: `Hidden accumulation: ADL rising while price flat/falling. Smart money loading.` };
+      }
+      if (!adlRising && priceRising) {
+        return { signal: "SELL", strength: 65, details: `Distribution detected: Price rising but ADL falling. Selling into strength.` };
+      }
+      if (!adlRising && !aboveEma) {
+        return { signal: "SELL", strength: 60, details: `Active distribution: ADL declining below 21-EMA.` };
+      }
+      return { signal: "NEUTRAL", strength: 0, details: `ADL inconclusive.` };
+    },
+  },
+  {
+    id: "adx-trend-strength",
+    name: "ADX Trend Strength",
+    chapter: "OB3",
+    category: "Trend Following",
+    description: "ADX > 25 indicates strong trend. +DI > -DI = bullish. Combines direction with strength.",
+    indicators: ["ADX (14)", "+DI", "-DI"],
+    book: "OpenBB Signals",
+    evaluate: (candles: OHLCV[]): StrategyResult => {
+      if (candles.length < 40) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
+      const highs = candles.map(c => c.high);
+      const lows = candles.map(c => c.low);
+      const closes = candles.map(c => c.close);
+      const { adx: adxValues, plusDI, minusDI } = adx(highs, lows, closes, 14);
+      const last = closes.length - 1;
+      const adxVal = adxValues[last];
+      const pdi = plusDI[last];
+      const mdi = minusDI[last];
+
+      if (adxVal === null || pdi === null || mdi === null) return { signal: "NEUTRAL", strength: 0, details: "Insufficient ADX data" };
+
+      if (adxVal > 25 && pdi > mdi) {
+        const str = Math.min(90, Math.round(50 + adxVal));
+        return { signal: "BUY", strength: str, details: `Strong uptrend: ADX=${adxVal.toFixed(1)}, +DI(${pdi.toFixed(1)}) > -DI(${mdi.toFixed(1)}). Trend has momentum.` };
+      }
+      if (adxVal > 25 && mdi > pdi) {
+        return { signal: "SELL", strength: Math.min(85, Math.round(50 + adxVal)), details: `Strong downtrend: ADX=${adxVal.toFixed(1)}, -DI(${mdi.toFixed(1)}) > +DI(${pdi.toFixed(1)}).` };
+      }
+      if (adxVal < 20) {
+        return { signal: "NEUTRAL", strength: 0, details: `Weak/no trend: ADX=${adxVal.toFixed(1)} (below 20). Range-bound market.` };
+      }
+      return { signal: "NEUTRAL", strength: 0, details: `ADX=${adxVal.toFixed(1)}, +DI=${pdi.toFixed(1)}, -DI=${mdi.toFixed(1)}. Trend developing.` };
+    },
+  },
+  {
+    id: "cci-extreme-reversal",
+    name: "CCI Extreme Reversal",
+    chapter: "OB4",
+    category: "Swing",
+    description: "CCI below -100 signals oversold (buy), above +100 signals overbought (sell). Momentum reversal.",
+    indicators: ["CCI (20)"],
+    book: "OpenBB Signals",
+    evaluate: (candles: OHLCV[]): StrategyResult => {
+      if (candles.length < 25) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
+      const highs = candles.map(c => c.high);
+      const lows = candles.map(c => c.low);
+      const closes = candles.map(c => c.close);
+      const cciValues = cci(highs, lows, closes, 20);
+      const last = cciValues.length - 1;
+      const cciVal = cciValues[last];
+      const cciPrev = cciValues[last - 1];
+
+      if (cciVal === null || cciPrev === null) return { signal: "NEUTRAL", strength: 0, details: "Insufficient data" };
+
+      if (cciVal < -100 && cciVal > cciPrev) {
+        return { signal: "BUY", strength: Math.min(85, Math.round(60 + Math.abs(cciVal) / 5)), details: `CCI oversold reversal: CCI=${cciVal.toFixed(0)} turning up from extreme. Mean reversion buy.` };
+      }
+      if (cciVal > 100 && cciVal < cciPrev) {
+        return { signal: "SELL", strength: Math.min(85, Math.round(60 + cciVal / 5)), details: `CCI overbought reversal: CCI=${cciVal.toFixed(0)} turning down. Take profits.` };
+      }
+      if (cciVal < -200) {
+        return { signal: "BUY", strength: 70, details: `CCI extremely oversold: CCI=${cciVal.toFixed(0)}. Deep discount territory.` };
+      }
+      if (cciVal > 200) {
+        return { signal: "SELL", strength: 70, details: `CCI extremely overbought: CCI=${cciVal.toFixed(0)}. Extended beyond normal.` };
+      }
+      return { signal: "NEUTRAL", strength: 0, details: `CCI=${cciVal.toFixed(0)}. Within normal range (-100 to +100).` };
+    },
+  },
+  {
+    id: "aroon-trend-change",
+    name: "Aroon Trend Change",
+    chapter: "OB5",
+    category: "Swing",
+    description: "Aroon Up crossing above Aroon Down signals new uptrend. Oscillator confirms direction.",
+    indicators: ["Aroon (25)"],
+    book: "OpenBB Signals",
+    evaluate: (candles: OHLCV[]): StrategyResult => {
+      if (candles.length < 30) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
+      const highs = candles.map(c => c.high);
+      const lows = candles.map(c => c.low);
+      const { up, down, oscillator } = aroon(highs, lows, 25);
+      const last = up.length - 1;
+
+      if (up[last] === null || down[last] === null) return { signal: "NEUTRAL", strength: 0, details: "Insufficient data" };
+
+      const aroonUp = up[last]!;
+      const aroonDown = down[last]!;
+      const osc = oscillator[last]!;
+      const prevUp = up[last - 1]!;
+      const prevDown = down[last - 1]!;
+
+      // Bullish crossover
+      if (aroonUp > aroonDown && prevUp <= prevDown) {
+        return { signal: "BUY", strength: Math.min(85, Math.round(65 + osc / 3)), details: `Aroon bullish crossover! Up(${aroonUp.toFixed(0)}) crossed above Down(${aroonDown.toFixed(0)}). New uptrend starting.` };
+      }
+      if (aroonUp > 70 && aroonDown < 30) {
+        return { signal: "BUY", strength: 75, details: `Strong Aroon uptrend: Up=${aroonUp.toFixed(0)}, Down=${aroonDown.toFixed(0)}. Recent new highs.` };
+      }
+      if (aroonDown > aroonUp && prevDown <= prevUp) {
+        return { signal: "SELL", strength: Math.min(80, Math.round(65 + Math.abs(osc) / 3)), details: `Aroon bearish crossover! Down(${aroonDown.toFixed(0)}) crossed above Up(${aroonUp.toFixed(0)}). Downtrend starting.` };
+      }
+      if (aroonDown > 70 && aroonUp < 30) {
+        return { signal: "SELL", strength: 70, details: `Strong Aroon downtrend: Down=${aroonDown.toFixed(0)}, Up=${aroonUp.toFixed(0)}.` };
+      }
+      return { signal: "NEUTRAL", strength: 0, details: `Aroon Up=${aroonUp.toFixed(0)}, Down=${aroonDown.toFixed(0)}. No clear trend.` };
+    },
+  },
+  {
+    id: "mfi-money-flow",
+    name: "Money Flow Index",
+    chapter: "OB6",
+    category: "Swing",
+    description: "Volume-weighted RSI. MFI < 20 = oversold with volume confirmation. MFI > 80 = overbought.",
+    indicators: ["MFI (14)"],
+    book: "OpenBB Signals",
+    evaluate: (candles: OHLCV[]): StrategyResult => {
+      if (candles.length < 20) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
+      const highs = candles.map(c => c.high);
+      const lows = candles.map(c => c.low);
+      const closes = candles.map(c => c.close);
+      const volumes = candles.map(c => c.volume);
+      const mfiValues = mfi(highs, lows, closes, volumes, 14);
+      const last = mfiValues.length - 1;
+      const mfiVal = mfiValues[last];
+      const mfiPrev = mfiValues[last - 1];
+
+      if (mfiVal === null || mfiPrev === null) return { signal: "NEUTRAL", strength: 0, details: "Insufficient data" };
+
+      if (mfiVal < 20 && mfiVal > mfiPrev) {
+        return { signal: "BUY", strength: Math.min(85, Math.round(70 + (20 - mfiVal) * 2)), details: `MFI oversold reversal: MFI=${mfiVal.toFixed(1)} (below 20), turning up. Volume-confirmed buy.` };
+      }
+      if (mfiVal < 30 && mfiVal > mfiPrev) {
+        return { signal: "BUY", strength: 60, details: `MFI approaching oversold: MFI=${mfiVal.toFixed(1)}, starting to recover.` };
+      }
+      if (mfiVal > 80 && mfiVal < mfiPrev) {
+        return { signal: "SELL", strength: Math.min(85, Math.round(70 + (mfiVal - 80) * 2)), details: `MFI overbought reversal: MFI=${mfiVal.toFixed(1)} (above 80), turning down. Volume-confirmed sell.` };
+      }
+      if (mfiVal > 70 && mfiVal < mfiPrev) {
+        return { signal: "SELL", strength: 55, details: `MFI elevated: MFI=${mfiVal.toFixed(1)}, beginning to decline.` };
+      }
+      return { signal: "NEUTRAL", strength: 0, details: `MFI=${mfiVal.toFixed(1)}. Normal range.` };
+    },
+  },
+  {
+    id: "force-index-momentum",
+    name: "Force Index Momentum",
+    chapter: "OB7",
+    category: "Swing",
+    description: "Combines price change with volume. Positive force = bulls in control. Negative = bears.",
+    indicators: ["Force Index (13)"],
+    book: "OpenBB Signals",
+    evaluate: (candles: OHLCV[]): StrategyResult => {
+      if (candles.length < 20) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
+      const closes = candles.map(c => c.close);
+      const volumes = candles.map(c => c.volume);
+      const fi = forceIndex(closes, volumes, 13);
+      const last = fi.length - 1;
+      const fiVal = fi[last];
+      const fiPrev = fi[last - 1];
+      const fiPrev2 = fi[last - 3];
+
+      if (fiVal === null || fiPrev === null || fiPrev2 === null) return { signal: "NEUTRAL", strength: 0, details: "Insufficient data" };
+
+      const crossedAboveZero = fiVal > 0 && fiPrev2 < 0;
+      const crossedBelowZero = fiVal < 0 && fiPrev2 > 0;
+
+      if (crossedAboveZero) {
+        return { signal: "BUY", strength: 75, details: `Force Index crossed above zero. Bulls regained control with volume support.` };
+      }
+      if (fiVal > 0 && fiVal > fiPrev) {
+        return { signal: "BUY", strength: 60, details: `Force Index positive and rising (${(fiVal / 1e6).toFixed(1)}M). Buying pressure increasing.` };
+      }
+      if (crossedBelowZero) {
+        return { signal: "SELL", strength: 75, details: `Force Index crossed below zero. Bears took control with selling volume.` };
+      }
+      if (fiVal < 0 && fiVal < fiPrev) {
+        return { signal: "SELL", strength: 60, details: `Force Index negative and falling. Selling pressure intensifying.` };
+      }
+      return { signal: "NEUTRAL", strength: 0, details: `Force Index: ${(fiVal / 1e6).toFixed(2)}M. No clear signal.` };
+    },
+  },
+  {
+    id: "golden-death-cross",
+    name: "Golden/Death Cross",
+    chapter: "OB8",
+    category: "Positional",
+    description: "50-SMA crossing above 200-SMA = Golden Cross (major buy). Below = Death Cross (major sell).",
+    indicators: ["SMA (50)", "SMA (200)"],
+    book: "OpenBB Signals",
+    evaluate: (candles: OHLCV[]): StrategyResult => {
+      if (candles.length < 210) return { signal: "NEUTRAL", strength: 0, details: "Need 210+ candles for 200-SMA" };
+      const closes = candles.map(c => c.close);
+      const sma50 = sma(closes, 50);
+      const sma200 = sma(closes, 200);
+      const last = closes.length - 1;
+      const s50 = sma50[last];
+      const s200 = sma200[last];
+      const s50Prev = sma50[last - 3];
+      const s200Prev = sma200[last - 3];
+
+      if (!s50 || !s200 || !s50Prev || !s200Prev) return { signal: "NEUTRAL", strength: 0, details: "Insufficient data" };
+
+      const goldenCross = s50 > s200 && s50Prev <= s200Prev;
+      const deathCross = s50 < s200 && s50Prev >= s200Prev;
+      const bullish = s50 > s200;
+
+      if (goldenCross) {
+        return { signal: "BUY", strength: 90, details: `GOLDEN CROSS! 50-SMA(${s50.toFixed(2)}) just crossed above 200-SMA(${s200.toFixed(2)}). Major bullish signal.` };
+      }
+      if (deathCross) {
+        return { signal: "SELL", strength: 90, details: `DEATH CROSS! 50-SMA(${s50.toFixed(2)}) just crossed below 200-SMA(${s200.toFixed(2)}). Major bearish signal.` };
+      }
+      if (bullish && (s50 - s200) / s200 < 0.02) {
+        return { signal: "BUY", strength: 65, details: `50-SMA above 200-SMA (Golden Cross zone). Bullish structure intact. Spread: ${((s50 - s200) / s200 * 100).toFixed(2)}%.` };
+      }
+      if (!bullish && (s200 - s50) / s200 < 0.02) {
+        return { signal: "SELL", strength: 65, details: `50-SMA below 200-SMA (Death Cross zone). Bearish structure. Spread: ${((s50 - s200) / s200 * 100).toFixed(2)}%.` };
+      }
+      return { signal: "NEUTRAL", strength: 0, details: `50-SMA ${bullish ? "above" : "below"} 200-SMA. Spread: ${((s50 - s200) / s200 * 100).toFixed(2)}%.` };
+    },
+  },
+  {
+    id: "institutional-accumulation",
+    name: "Institutional Accumulation",
+    chapter: "OB9",
+    category: "Positional",
+    description: "Large volume spikes without proportional price moves indicate institutional accumulation/distribution.",
+    indicators: ["Volume", "ATR", "Price"],
+    book: "OpenBB Signals",
+    evaluate: (candles: OHLCV[]): StrategyResult => {
+      if (candles.length < 30) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
+      const closes = candles.map(c => c.close);
+      const volumes = candles.map(c => c.volume);
+      const last = candles.length - 1;
+
+      const avgVol = volumes.slice(last - 20, last).reduce((a, b) => a + b, 0) / 20;
+      const volRatio = volumes[last] / avgVol;
+      const priceChange = Math.abs(closes[last] - closes[last - 1]) / closes[last - 1];
+      const avgChange = closes.slice(last - 20, last).reduce((sum, _, i, arr) => i === 0 ? 0 : sum + Math.abs(arr[i] - arr[i - 1]) / arr[i - 1], 0) / 19;
+
+      // High volume with small price move = accumulation/distribution
+      if (volRatio > 2 && priceChange < avgChange * 0.5) {
+        const bullishClose = closes[last] > (candles[last].high + candles[last].low) / 2;
+        if (bullishClose) {
+          return { signal: "BUY", strength: Math.min(85, Math.round(65 + volRatio * 5)), details: `Institutional accumulation: Volume ${volRatio.toFixed(1)}x average with minimal price change. Close in upper half = buying.` };
+        } else {
+          return { signal: "SELL", strength: Math.min(80, Math.round(60 + volRatio * 5)), details: `Institutional distribution: Volume ${volRatio.toFixed(1)}x average with minimal price change. Close in lower half = selling.` };
+        }
+      }
+      if (volRatio > 1.5 && priceChange > avgChange * 2) {
+        const direction = closes[last] > closes[last - 1];
+        if (direction) {
+          return { signal: "BUY", strength: 70, details: `Volume breakout: ${volRatio.toFixed(1)}x volume with ${(priceChange * 100).toFixed(2)}% price jump. Momentum confirmed.` };
+        } else {
+          return { signal: "SELL", strength: 70, details: `Volume breakdown: ${volRatio.toFixed(1)}x volume with ${(priceChange * 100).toFixed(2)}% price drop. Panic selling.` };
+        }
+      }
+      return { signal: "NEUTRAL", strength: 0, details: `Volume ratio: ${volRatio.toFixed(1)}x. Price change: ${(priceChange * 100).toFixed(2)}%. Normal activity.` };
+    },
+  },
+  {
+    id: "relative-strength-market",
+    name: "Relative Strength vs Market",
+    chapter: "OB10",
+    category: "Positional",
+    description: "Stock outperforming its own history signals leadership. Compare recent vs longer-term momentum.",
+    indicators: ["ROC (5)", "ROC (20)", "SMA (50)"],
+    book: "OpenBB Signals",
+    evaluate: (candles: OHLCV[]): StrategyResult => {
+      if (candles.length < 55) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
+      const closes = candles.map(c => c.close);
+      const last = closes.length - 1;
+      const roc5 = roc(closes, 5);
+      const roc20 = roc(closes, 20);
+      const sma50 = sma(closes, 50);
+      const roc5Val = roc5[last];
+      const roc20Val = roc20[last];
+      const sma50Val = sma50[last];
+
+      if (roc5Val === null || roc20Val === null || !sma50Val) return { signal: "NEUTRAL", strength: 0, details: "Insufficient data" };
+
+      const aboveSma = closes[last] > sma50Val;
+      const accelerating = roc5Val > roc20Val / 4; // Short-term pace faster than proportional longer-term
+
+      if (aboveSma && roc20Val > 5 && accelerating) {
+        return { signal: "BUY", strength: Math.min(85, Math.round(60 + roc20Val * 2)), details: `Strong relative strength: +${roc20Val.toFixed(1)}% over 20 days, above 50-SMA, momentum accelerating.` };
+      }
+      if (aboveSma && roc20Val > 3) {
+        return { signal: "BUY", strength: 60, details: `Positive momentum: +${roc20Val.toFixed(1)}% over 20 days, above 50-SMA.` };
+      }
+      if (!aboveSma && roc20Val < -5) {
+        return { signal: "SELL", strength: Math.min(80, Math.round(60 + Math.abs(roc20Val) * 2)), details: `Weak relative strength: ${roc20Val.toFixed(1)}% over 20 days, below 50-SMA.` };
+      }
+      if (!aboveSma && roc5Val < -3) {
+        return { signal: "SELL", strength: 55, details: `Short-term weakness: ${roc5Val.toFixed(1)}% over 5 days, below 50-SMA.` };
+      }
+      return { signal: "NEUTRAL", strength: 0, details: `ROC(5)=${roc5Val.toFixed(1)}%, ROC(20)=${roc20Val.toFixed(1)}%. ${aboveSma ? "Above" : "Below"} 50-SMA.` };
+    },
+  },
+  {
+    id: "fear-greed-momentum",
+    name: "Fear & Greed Reversal",
+    chapter: "OB11",
+    category: "Swing",
+    description: "Extreme RSI + Bollinger Band + volume spike = market extreme. Buy fear, sell greed.",
+    indicators: ["RSI (14)", "BB (20,2)", "Volume"],
+    book: "OpenBB Signals",
+    evaluate: (candles: OHLCV[]): StrategyResult => {
+      if (candles.length < 25) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
+      const closes = candles.map(c => c.close);
+      const volumes = candles.map(c => c.volume);
+      const last = closes.length - 1;
+      const rsiValues = rsi(closes, 14);
+      const bb = bollingerBands(closes, 20, 2);
+      const rsiVal = rsiValues[last];
+      const bbLower = bb.lower[last];
+      const bbUpper = bb.upper[last];
+      const avgVol = volumes.slice(last - 10, last).reduce((a, b) => a + b, 0) / 10;
+      const volSpike = volumes[last] / avgVol;
+
+      if (!rsiVal || !bbLower || !bbUpper) return { signal: "NEUTRAL", strength: 0, details: "Insufficient data" };
+
+      const extremeFear = rsiVal < 25 && closes[last] <= bbLower && volSpike > 1.5;
+      const extremeGreed = rsiVal > 75 && closes[last] >= bbUpper && volSpike > 1.5;
+
+      if (extremeFear) {
+        return { signal: "BUY", strength: Math.min(90, Math.round(75 + (25 - rsiVal) + volSpike * 3)), details: `EXTREME FEAR: RSI=${rsiVal.toFixed(0)}, price at lower BB, volume ${volSpike.toFixed(1)}x spike. Capitulation buy.` };
+      }
+      if (rsiVal < 30 && closes[last] < bbLower) {
+        return { signal: "BUY", strength: 70, details: `Fear zone: RSI=${rsiVal.toFixed(0)}, below lower BB. Oversold.` };
+      }
+      if (extremeGreed) {
+        return { signal: "SELL", strength: Math.min(90, Math.round(75 + (rsiVal - 75) + volSpike * 3)), details: `EXTREME GREED: RSI=${rsiVal.toFixed(0)}, price at upper BB, volume ${volSpike.toFixed(1)}x spike. Euphoria sell.` };
+      }
+      if (rsiVal > 70 && closes[last] > bbUpper) {
+        return { signal: "SELL", strength: 70, details: `Greed zone: RSI=${rsiVal.toFixed(0)}, above upper BB. Overbought.` };
+      }
+      return { signal: "NEUTRAL", strength: 0, details: `RSI=${rsiVal.toFixed(0)}. Price within Bollinger Bands. No extreme.` };
+    },
+  },
+  {
+    id: "gap-continuation",
+    name: "Gap & Go Pattern",
+    chapter: "OB12",
+    category: "Intraday",
+    description: "Gap up/down with volume confirms direction. Gap fills are sell signals; continuation gaps are buys.",
+    indicators: ["Gap %", "Volume", "VWAP Proxy"],
+    book: "OpenBB Signals",
+    evaluate: (candles: OHLCV[]): StrategyResult => {
+      if (candles.length < 10) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
+      const last = candles.length - 1;
+      const gapPercent = ((candles[last].open - candles[last - 1].close) / candles[last - 1].close) * 100;
+      const volumes = candles.map(c => c.volume);
+      const avgVol = volumes.slice(last - 10, last).reduce((a, b) => a + b, 0) / 10;
+      const volRatio = volumes[last] / avgVol;
+      const bullishClose = candles[last].close > candles[last].open;
+
+      if (gapPercent > 1.5 && volRatio > 1.5 && bullishClose) {
+        return { signal: "BUY", strength: Math.min(85, Math.round(65 + gapPercent * 5 + volRatio * 3)), details: `Gap & Go: +${gapPercent.toFixed(2)}% gap up, ${volRatio.toFixed(1)}x volume, bullish close. Momentum continuation.` };
+      }
+      if (gapPercent > 2 && !bullishClose) {
+        return { signal: "SELL", strength: 65, details: `Gap fade: +${gapPercent.toFixed(2)}% gap up but bearish close. Gap fill likely.` };
+      }
+      if (gapPercent < -1.5 && volRatio > 1.5 && !bullishClose) {
+        return { signal: "SELL", strength: Math.min(85, Math.round(65 + Math.abs(gapPercent) * 5)), details: `Gap down continuation: ${gapPercent.toFixed(2)}% gap, ${volRatio.toFixed(1)}x volume. Selling pressure.` };
+      }
+      if (gapPercent < -2 && bullishClose) {
+        return { signal: "BUY", strength: 65, details: `Gap recovery: ${gapPercent.toFixed(2)}% gap down but bullish close. Buyers absorbing.` };
+      }
+      return { signal: "NEUTRAL", strength: 0, details: `Gap: ${gapPercent.toFixed(2)}%. Volume: ${volRatio.toFixed(1)}x. No significant gap pattern.` };
+    },
+  },
+  {
+    id: "stochastic-momentum",
+    name: "Stochastic Momentum",
+    chapter: "OB13",
+    category: "Swing",
+    description: "Stochastic %K/%D crossover in oversold/overbought zones with trend confirmation.",
+    indicators: ["Stochastic (14,3)", "SMA (50)"],
+    book: "OpenBB Signals",
+    evaluate: (candles: OHLCV[]): StrategyResult => {
+      if (candles.length < 55) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
+      const highs = candles.map(c => c.high);
+      const lows = candles.map(c => c.low);
+      const closes = candles.map(c => c.close);
+      const last = closes.length - 1;
+      const { k, d } = stochastic(highs, lows, closes, 14, 3);
+      const sma50 = sma(closes, 50);
+      const kVal = k[last];
+      const dVal = d[last];
+      const kPrev = k[last - 1];
+      const dPrev = d[last - 1];
+      const aboveSma = sma50[last] !== null && closes[last] > sma50[last]!;
+
+      if (kVal === null || dVal === null || kPrev === null || dPrev === null) return { signal: "NEUTRAL", strength: 0, details: "Insufficient data" };
+
+      // Bullish crossover in oversold zone
+      if (kVal > dVal && kPrev <= dPrev! && kVal < 30) {
+        return { signal: "BUY", strength: Math.min(85, Math.round(70 + (30 - kVal))), details: `Stochastic bullish crossover in oversold: %K(${kVal.toFixed(0)}) crossed %D(${dVal.toFixed(0)}). ${aboveSma ? "Above" : "Below"} 50-SMA.` };
+      }
+      if (kVal < 20 && aboveSma) {
+        return { signal: "BUY", strength: 65, details: `Stochastic oversold in uptrend: %K=${kVal.toFixed(0)}. Pullback buy opportunity.` };
+      }
+      // Bearish crossover in overbought zone
+      if (kVal < dVal && kPrev >= dPrev! && kVal > 70) {
+        return { signal: "SELL", strength: Math.min(85, Math.round(70 + (kVal - 70))), details: `Stochastic bearish crossover in overbought: %K(${kVal.toFixed(0)}) crossed below %D(${dVal.toFixed(0)}).` };
+      }
+      if (kVal > 80 && !aboveSma) {
+        return { signal: "SELL", strength: 65, details: `Stochastic overbought in downtrend: %K=${kVal.toFixed(0)}. Rally fading.` };
+      }
+      return { signal: "NEUTRAL", strength: 0, details: `Stochastic %K=${kVal.toFixed(0)}, %D=${dVal.toFixed(0)}. ${aboveSma ? "Above" : "Below"} 50-SMA.` };
+    },
+  },
+  {
+    id: "multi-indicator-confluence",
+    name: "Multi-Indicator Confluence",
+    chapter: "OB14",
+    category: "Advanced",
+    description: "Combines RSI, MACD, Bollinger, and volume for high-confidence signals when 3+ indicators align.",
+    indicators: ["RSI", "MACD", "BB", "Volume"],
+    book: "OpenBB Signals",
+    evaluate: (candles: OHLCV[]): StrategyResult => {
+      if (candles.length < 30) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
+      const closes = candles.map(c => c.close);
+      const volumes = candles.map(c => c.volume);
+      const last = closes.length - 1;
+
+      const rsiValues = rsi(closes, 14);
+      const macdData = macd(closes);
+      const bb = bollingerBands(closes, 20, 2);
+      const avgVol = volumes.slice(last - 10, last).reduce((a, b) => a + b, 0) / 10;
+
+      const rsiVal = rsiValues[last];
+      const macdVal = macdData.macdLine[last];
+      const macdSig = macdData.signalLine[last];
+      const bbLower = bb.lower[last];
+      const bbUpper = bb.upper[last];
+
+      if (!rsiVal || macdVal === null || macdSig === null || !bbLower || !bbUpper) {
+        return { signal: "NEUTRAL", strength: 0, details: "Insufficient data" };
+      }
+
+      let buyScore = 0;
+      let sellScore = 0;
+      const buyReasons: string[] = [];
+      const sellReasons: string[] = [];
+
+      // RSI
+      if (rsiVal < 35) { buyScore++; buyReasons.push(`RSI oversold(${rsiVal.toFixed(0)})`); }
+      if (rsiVal > 65) { sellScore++; sellReasons.push(`RSI overbought(${rsiVal.toFixed(0)})`); }
+
+      // MACD
+      if (macdVal > macdSig) { buyScore++; buyReasons.push("MACD bullish"); }
+      if (macdVal < macdSig) { sellScore++; sellReasons.push("MACD bearish"); }
+
+      // Bollinger
+      if (closes[last] < bbLower) { buyScore++; buyReasons.push("Below lower BB"); }
+      if (closes[last] > bbUpper) { sellScore++; sellReasons.push("Above upper BB"); }
+
+      // Volume
+      if (volumes[last] > avgVol * 1.5 && closes[last] > closes[last - 1]) { buyScore++; buyReasons.push("Volume surge"); }
+      if (volumes[last] > avgVol * 1.5 && closes[last] < closes[last - 1]) { sellScore++; sellReasons.push("Sell volume"); }
+
+      if (buyScore >= 3) {
+        return { signal: "BUY", strength: Math.min(95, 65 + buyScore * 10), details: `HIGH CONFLUENCE BUY (${buyScore}/4): ${buyReasons.join(" + ")}` };
+      }
+      if (sellScore >= 3) {
+        return { signal: "SELL", strength: Math.min(95, 65 + sellScore * 10), details: `HIGH CONFLUENCE SELL (${sellScore}/4): ${sellReasons.join(" + ")}` };
+      }
+      if (buyScore >= 2) {
+        return { signal: "BUY", strength: 55 + buyScore * 5, details: `Moderate confluence (${buyScore}/4): ${buyReasons.join(" + ")}` };
+      }
+      if (sellScore >= 2) {
+        return { signal: "SELL", strength: 55 + sellScore * 5, details: `Moderate sell confluence (${sellScore}/4): ${sellReasons.join(" + ")}` };
+      }
+      return { signal: "NEUTRAL", strength: 0, details: `Buy signals: ${buyScore}/4, Sell signals: ${sellScore}/4. No strong confluence.` };
+    },
+  },
+  {
+    id: "volatility-breakout",
+    name: "Volatility Squeeze Breakout",
+    chapter: "OB15",
+    category: "Advanced",
+    description: "BB width contracts (squeeze), then expands with direction. Low volatility precedes big moves.",
+    indicators: ["BB Width", "ATR", "Volume"],
+    book: "OpenBB Signals",
+    evaluate: (candles: OHLCV[]): StrategyResult => {
+      if (candles.length < 25) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
+      const closes = candles.map(c => c.close);
+      const volumes = candles.map(c => c.volume);
+      const last = closes.length - 1;
+      const bb = bollingerBands(closes, 20, 2);
+
+      // Calculate BB width
+      const widths: number[] = [];
+      for (let i = 0; i < closes.length; i++) {
+        if (bb.upper[i] !== null && bb.lower[i] !== null && bb.middle[i] !== null && bb.middle[i]! > 0) {
+          widths.push((bb.upper[i]! - bb.lower[i]!) / bb.middle[i]!);
+        } else { widths.push(0); }
+      }
+
+      const currentWidth = widths[last];
+      const avgWidth = widths.slice(last - 20, last).reduce((a, b) => a + b, 0) / 20;
+      const minWidth = Math.min(...widths.slice(last - 20, last).filter(w => w > 0));
+      const isSqueeze = currentWidth <= minWidth * 1.1;
+      const isExpanding = currentWidth > widths[last - 1] && widths[last - 1] < widths[last - 2];
+      const avgVol = volumes.slice(last - 10, last).reduce((a, b) => a + b, 0) / 10;
+      const volSurge = volumes[last] > avgVol * 1.3;
+
+      if (isExpanding && volSurge && closes[last] > closes[last - 1]) {
+        return { signal: "BUY", strength: Math.min(85, Math.round(70 + (volumes[last] / avgVol) * 5)), details: `Volatility breakout UP: BB expanding from squeeze, volume surge ${(volumes[last] / avgVol).toFixed(1)}x. Directional move starting.` };
+      }
+      if (isExpanding && volSurge && closes[last] < closes[last - 1]) {
+        return { signal: "SELL", strength: Math.min(85, Math.round(70 + (volumes[last] / avgVol) * 5)), details: `Volatility breakdown: BB expanding from squeeze, selling volume ${(volumes[last] / avgVol).toFixed(1)}x.` };
+      }
+      if (isSqueeze) {
+        return { signal: "NEUTRAL", strength: 30, details: `Volatility SQUEEZE: BB width at ${(currentWidth * 100).toFixed(2)}% (minimum). Big move imminent. Watch for direction.` };
+      }
+      return { signal: "NEUTRAL", strength: 0, details: `BB width: ${(currentWidth * 100).toFixed(2)}% (avg: ${(avgWidth * 100).toFixed(2)}%). Normal volatility.` };
+    },
+  },
+  {
+    id: "rsi-macd-divergence",
+    name: "RSI-MACD Divergence",
+    chapter: "OB16",
+    category: "Advanced",
+    description: "When price makes new low but RSI/MACD don't = bullish divergence (strong buy). Opposite for bearish.",
+    indicators: ["RSI (14)", "MACD", "Price"],
+    book: "OpenBB Signals",
+    evaluate: (candles: OHLCV[]): StrategyResult => {
+      if (candles.length < 30) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
+      const closes = candles.map(c => c.close);
+      const last = closes.length - 1;
+      const rsiValues = rsi(closes, 14);
+      const macdData = macd(closes);
+
+      // Look for divergence over last 10 bars
+      const lookback = 10;
+      const priceMin1 = Math.min(...closes.slice(last - lookback, last - lookback / 2));
+      const priceMin2 = Math.min(...closes.slice(last - lookback / 2, last + 1));
+      const priceMax1 = Math.max(...closes.slice(last - lookback, last - lookback / 2));
+      const priceMax2 = Math.max(...closes.slice(last - lookback / 2, last + 1));
+
+      const rsiFiltered = rsiValues.slice(last - lookback, last + 1).filter(v => v !== null) as number[];
+      if (rsiFiltered.length < lookback) return { signal: "NEUTRAL", strength: 0, details: "Insufficient data" };
+      const rsiMin1 = Math.min(...rsiFiltered.slice(0, lookback / 2));
+      const rsiMin2 = Math.min(...rsiFiltered.slice(lookback / 2));
+      const rsiMax1 = Math.max(...rsiFiltered.slice(0, lookback / 2));
+      const rsiMax2 = Math.max(...rsiFiltered.slice(lookback / 2));
+
+      // Bullish divergence: price lower low, RSI higher low
+      if (priceMin2 < priceMin1 && rsiMin2 > rsiMin1 + 3) {
+        return { signal: "BUY", strength: Math.min(85, Math.round(70 + (rsiMin2 - rsiMin1) * 2)), details: `Bullish RSI divergence: Price made lower low but RSI made higher low (${rsiMin1.toFixed(0)}->${rsiMin2.toFixed(0)}). Reversal imminent.` };
+      }
+      // Bearish divergence: price higher high, RSI lower high
+      if (priceMax2 > priceMax1 && rsiMax2 < rsiMax1 - 3) {
+        return { signal: "SELL", strength: Math.min(85, Math.round(70 + (rsiMax1 - rsiMax2) * 2)), details: `Bearish RSI divergence: Price made higher high but RSI made lower high (${rsiMax1.toFixed(0)}->${rsiMax2.toFixed(0)}). Weakness building.` };
+      }
+      return { signal: "NEUTRAL", strength: 0, details: `No divergence detected. RSI=${rsiValues[last]?.toFixed(0) || "N/A"}.` };
+    },
+  },
+  {
+    id: "market-regime-detector",
+    name: "Market Regime Detector",
+    chapter: "OB17",
+    category: "Advanced",
+    description: "Identifies trending vs mean-reverting markets using ADX + ATR + moving average alignment.",
+    indicators: ["ADX", "ATR", "SMA (20,50)"],
+    book: "OpenBB Signals",
+    evaluate: (candles: OHLCV[]): StrategyResult => {
+      if (candles.length < 55) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
+      const highs = candles.map(c => c.high);
+      const lows = candles.map(c => c.low);
+      const closes = candles.map(c => c.close);
+      const last = closes.length - 1;
+
+      const { adx: adxValues } = adx(highs, lows, closes, 14);
+      const atrValues = atr(highs, lows, closes, 14);
+      const sma20 = sma(closes, 20);
+      const sma50 = sma(closes, 50);
+      const adxVal = adxValues[last];
+      const atrVal = atrValues[last];
+      const atrPrev = atrValues[last - 5];
+
+      if (adxVal === null || !atrVal || !atrPrev || !sma20[last] || !sma50[last]) {
+        return { signal: "NEUTRAL", strength: 0, details: "Insufficient data" };
+      }
+
+      const trending = adxVal > 25;
+      const volExpanding = atrVal > atrPrev;
+      const bullishAlignment = sma20[last]! > sma50[last]! && closes[last] > sma20[last]!;
+      const bearishAlignment = sma20[last]! < sma50[last]! && closes[last] < sma20[last]!;
+
+      if (trending && bullishAlignment && volExpanding) {
+        return { signal: "BUY", strength: Math.min(85, Math.round(65 + adxVal)), details: `TRENDING BULL regime: ADX=${adxVal.toFixed(0)}, MAs aligned bullish, volatility expanding. Ride the trend.` };
+      }
+      if (trending && bearishAlignment) {
+        return { signal: "SELL", strength: Math.min(85, Math.round(65 + adxVal)), details: `TRENDING BEAR regime: ADX=${adxVal.toFixed(0)}, MAs aligned bearish. Stay short/out.` };
+      }
+      if (!trending && closes[last] < sma20[last]! && closes[last] > sma50[last]!) {
+        return { signal: "BUY", strength: 55, details: `Range-bound regime (ADX=${adxVal.toFixed(0)}): Price between 20/50 SMA. Mean reversion buy near support.` };
+      }
+      return { signal: "NEUTRAL", strength: 0, details: `Regime: ${trending ? "Trending" : "Range-bound"} (ADX=${adxVal.toFixed(0)}). ${bullishAlignment ? "Bullish" : bearishAlignment ? "Bearish" : "Mixed"} alignment.` };
     },
   },
 ];

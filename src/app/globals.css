@@ -1,9 +1,85 @@
 @import "tailwindcss";
 
-:root {
+/* ── Dark theme (default) ── */
+:root,
+[data-theme="dark"] {
   --background: #0a0a0f;
   --foreground: #e8e8f0;
+  --surface: rgba(255,255,255,0.02);
+  --surface-hover: rgba(255,255,255,0.04);
+  --border: rgba(255,255,255,0.05);
+  --border-hover: rgba(255,255,255,0.10);
+  --text-primary: #ffffff;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7280;
+  --header-bg: rgba(10,10,15,0.80);
+  --scrollbar-track: #12121a;
+  --scrollbar-thumb: #2a2a3e;
+  --skeleton-from: #1a1a2e;
+  --skeleton-mid: #222240;
+  --input-bg: rgba(255,255,255,0.05);
+  --badge-bg: rgba(255,255,255,0.05);
+  color-scheme: dark;
 }
+
+/* ── Light theme ── */
+[data-theme="light"] {
+  --background: #f8f9fc;
+  --foreground: #1a1a2e;
+  --surface: rgba(0,0,0,0.02);
+  --surface-hover: rgba(0,0,0,0.04);
+  --border: rgba(0,0,0,0.08);
+  --border-hover: rgba(0,0,0,0.15);
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+  --text-muted: #9ca3af;
+  --header-bg: rgba(248,249,252,0.85);
+  --scrollbar-track: #e5e7eb;
+  --scrollbar-thumb: #c4c8d0;
+  --skeleton-from: #e5e7eb;
+  --skeleton-mid: #d1d5db;
+  --input-bg: rgba(0,0,0,0.04);
+  --badge-bg: rgba(0,0,0,0.05);
+  color-scheme: light;
+}
+
+/* ── Light mode overrides for Tailwind opacity-based colors ── */
+[data-theme="light"] .bg-white\/\[0\.02\],
+[data-theme="light"] .bg-white\/\[0\.01\],
+[data-theme="light"] .bg-white\/\[0\.03\] {
+  background: rgba(0,0,0,0.02);
+}
+[data-theme="light"] .bg-white\/5 { background: rgba(0,0,0,0.04); }
+[data-theme="light"] .bg-white\/10 { background: rgba(0,0,0,0.06); }
+[data-theme="light"] .border-white\/5 { border-color: rgba(0,0,0,0.08); }
+[data-theme="light"] .border-white\/10 { border-color: rgba(0,0,0,0.12); }
+[data-theme="light"] .border-white\/\[0\.03\] { border-color: rgba(0,0,0,0.06); }
+[data-theme="light"] .hover\:bg-white\/\[0\.01\]:hover,
+[data-theme="light"] .hover\:bg-white\/\[0\.02\]:hover,
+[data-theme="light"] .hover\:bg-white\/\[0\.03\]:hover { background: rgba(0,0,0,0.04); }
+[data-theme="light"] .hover\:bg-white\/\[0\.04\]:hover { background: rgba(0,0,0,0.05); }
+[data-theme="light"] .hover\:bg-white\/10:hover { background: rgba(0,0,0,0.08); }
+[data-theme="light"] .hover\:border-white\/10:hover { border-color: rgba(0,0,0,0.15); }
+[data-theme="light"] .text-white { color: #111827; }
+[data-theme="light"] .text-gray-300 { color: #374151; }
+[data-theme="light"] .text-gray-400 { color: #4b5563; }
+[data-theme="light"] .text-gray-500 { color: #6b7280; }
+[data-theme="light"] .text-gray-600 { color: #9ca3af; }
+[data-theme="light"] .placeholder\:text-gray-600::placeholder { color: #9ca3af; }
+[data-theme="light"] .bg-\[\#0a0a0f\] { background: #f8f9fc; }
+[data-theme="light"] .bg-\[rgb\(10\,10\,15\)\] { background: #f8f9fc; }
+[data-theme="light"] .backdrop-blur-xl { backdrop-filter: blur(16px); }
+
+/* Light mode special surfaces */
+[data-theme="light"] .bg-gradient-to-r.from-emerald-600.to-blue-600 { box-shadow: 0 2px 8px rgba(16,185,129,0.2); }
+[data-theme="light"] .bg-gradient-to-r.from-amber-600.to-red-600 { box-shadow: 0 2px 8px rgba(245,158,11,0.2); }
+
+/* Light mode scrollbar */
+[data-theme="light"] ::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+[data-theme="light"] ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); }
+
+/* Light mode select dropdown */
+[data-theme="light"] option.bg-\[\#0a0a0f\] { background: #ffffff; color: #374151; }
 
 @theme inline {
   --color-background: var(--background);
@@ -19,6 +95,7 @@
 body {
   background: var(--background);
   color: var(--foreground);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 ::-webkit-scrollbar {
@@ -26,10 +103,10 @@ body {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #12121a;
+  background: var(--scrollbar-track);
 }
 ::-webkit-scrollbar-thumb {
-  background: #2a2a3e;
+  background: var(--scrollbar-thumb);
   border-radius: 3px;
 }
 
@@ -39,7 +116,7 @@ body {
 }
 
 .skeleton {
-  background: linear-gradient(90deg, #1a1a2e 25%, #222240 50%, #1a1a2e 75%);
+  background: linear-gradient(90deg, var(--skeleton-from) 25%, var(--skeleton-mid) 50%, var(--skeleton-from) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
   border-radius: 6px;
