@@ -68,21 +68,25 @@ export default function MarketChart({ market = "IN" }: { market?: "IN" | "US" })
 
   return (
     <div className="space-y-4">
-      {/* Index selector tabs */}
-      <div className="flex items-center gap-3">
-        {data.map((d, i) => (
-          <button key={d.symbol} onClick={() => setActiveIndex(i)}
-            className={`flex items-center gap-3 px-5 py-3 rounded-xl border transition-all ${activeIndex === i ? "bg-white/[0.05] border-white/15 shadow-lg" : "bg-white/[0.02] border-white/5 hover:bg-white/[0.04]"}`}>
-            <div>
-              <div className="text-sm font-bold">{d.name}</div>
-              <div className="text-lg font-bold font-mono">{fmt(d.currentPrice)}</div>
-            </div>
-            <div className={`text-right text-sm font-mono ${d.changePct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-              {d.changePct >= 0 ? "+" : ""}{d.changePct.toFixed(2)}%
-              <div className="text-xs">{d.changePct >= 0 ? "+" : ""}{d.change.toFixed(2)}</div>
-            </div>
-          </button>
-        ))}
+      {/* Index selector tabs — horizontally scrollable on mobile */}
+      <div className="-mx-4 sm:mx-0 overflow-x-auto scrollbar-thin">
+        <div className="flex items-center gap-3 px-4 sm:px-0 pb-1 snap-x snap-mandatory" role="tablist" aria-label="Market index">
+          {data.map((d, i) => (
+            <button key={d.symbol} onClick={() => setActiveIndex(i)}
+              role="tab"
+              aria-selected={activeIndex === i}
+              className={`flex items-center gap-3 px-4 sm:px-5 py-3 rounded-xl border transition-all flex-shrink-0 snap-start ${activeIndex === i ? "bg-white/[0.05] border-white/15 shadow-lg" : "bg-white/[0.02] border-white/5 hover:bg-white/[0.04]"}`}>
+              <div className="text-left">
+                <div className="text-sm font-bold whitespace-nowrap">{d.name}</div>
+                <div className="text-lg font-bold font-mono whitespace-nowrap">{fmt(d.currentPrice)}</div>
+              </div>
+              <div className={`text-right text-sm font-mono ${d.changePct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                {d.changePct >= 0 ? "+" : ""}{d.changePct.toFixed(2)}%
+                <div className="text-xs whitespace-nowrap">{d.changePct >= 0 ? "+" : ""}{d.change.toFixed(2)}</div>
+              </div>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Stats bar */}
