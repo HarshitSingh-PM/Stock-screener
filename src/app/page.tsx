@@ -482,6 +482,18 @@ function formatNumber(n: number, market: "IN" | "US" = "IN"): string {
   return n.toFixed(2);
 }
 
+// Fire a GA4 custom event. No-op when gtag isn't loaded (NEXT_PUBLIC_GA_ID unset).
+type GtagParams = Record<string, string | number | boolean | undefined>;
+declare global {
+  interface Window {
+    gtag?: (command: "event", eventName: string, params?: GtagParams) => void;
+  }
+}
+function track(eventName: string, params?: GtagParams): void {
+  if (typeof window === "undefined") return;
+  try { window.gtag?.("event", eventName, params); } catch { /* ignore */ }
+}
+
 function SignalBadge({ signal, strength }: { signal: string; strength: number }) {
   const config: Record<string, string> = {
     BUY: "bg-emerald-500/20 text-emerald-400 border-emerald-500/40",
@@ -581,6 +593,7 @@ export default function Home() {
   }, []);
   const switchMarket = useCallback((next: Market) => {
     if (next === market) return;
+    track("market_toggle", { from: market, to: next });
     setMarket(next);
     localStorage.setItem("strategyScreenerMarket", next);
     // Clear cached market-specific data so tabs refetch
@@ -827,6 +840,7 @@ export default function Home() {
   }, [market]);
 
   const runBotNow = useCallback(async () => {
+    track("bot_run_manual", { market });
     setBotRunning(true);
     try {
       await fetch(`/api/bot/run?market=${market}`, { method: "POST" });
@@ -846,6 +860,7 @@ export default function Home() {
   }, [market, loadBot]);
 
   const loadEtfs = useCallback(async () => {
+    track("etf_scan", { market });
     setEtfLoading(true);
     try {
       const res = await fetch(`/api/etfs?market=${market}`);
@@ -866,6 +881,7 @@ export default function Home() {
   }, [market]);
 
   const handleSelectStrategy = (s: StrategyInfo) => {
+    track("strategy_view", { strategy_id: s.id, strategy_name: s.name, book: s.book, category: s.category });
     setSelectedStrategy(s);
     setResults([]);
     setSignalFilter("ALL");
@@ -979,13 +995,13 @@ export default function Home() {
                 </p>
                 <div className="flex flex-wrap items-center justify-center gap-3 mb-10">
                   <button
-                    onClick={() => setActiveTab("market")}
+                    onClick={() => { track("cta_click", { label: "launch_screener", location: "hero" }); setActiveTab("market"); }}
                     className="px-6 py-3 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-black font-bold text-sm shadow-lg shadow-amber-500/20 transition-all"
                   >
                     Launch the Screener →
                   </button>
                   <button
-                    onClick={() => setActiveTab("bot")}
+                    onClick={() => { track("cta_click", { label: "see_bot", location: "hero" }); setActiveTab("bot"); }}
                     className="px-6 py-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-semibold text-sm transition-all"
                   >
                     See the Bot in Action
@@ -1260,7 +1276,7 @@ export default function Home() {
                 No account. No credit card. Just open the screener and pick a market.
               </p>
               <button
-                onClick={() => setActiveTab("market")}
+                onClick={() => { track("cta_click", { label: "launch_juicedtrade", location: "footer_cta" }); setActiveTab("market"); }}
                 className="px-8 py-4 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-black font-bold text-base shadow-lg shadow-amber-500/20 transition-all"
               >
                 Launch JuicedTrade →
