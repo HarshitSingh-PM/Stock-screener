@@ -164,6 +164,7 @@ interface PortfolioHolding {
   buyPrice: number;
   quantity: number;
   addedAt: string; // ISO date
+  market: "IN" | "US"; // currency + universe for THIS holding (per-stock, not global)
 }
 
 interface PortfolioLevels {
@@ -192,6 +193,7 @@ interface PortfolioSignalSummary {
 
 interface PortfolioStockData {
   symbol: string;
+  market: "IN" | "US";
   quote: {
     symbol: string; name: string; price: number; change: number; changePercent: number;
     volume: number; marketCap: number; high52w: number; low52w: number; pe: number | null;
@@ -606,7 +608,8 @@ export default function Home() {
     setScanResults([]);
     setMasterResults([]);
     setSignalsData(null);
-    setPortfolioData([]);
+    // Portfolio holdings + their live data span both markets, so we keep
+    // them across market toggles and let each holding render in its own currency.
     setInsiderData({ holders: [], deals: [], bulkDeals: [] });
     setStockDetail(null);
     setChartStock(null);
@@ -629,6 +632,16 @@ export default function Home() {
       maximumFractionDigits: decimals,
     })}`, [currencySymbol, market]);
   const universeLabel = market === "US" ? "S&P 500" : "NSE";
+
+  // Per-market currency helpers — used by Portfolio so each holding renders in
+  // its own native currency regardless of the globally-active market.
+  const currencyFor = (m: "IN" | "US") => (m === "US" ? "$" : "₹");
+  const fmtPriceFor = (v: number, m: "IN" | "US", decimals = 2) =>
+    `${currencyFor(m)}${v.toLocaleString(m === "US" ? "en-US" : "en-IN", {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    })}`;
+  const flagFor = (m: "IN" | "US") => (m === "US" ? "🇺🇸" : "🇮🇳");
 
   // Learn
   const [learnTab, setLearnTab] = useState<"indicators" | "concepts" | "strategies">("indicators");
@@ -659,6 +672,11 @@ export default function Home() {
   const [addSymbol, setAddSymbol] = useState("");
   const [addBuyPrice, setAddBuyPrice] = useState("");
   const [addQuantity, setAddQuantity] = useState("1");
+  // Market chosen for the next "Add Stock" click; defaults to the globally-active
+  // market so the form always reflects the user's current toggle, but they can
+  // override per-stock if they want to add a US ticker while browsing IN, etc.
+  const [addMarket, setAddMarket] = useState<"IN" | "US">("IN");
+  useEffect(() => { setAddMarket(market); }, [market]);
   const [expandedPortfolio, setExpandedPortfolio] = useState<string | null>(null);
   const [portfolioChartStock, setPortfolioChartStock] = useState<string | null>(null);
 
@@ -768,11 +786,18 @@ export default function Home() {
     setMasterScanning(false);
   }, [market]);
 
-  // Load portfolio from localStorage on mount
+  // Load portfolio from localStorage on mount. Back-compat: holdings saved
+  // before the per-market field existed get tagged as IN (the original universe).
   useEffect(() => {
     try {
       const saved = localStorage.getItem("strategyScreenerPortfolio");
-      if (saved) setPortfolio(JSON.parse(saved));
+      if (!saved) return;
+      const parsed = JSON.parse(saved) as PortfolioHolding[];
+      const migrated = parsed.map((p) => ({
+        ...p,
+        market: (p.market === "US" || p.market === "IN" ? p.market : "IN") as "IN" | "US",
+      }));
+      setPortfolio(migrated);
     } catch { /* ignore */ }
   }, []);
 
@@ -788,18 +813,20 @@ export default function Home() {
     const price = parseFloat(addBuyPrice);
     const qty = parseInt(addQuantity) || 1;
     if (!sym || isNaN(price) || price <= 0) return;
-    if (portfolio.some(p => p.symbol === sym)) return; // Already exists
-    const updated = [...portfolio, { symbol: sym, buyPrice: price, quantity: qty, addedAt: new Date().toISOString() }];
+    // Allow the same symbol across markets (e.g. some tickers exist on both),
+    // but disallow duplicates within the same market.
+    if (portfolio.some(p => p.symbol === sym && p.market === addMarket)) return;
+    const updated = [...portfolio, { symbol: sym, buyPrice: price, quantity: qty, addedAt: new Date().toISOString(), market: addMarket }];
     setPortfolio(updated);
     setAddSymbol("");
     setAddBuyPrice("");
     setAddQuantity("1");
-  }, [addSymbol, addBuyPrice, addQuantity, portfolio]);
+  }, [addSymbol, addBuyPrice, addQuantity, addMarket, portfolio]);
 
-  const removeFromPortfolio = useCallback((symbol: string) => {
-    const updated = portfolio.filter(p => p.symbol !== symbol);
+  const removeFromPortfolio = useCallback((symbol: string, mkt: "IN" | "US") => {
+    const updated = portfolio.filter(p => !(p.symbol === symbol && p.market === mkt));
     setPortfolio(updated);
-    setPortfolioData(prev => prev.filter(p => p.symbol !== symbol));
+    setPortfolioData(prev => prev.filter(p => !(p.symbol === symbol && p.market === mkt)));
     if (updated.length === 0) localStorage.removeItem("strategyScreenerPortfolio");
   }, [portfolio]);
 
@@ -807,15 +834,25 @@ export default function Home() {
     if (portfolio.length === 0) return;
     setPortfolioLoading(true);
     try {
-      const symbols = portfolio.map(p => p.symbol).join(",");
-      const res = await fetch(`/api/portfolio?symbols=${symbols}&market=${market}`);
-      if (res.ok) {
+      // Group holdings by their own market and fire one request per market.
+      // /api/portfolio applies the market's Yahoo symbol suffix, so IN and US
+      // holdings cannot be batched into a single call.
+      const groups = ([
+        { market: "IN" as const, symbols: portfolio.filter(p => p.market === "IN").map(p => p.symbol) },
+        { market: "US" as const, symbols: portfolio.filter(p => p.market === "US").map(p => p.symbol) },
+      ]).filter((g) => g.symbols.length > 0);
+
+      const results = await Promise.all(groups.map(async (g) => {
+        const res = await fetch(`/api/portfolio?symbols=${g.symbols.join(",")}&market=${g.market}`);
+        if (!res.ok) return [] as PortfolioStockData[];
         const data = await res.json();
-        setPortfolioData(data.stocks);
-      }
+        // Stamp each stock with its native market so the UI renders currency correctly.
+        return (data.stocks as PortfolioStockData[]).map((s) => ({ ...s, market: g.market }));
+      }));
+      setPortfolioData(results.flat());
     } catch { /* ignore */ }
     setPortfolioLoading(false);
-  }, [portfolio, market]);
+  }, [portfolio]);
 
   const loadGlobal = useCallback(async () => {
     setGlobalLoading(true);
@@ -1841,15 +1878,31 @@ export default function Home() {
             {/* Add Stock Form */}
             <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4 mb-6">
               <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Add Stock to Portfolio</div>
-              <div className="flex items-end gap-3">
-                <div className="flex-1">
+              <div className="flex items-end gap-3 flex-wrap">
+                <div>
+                  <label className="text-[10px] text-gray-500 uppercase tracking-wider mb-1 block">Market</label>
+                  <div className="flex bg-white/5 border border-white/10 rounded-lg p-0.5" role="group" aria-label="Holding market">
+                    {(["IN", "US"] as const).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setAddMarket(m)}
+                        className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all ${addMarket === m ? "bg-white/10 text-white" : "text-gray-400 hover:text-white"}`}
+                        aria-pressed={addMarket === m}
+                      >
+                        <span className="mr-1">{flagFor(m)}</span>{m}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex-1 min-w-[160px]">
                   <label className="text-[10px] text-gray-500 uppercase tracking-wider mb-1 block">Symbol</label>
                   <input
                     type="text"
                     value={addSymbol}
                     onChange={(e) => setAddSymbol(e.target.value.toUpperCase())}
                     onKeyDown={(e) => e.key === "Enter" && addToPortfolio()}
-                    placeholder="e.g. RELIANCE"
+                    placeholder={addMarket === "US" ? "e.g. AAPL" : "e.g. RELIANCE"}
                     className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:border-violet-500/50 transition-all placeholder:text-gray-600"
                   />
                 </div>
@@ -1860,7 +1913,7 @@ export default function Home() {
                     value={addBuyPrice}
                     onChange={(e) => setAddBuyPrice(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && addToPortfolio()}
-                    placeholder={`${currencySymbol}0.00`}
+                    placeholder={`${currencyFor(addMarket)}0.00`}
                     className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:border-violet-500/50 transition-all placeholder:text-gray-600 font-mono"
                   />
                 </div>
@@ -1884,8 +1937,8 @@ export default function Home() {
                   Add
                 </button>
               </div>
-              {portfolio.some(p => p.symbol === addSymbol.trim().toUpperCase()) && addSymbol.trim() && (
-                <div className="text-xs text-amber-400 mt-2">{addSymbol.trim().toUpperCase()} is already in your portfolio</div>
+              {portfolio.some(p => p.symbol === addSymbol.trim().toUpperCase() && p.market === addMarket) && addSymbol.trim() && (
+                <div className="text-xs text-amber-400 mt-2">{addSymbol.trim().toUpperCase()} is already in your {flagFor(addMarket)} {addMarket} portfolio</div>
               )}
             </div>
 
@@ -1905,53 +1958,68 @@ export default function Home() {
               </div>
             )}
 
-            {/* Portfolio Summary */}
+            {/* Portfolio Summary — split per market so we never add ₹ and $ together. */}
             {portfolioData.length > 0 && (() => {
-              const totalInvested = portfolio.reduce((sum, h) => {
-                return sum + h.buyPrice * h.quantity;
-              }, 0);
-              const totalCurrent = portfolio.reduce((sum, h) => {
-                const data = portfolioData.find(d => d.symbol === h.symbol);
-                return sum + (data ? data.quote.price * h.quantity : h.buyPrice * h.quantity);
-              }, 0);
-              const totalPnl = totalCurrent - totalInvested;
-              const totalPnlPercent = totalInvested > 0 ? (totalPnl / totalInvested) * 100 : 0;
-              const winners = portfolio.filter(h => {
-                const data = portfolioData.find(d => d.symbol === h.symbol);
-                return data && data.quote.price > h.buyPrice;
-              }).length;
-              const losers = portfolio.length - winners;
+              const summary = (mkt: "IN" | "US") => {
+                const items = portfolio.filter((h) => h.market === mkt);
+                if (items.length === 0) return null;
+                const totalInvested = items.reduce((sum, h) => sum + h.buyPrice * h.quantity, 0);
+                const totalCurrent = items.reduce((sum, h) => {
+                  const data = portfolioData.find(d => d.symbol === h.symbol && d.market === h.market);
+                  return sum + (data ? data.quote.price * h.quantity : h.buyPrice * h.quantity);
+                }, 0);
+                const totalPnl = totalCurrent - totalInvested;
+                const totalPnlPercent = totalInvested > 0 ? (totalPnl / totalInvested) * 100 : 0;
+                const winners = items.filter((h) => {
+                  const data = portfolioData.find(d => d.symbol === h.symbol && d.market === h.market);
+                  return data && data.quote.price > h.buyPrice;
+                }).length;
+                const losers = items.length - winners;
+                return { mkt, totalInvested, totalCurrent, totalPnl, totalPnlPercent, winners, losers };
+              };
+              const blocks = (["IN", "US"] as const).map(summary).filter((b): b is NonNullable<typeof b> => b !== null);
 
               return (
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
-                  <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4 text-center">
-                    <div className="text-2xl font-bold font-mono text-white">{currencySymbol}{formatNumber(totalInvested, market)}</div>
-                    <div className="text-[10px] text-gray-500 uppercase mt-1">Invested</div>
-                  </div>
-                  <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4 text-center">
-                    <div className="text-2xl font-bold font-mono text-white">{currencySymbol}{formatNumber(totalCurrent, market)}</div>
-                    <div className="text-[10px] text-gray-500 uppercase mt-1">Current Value</div>
-                  </div>
-                  <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4 text-center">
-                    <div className={`text-2xl font-bold font-mono ${totalPnl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                      {totalPnl >= 0 ? "+" : ""}{currencySymbol}{formatNumber(Math.abs(totalPnl), market)}
+                <div className="space-y-3 mb-6">
+                  {blocks.map((b) => (
+                    <div key={b.mkt}>
+                      {blocks.length > 1 && (
+                        <div className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold mb-2 flex items-center gap-1.5">
+                          <span>{flagFor(b.mkt)}</span> {b.mkt === "US" ? "US Holdings" : "India Holdings"}
+                        </div>
+                      )}
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                        <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4 text-center">
+                          <div className="text-2xl font-bold font-mono text-white">{currencyFor(b.mkt)}{formatNumber(b.totalInvested, b.mkt)}</div>
+                          <div className="text-[10px] text-gray-500 uppercase mt-1">Invested</div>
+                        </div>
+                        <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4 text-center">
+                          <div className="text-2xl font-bold font-mono text-white">{currencyFor(b.mkt)}{formatNumber(b.totalCurrent, b.mkt)}</div>
+                          <div className="text-[10px] text-gray-500 uppercase mt-1">Current Value</div>
+                        </div>
+                        <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4 text-center">
+                          <div className={`text-2xl font-bold font-mono ${b.totalPnl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                            {b.totalPnl >= 0 ? "+" : ""}{currencyFor(b.mkt)}{formatNumber(Math.abs(b.totalPnl), b.mkt)}
+                          </div>
+                          <div className="text-[10px] text-gray-500 uppercase mt-1">P&L</div>
+                        </div>
+                        <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4 text-center">
+                          <div className={`text-2xl font-bold font-mono ${b.totalPnlPercent >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                            {b.totalPnlPercent >= 0 ? "+" : ""}{b.totalPnlPercent.toFixed(2)}%
+                          </div>
+                          <div className="text-[10px] text-gray-500 uppercase mt-1">Return</div>
+                        </div>
+                        <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4 text-center">
+                          <div className="flex items-center justify-center gap-2">
+                            <span className="text-emerald-400 font-bold text-xl">{b.winners}</span>
+                            <span className="text-gray-500">/</span>
+                            <span className="text-red-400 font-bold text-xl">{b.losers}</span>
+                          </div>
+                          <div className="text-[10px] text-gray-500 uppercase mt-1">Win / Loss</div>
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-[10px] text-gray-500 uppercase mt-1">P&L</div>
-                  </div>
-                  <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4 text-center">
-                    <div className={`text-2xl font-bold font-mono ${totalPnlPercent >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                      {totalPnlPercent >= 0 ? "+" : ""}{totalPnlPercent.toFixed(2)}%
-                    </div>
-                    <div className="text-[10px] text-gray-500 uppercase mt-1">Return</div>
-                  </div>
-                  <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4 text-center">
-                    <div className="flex items-center justify-center gap-2">
-                      <span className="text-emerald-400 font-bold text-xl">{winners}</span>
-                      <span className="text-gray-500">/</span>
-                      <span className="text-red-400 font-bold text-xl">{losers}</span>
-                    </div>
-                    <div className="text-[10px] text-gray-500 uppercase mt-1">Win / Loss</div>
-                  </div>
+                  ))}
                 </div>
               );
             })()}
@@ -1960,28 +2028,35 @@ export default function Home() {
             {portfolio.length > 0 && (
               <div className="space-y-3">
                 {portfolio.map((holding) => {
-                  const data = portfolioData.find(d => d.symbol === holding.symbol);
+                  const data = portfolioData.find(d => d.symbol === holding.symbol && d.market === holding.market);
                   const pnl = data ? (data.quote.price - holding.buyPrice) * holding.quantity : 0;
                   const pnlPercent = data ? ((data.quote.price - holding.buyPrice) / holding.buyPrice) * 100 : 0;
-                  const isExpanded = expandedPortfolio === holding.symbol;
+                  const rowKey = `${holding.market}:${holding.symbol}`;
+                  const isExpanded = expandedPortfolio === rowKey;
+                  // Per-holding currency — renders ₹ for IN tickers and $ for US tickers
+                  // regardless of the globally-active market toggle.
+                  const ccy = currencyFor(holding.market);
 
                   return (
-                    <div key={holding.symbol} className={`bg-white/[0.02] border rounded-xl overflow-hidden transition-all ${
+                    <div key={rowKey} className={`bg-white/[0.02] border rounded-xl overflow-hidden transition-all ${
                       data ? (pnlPercent > 0 ? "border-emerald-500/15" : pnlPercent < 0 ? "border-red-500/15" : "border-white/5") : "border-white/5"
                     }`}>
                       {/* Header */}
                       <div
                         className="flex items-center justify-between p-4 cursor-pointer hover:bg-white/[0.01] transition-colors"
-                        onClick={() => setExpandedPortfolio(isExpanded ? null : holding.symbol)}
+                        onClick={() => setExpandedPortfolio(isExpanded ? null : rowKey)}
                       >
                         <div className="flex items-center gap-4">
                           <div>
-                            <div className="text-base font-bold">{holding.symbol}</div>
+                            <div className="text-base font-bold flex items-center gap-1.5">
+                              <span title={holding.market === "US" ? "US stock" : "India / NSE stock"} className="text-base leading-none">{flagFor(holding.market)}</span>
+                              {holding.symbol}
+                            </div>
                             <div className="text-xs text-gray-500">{data?.quote.name || "Loading..."}</div>
                           </div>
                           {data && (
                             <div className="text-right">
-                              <div className="text-sm font-mono font-semibold">{currencySymbol}{data.quote.price.toFixed(2)}</div>
+                              <div className="text-sm font-mono font-semibold">{ccy}{data.quote.price.toFixed(2)}</div>
                               <div className={`text-xs font-mono ${data.quote.changePercent >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                                 Today: {data.quote.changePercent >= 0 ? "+" : ""}{data.quote.changePercent.toFixed(2)}%
                               </div>
@@ -1991,10 +2066,10 @@ export default function Home() {
                         <div className="flex items-center gap-5">
                           {/* Buy Price & P&L */}
                           <div className="text-right">
-                            <div className="text-xs text-gray-500">Buy: <span className="font-mono text-gray-300">{currencySymbol}{holding.buyPrice.toFixed(2)}</span> x {holding.quantity}</div>
+                            <div className="text-xs text-gray-500">Buy: <span className="font-mono text-gray-300">{ccy}{holding.buyPrice.toFixed(2)}</span> x {holding.quantity}</div>
                             {data && (
                               <div className={`text-sm font-mono font-bold ${pnl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                                {pnl >= 0 ? "+" : ""}{currencySymbol}{Math.abs(pnl).toFixed(2)} ({pnlPercent >= 0 ? "+" : ""}{pnlPercent.toFixed(2)}%)
+                                {pnl >= 0 ? "+" : ""}{ccy}{Math.abs(pnl).toFixed(2)} ({pnlPercent >= 0 ? "+" : ""}{pnlPercent.toFixed(2)}%)
                               </div>
                             )}
                           </div>
@@ -2025,7 +2100,7 @@ export default function Home() {
                           )}
 
                           <button
-                            onClick={(e) => { e.stopPropagation(); removeFromPortfolio(holding.symbol); }}
+                            onClick={(e) => { e.stopPropagation(); removeFromPortfolio(holding.symbol, holding.market); }}
                             className="p-1.5 text-gray-600 hover:text-red-400 transition-colors rounded"
                             title="Remove"
                           >
@@ -2051,32 +2126,32 @@ export default function Home() {
                                 <div className="space-y-2">
                                   <div className="flex items-center justify-between">
                                     <span className="text-xs text-emerald-400">Target 3 (Extended)</span>
-                                    <span className="text-sm font-mono font-semibold text-emerald-400">{currencySymbol}{data.levels.targets.target3.toFixed(2)}</span>
+                                    <span className="text-sm font-mono font-semibold text-emerald-400">{ccy}{data.levels.targets.target3.toFixed(2)}</span>
                                     <span className="text-[10px] text-gray-500">+{((data.levels.targets.target3 - data.quote.price) / data.quote.price * 100).toFixed(1)}%</span>
                                   </div>
                                   <div className="flex items-center justify-between">
                                     <span className="text-xs text-emerald-400">Target 2 (Medium)</span>
-                                    <span className="text-sm font-mono font-semibold text-emerald-400">{currencySymbol}{data.levels.targets.target2.toFixed(2)}</span>
+                                    <span className="text-sm font-mono font-semibold text-emerald-400">{ccy}{data.levels.targets.target2.toFixed(2)}</span>
                                     <span className="text-[10px] text-gray-500">+{((data.levels.targets.target2 - data.quote.price) / data.quote.price * 100).toFixed(1)}%</span>
                                   </div>
                                   <div className="flex items-center justify-between">
                                     <span className="text-xs text-emerald-300">Target 1 (Near)</span>
-                                    <span className="text-sm font-mono font-semibold text-emerald-300">{currencySymbol}{data.levels.targets.target1.toFixed(2)}</span>
+                                    <span className="text-sm font-mono font-semibold text-emerald-300">{ccy}{data.levels.targets.target1.toFixed(2)}</span>
                                     <span className="text-[10px] text-gray-500">+{((data.levels.targets.target1 - data.quote.price) / data.quote.price * 100).toFixed(1)}%</span>
                                   </div>
                                   <div className="flex items-center justify-between py-1.5 border-y border-white/10">
                                     <span className="text-xs text-white font-semibold">Current Price</span>
-                                    <span className="text-sm font-mono font-bold text-white">{currencySymbol}{data.quote.price.toFixed(2)}</span>
+                                    <span className="text-sm font-mono font-bold text-white">{ccy}{data.quote.price.toFixed(2)}</span>
                                     <span className="text-[10px] text-gray-500">—</span>
                                   </div>
                                   <div className="flex items-center justify-between">
                                     <span className="text-xs text-amber-400">Buy Price</span>
-                                    <span className="text-sm font-mono font-semibold text-amber-400">{currencySymbol}{holding.buyPrice.toFixed(2)}</span>
+                                    <span className="text-sm font-mono font-semibold text-amber-400">{ccy}{holding.buyPrice.toFixed(2)}</span>
                                     <span className={`text-[10px] ${pnlPercent >= 0 ? "text-emerald-400" : "text-red-400"}`}>{pnlPercent >= 0 ? "+" : ""}{pnlPercent.toFixed(1)}%</span>
                                   </div>
                                   <div className="flex items-center justify-between">
                                     <span className="text-xs text-red-400 font-semibold">Stop Loss</span>
-                                    <span className="text-sm font-mono font-bold text-red-400">{currencySymbol}{data.levels.targets.stopLoss.toFixed(2)}</span>
+                                    <span className="text-sm font-mono font-bold text-red-400">{ccy}{data.levels.targets.stopLoss.toFixed(2)}</span>
                                     <span className="text-[10px] text-red-400">{((data.levels.targets.stopLoss - data.quote.price) / data.quote.price * 100).toFixed(1)}%</span>
                                   </div>
                                 </div>
@@ -2090,20 +2165,20 @@ export default function Home() {
                                     <div key={`r-${i}`} className="flex items-center justify-between">
                                       <span className="text-xs text-red-400/70">R{data.levels.resistance.length - i}</span>
                                       <div className="flex-1 mx-3 h-px bg-red-500/20" />
-                                      <span className="text-xs font-mono text-red-400">{currencySymbol}{r.toFixed(2)}</span>
+                                      <span className="text-xs font-mono text-red-400">{ccy}{r.toFixed(2)}</span>
                                       <span className="text-[10px] text-gray-500 w-14 text-right">+{((r - data.quote.price) / data.quote.price * 100).toFixed(1)}%</span>
                                     </div>
                                   ))}
                                   <div className="flex items-center justify-between py-1 bg-white/5 rounded px-2 -mx-1">
                                     <span className="text-xs text-white font-bold">CMP</span>
-                                    <span className="text-xs font-mono font-bold text-white">{currencySymbol}{data.quote.price.toFixed(2)}</span>
+                                    <span className="text-xs font-mono font-bold text-white">{ccy}{data.quote.price.toFixed(2)}</span>
                                     <span className="text-[10px] text-gray-500 w-14 text-right">—</span>
                                   </div>
                                   {data.levels.support.map((s, i) => (
                                     <div key={`s-${i}`} className="flex items-center justify-between">
                                       <span className="text-xs text-emerald-400/70">S{i + 1}</span>
                                       <div className="flex-1 mx-3 h-px bg-emerald-500/20" />
-                                      <span className="text-xs font-mono text-emerald-400">{currencySymbol}{s.toFixed(2)}</span>
+                                      <span className="text-xs font-mono text-emerald-400">{ccy}{s.toFixed(2)}</span>
                                       <span className="text-[10px] text-gray-500 w-14 text-right">{((s - data.quote.price) / data.quote.price * 100).toFixed(1)}%</span>
                                     </div>
                                   ))}
@@ -2149,7 +2224,7 @@ export default function Home() {
                                     return (
                                       <div key={f.label} className={`flex items-center justify-between px-2 py-1 rounded ${isNear ? "bg-yellow-500/10 border border-yellow-500/20" : ""}`}>
                                         <span className={`text-xs ${isNear ? "text-yellow-400 font-semibold" : "text-gray-400"}`}>Fib {f.label}</span>
-                                        <span className={`text-xs font-mono ${isNear ? "text-yellow-400 font-bold" : "text-gray-300"}`}>{currencySymbol}{f.value.toFixed(2)}</span>
+                                        <span className={`text-xs font-mono ${isNear ? "text-yellow-400 font-bold" : "text-gray-300"}`}>{ccy}{f.value.toFixed(2)}</span>
                                         <span className="text-[10px] text-gray-500">{f.value > data.quote.price ? "+" : ""}{((f.value - data.quote.price) / data.quote.price * 100).toFixed(1)}%</span>
                                       </div>
                                     );
@@ -2173,7 +2248,7 @@ export default function Home() {
                                     return (
                                       <div key={m.label} className="flex items-center justify-between">
                                         <span className="text-xs text-gray-400 w-16">{m.label}</span>
-                                        <span className="text-xs font-mono text-gray-300">{currencySymbol}{m.value!.toFixed(2)}</span>
+                                        <span className="text-xs font-mono text-gray-300">{ccy}{m.value!.toFixed(2)}</span>
                                         <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${above ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"}`}>
                                           {above ? "Above" : "Below"}
                                         </span>
@@ -2183,7 +2258,7 @@ export default function Home() {
                                   {data.levels.supertrendLevel !== null && (
                                     <div className="flex items-center justify-between pt-1.5 border-t border-white/5">
                                       <span className="text-xs text-gray-400 w-16">Supertrend</span>
-                                      <span className="text-xs font-mono text-gray-300">{currencySymbol}{data.levels.supertrendLevel.toFixed(2)}</span>
+                                      <span className="text-xs font-mono text-gray-300">{ccy}{data.levels.supertrendLevel.toFixed(2)}</span>
                                       <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${data.levels.supertrendDirection === 1 ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"}`}>
                                         {data.levels.supertrendDirection === 1 ? "BULLISH" : "BEARISH"}
                                       </span>
