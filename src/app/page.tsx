@@ -996,7 +996,7 @@ export default function Home() {
                   </span>
                 </h1>
                 <p className="text-base sm:text-lg text-gray-400 max-w-2xl mx-auto leading-relaxed mb-8">
-                  <strong className="text-gray-200">JuicedTrade Stock Screener</strong> evaluates every NSE-listed Indian stock and the entire S&amp;P 500 against 100 strategies adapted from bestselling trading literature — every single day. Get buy/sell signals, run backtests, screen ETFs by theme, and watch an autonomous bot trade the signals in real time.
+                  <strong className="text-gray-200">JuicedTrade Stock Screener</strong> evaluates every NSE-listed Indian stock and the entire S&amp;P 500 against 100 strategies adapted from bestselling trading literature — every trading day. Get buy and sell signals, run backtests, screen ETFs by theme, and watch an autonomous bot trade those signals in real time.
                 </p>
                 <div className="flex flex-wrap items-center justify-center gap-3 mb-10">
                   <button
@@ -1029,7 +1029,7 @@ export default function Home() {
                   Strategies adapted from bestselling trading literature
                 </h2>
                 <p className="text-sm text-gray-400 max-w-2xl mx-auto leading-relaxed">
-                  Swing · Intraday · Positional · Scalping · Options · Price Action · Candlestick Patterns · Value Investing · Trend Following · Index Investing — 100 strategies across <strong className="text-gray-200">11 categories</strong>, every stock evaluated daily.
+                  Swing · Intraday · Advanced · Positional · Scalping · Options · Price Action · Candlestick Patterns · Value Investing · Trend Following · Index Investing — 100 strategies across <strong className="text-gray-200">11 categories</strong>, every stock evaluated daily.
                 </p>
               </div>
             </section>
@@ -1049,7 +1049,7 @@ export default function Home() {
                   {
                     icon: "📊",
                     title: "100-Strategy Screener",
-                    body: "Every stock evaluated against 100 named strategies daily. Filter by book, category, or signal. See exactly which strategies agree.",
+                    body: "Every stock evaluated against 100 named strategies daily. Filter by source, category, or signal. See exactly which strategies agree.",
                     cta: "strategies" as const,
                   },
                   {
@@ -1061,7 +1061,7 @@ export default function Home() {
                   {
                     icon: "🎯",
                     title: "Multi-Strategy Scan",
-                    body: "Surface stocks where 2+ strategies agree on a BUY signal. Ranked by confluence — find the highest-conviction setups in seconds.",
+                    body: "Surfaces stocks where 2 or more strategies agree on a BUY signal. Ranked by confluence — find the highest-conviction setups in seconds.",
                     cta: "scan" as const,
                   },
                   {
@@ -1181,7 +1181,7 @@ export default function Home() {
                   </thead>
                   <tbody className="text-gray-300">
                     {[
-                      { f: "Pre-built named strategies", j: `${STRATEGIES.length} from 6 books`, c: "User-built", s: "User-built", t: "Pine Script" },
+                      { f: "Pre-built named strategies", j: `${STRATEGIES.length} included`, c: "User-built", s: "User-built", t: "Pine Script" },
                       { f: "Multi-strategy confluence", j: "Yes — ranked", c: "Single condition", s: "—", t: "—" },
                       { f: "NSE + S&P 500 in one toggle", j: "Yes", c: "NSE only", s: "NSE only", t: "Yes (paid)" },
                       { f: "Autonomous paper bot", j: "Built-in", c: "—", s: "—", t: "—" },
@@ -1218,7 +1218,7 @@ export default function Home() {
                   {[
                     {
                       q: "What is JuicedTrade?",
-                      a: "JuicedTrade is a free stock screener for Indian (NSE) and US (S&P 500) markets. It evaluates every stock against 100 trading strategies — drawn from six classic books plus OpenBB signal concepts — and gives daily buy / sell / neutral signals.",
+                      a: "JuicedTrade is a free stock screener for Indian (NSE) and US (S&P 500) markets. It evaluates every stock against 100 trading strategies — adapted from bestselling trading literature and open-source technical signal concepts — and produces daily buy, sell, and neutral signals.",
                     },
                     {
                       q: "Is it really free?",
@@ -1300,8 +1300,8 @@ export default function Home() {
               <h2 className="text-xl font-bold">Market Overview</h2>
               <p className="text-sm text-gray-500 mt-1">
                 {market === "US"
-                  ? "S&P 500, Dow & Nasdaq with key levels, targets, supports and resistances"
-                  : "Sensex & Nifty 50 with key levels, targets, supports and resistances"}
+                  ? "S&P 500, Dow, and Nasdaq with key levels, targets, and support/resistance zones"
+                  : "Sensex and Nifty 50 with key levels, targets, and support/resistance zones"}
               </p>
             </div>
             <MarketChart market={market} />
@@ -1314,7 +1314,7 @@ export default function Home() {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-xl font-bold">Global Market Cues</h2>
-                <p className="text-sm text-gray-500 mt-1">How world markets impact Indian equities — prediction based on 20+ global indicators</p>
+                <p className="text-sm text-gray-500 mt-1">How world markets are influencing today&apos;s India and US sessions — predictions derived from 20+ global indicators.</p>
               </div>
               <button
                 onClick={loadGlobal}
@@ -1616,7 +1616,7 @@ export default function Home() {
                   <svg className="w-8 h-8 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                 </div>
                 <h3 className="text-lg font-semibold mb-1">Global Market Cues</h3>
-                <p className="text-sm text-gray-500 max-w-md">Click &quot;Refresh Global Data&quot; to see how S&amp;P 500, Nasdaq, Nikkei, Crude Oil, USD/INR and 15+ global indicators predict today&apos;s Indian market direction.</p>
+                <p className="text-sm text-gray-500 max-w-md">Click &quot;Refresh Global Data&quot; to see how the S&amp;P 500, Nasdaq, Nikkei, crude oil, USD/INR, and 15+ other global indicators are shaping today&apos;s India and US sessions.</p>
               </div>
             )}
           </div>
@@ -2298,7 +2298,7 @@ export default function Home() {
                   <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">LIVE · AUTONOMOUS</span>
                 </h2>
                 <p className="text-sm text-gray-500 mt-1.5 leading-relaxed">
-                  A real strategy-driven portfolio trading itself every day on the same signals you see in the screener. <strong className="text-gray-300">This is a showcase</strong> — you can&apos;t place trades, you can only watch how the strategy library performs over time. The bot runs automatically after each market closes (<span className="text-gray-400">India: 4:00 PM IST · US: 6:00 PM ET</span>), ranks every {market === "US" ? "S&P 500" : "large/mid-cap NSE"} stock by BUY confluence, and rotates the weakest holding out when a stronger candidate emerges. Max 5 positions, equal-weight from cash. Starting capital: <span className="text-gray-300 font-mono">{market === "US" ? "$5,000" : "₹10,00,000"}</span>.
+                  A strategy-driven portfolio that trades itself every day, using the same signals you see in the screener. <strong className="text-gray-300">This is a showcase</strong> — you cannot place trades here; you can only watch how the strategy library performs over time. The bot runs automatically after each market closes (<span className="text-gray-400">India: 4:00 PM IST · US: 6:00 PM ET</span>), ranks every {market === "US" ? "S&P 500" : "large- and mid-cap NSE"} stock by BUY confluence, and rotates the weakest holding out when a stronger candidate appears. Max 5 positions, equal-weighted from available cash. Starting capital: <span className="text-gray-300 font-mono">{market === "US" ? "$5,000" : "₹10,00,000"}</span>.
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -2826,7 +2826,7 @@ export default function Home() {
                 <div>
                   <h2 className="text-xl font-bold">ETF Screener</h2>
                   <p className="text-sm text-gray-500 mt-1">
-                    {market === "US" ? "US-listed ETFs" : "NSE-listed ETFs"} grouped by theme. Each ETF is scored across trend, momentum, MACD and {STRATEGIES.length}-strategy confluence to produce a buy/hold/sell call.
+                    {market === "US" ? "US-listed ETFs" : "NSE-listed ETFs"} grouped by theme. Each ETF is scored across trend, momentum, MACD, and {STRATEGIES.length}-strategy confluence to produce a buy, hold, or sell call.
                   </p>
                 </div>
                 <button
@@ -2873,7 +2873,7 @@ export default function Home() {
                     <svg className="w-8 h-8 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 13h2l3 8 4-16 3 8h6" /></svg>
                   </div>
                   <h3 className="text-lg font-semibold mb-1">ETF Screener</h3>
-                  <p className="text-sm text-gray-500 max-w-md">Click &quot;Scan ETFs&quot; to evaluate every {market === "US" ? "US-listed" : "NSE-listed"} ETF across trend, momentum and strategy confluence — grouped by theme with a buy/hold/sell call for each.</p>
+                  <p className="text-sm text-gray-500 max-w-md">Click &quot;Scan ETFs&quot; to evaluate every {market === "US" ? "US-listed" : "NSE-listed"} ETF across trend, momentum, and strategy confluence — grouped by theme with a buy, hold, or sell call for each.</p>
                 </div>
               )}
 
@@ -3053,7 +3053,7 @@ export default function Home() {
                     <svg className="w-8 h-8 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
                   </div>
                   <h3 className="text-lg font-semibold mb-1">Select a Strategy</h3>
-                  <p className="text-sm text-gray-500 max-w-sm">Choose from {STRATEGIES.length} strategies to scan {universeLabel} stocks</p>
+                  <p className="text-sm text-gray-500 max-w-sm">Choose any of the {STRATEGIES.length} strategies to scan the {universeLabel} universe.</p>
                 </div>
               ) : (
                 <>
