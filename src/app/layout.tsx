@@ -19,7 +19,7 @@ const geistMono = Geist_Mono({
 
 const SITE_URL = "https://juicedtrade.com";
 const SITE_NAME = "JuicedTrade";
-const SITE_TAGLINE = "JuicedTrade Stock Screener — 100 Strategies for NSE & S&P 500";
+const SITE_TAGLINE = "JuicedTrade Stock Screener · 100 Strategies for NSE & S&P 500";
 const SITE_DESCRIPTION =
   "JuicedTrade is a free stock screener for Indian (NSE) and US (S&P 500) markets. Run 100 trading strategies from 6 classic books across 2,100+ NSE stocks, scan ETFs by theme, get daily buy/sell signals, and watch an autonomous paper-trading bot make decisions every day.";
 
@@ -156,7 +156,7 @@ const jsonLdFaq = {
       "name": "Which markets does JuicedTrade cover?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "JuicedTrade covers two markets: India (NSE — all listed equities, around 2,100 symbols) and the United States (S&P 500). You can switch markets from the header toggle at any time; the screener, ETF list, signals, and trading bot all adapt to the active market.",
+        "text": "JuicedTrade covers two markets: India (NSE, all listed equities, around 2,100 symbols) and the United States (S&P 500). You can switch markets from the header toggle at any time, and the screener, ETF list, signals, and trading bot all adapt to the active market.",
       },
     },
     {
@@ -172,7 +172,7 @@ const jsonLdFaq = {
       "name": "Does JuicedTrade place real trades?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "No. JuicedTrade does not connect to any brokerage account and cannot place real orders. The built-in trading bot is a paper-trading simulator that starts with ₹10,00,000 (India) or $5,000 (US), buys top BUY-signal stocks, and sells when strategies turn bearish — purely to demonstrate strategy performance over time.",
+        "text": "No. JuicedTrade does not connect to any brokerage account and cannot place real orders. The built-in trading bot is a paper-trading simulator that starts with ₹10,00,000 (India) or $5,000 (US), buys top BUY-signal stocks, and sells when strategies turn bearish, purely to demonstrate strategy performance over time.",
       },
     },
     {
@@ -196,7 +196,7 @@ const jsonLdFaq = {
       "name": "What data does JuicedTrade use?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "JuicedTrade uses live market price, volume, and historical OHLC data from public market feeds, refreshed daily. The NSE and S&P 500 universes are sourced from official exchange listings. All indicators, strategy signals, and backtests are computed inside JuicedTrade — there is no third-party signal provider.",
+        "text": "JuicedTrade uses live market price, volume, and historical OHLC data from public market feeds, refreshed daily. The NSE and S&P 500 universes are sourced from official exchange listings. All indicators, strategy signals, and backtests are computed inside JuicedTrade. There is no third-party signal provider.",
       },
     },
     {

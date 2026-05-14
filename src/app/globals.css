@@ -131,6 +131,17 @@ body {
   background: var(--background);
   color: var(--foreground);
   transition: background-color 0.3s ease, color 0.3s ease;
+  /* Hard-cap horizontal overflow at the viewport — prevents any rogue child
+     (long unbroken strings, fixed-width tables, gradient text, etc.) from
+     producing a horizontal scrollbar on mobile. Content that genuinely needs
+     to scroll horizontally must opt-in via its own overflow-x-auto wrapper. */
+  overflow-x: hidden;
+}
+
+/* Allow long ticker/title strings to wrap rather than overflow on phones. */
+h1, h2, h3 {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 ::-webkit-scrollbar {

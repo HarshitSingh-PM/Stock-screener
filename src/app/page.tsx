@@ -592,6 +592,8 @@ export default function Home() {
   // Admin gate. URL ?admin=1 reveals destructive Bot controls (Run/Reset).
   // Public visitors see Bot Performance as a read-only showcase.
   const [isAdmin, setIsAdmin] = useState(false);
+  // Mobile nav drawer state — desktop ignores this.
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -943,11 +945,12 @@ export default function Home() {
     <div className="flex flex-col min-h-screen">
       {/* Header */}
       <header className="sticky top-0 z-50 backdrop-blur-xl border-b border-white/5" style={{ background: "var(--header-bg)" }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-2 sm:gap-3">
+          {/* Logo */}
           <div className="flex items-center gap-3 flex-shrink-0">
             <button
-              onClick={() => setActiveTab("home")}
-              className="flex items-center gap-3 hover:opacity-90 transition-opacity"
+              onClick={() => { setActiveTab("home"); setMobileNavOpen(false); }}
+              className="flex items-center gap-2 sm:gap-3 hover:opacity-90 transition-opacity"
               aria-label="JuicedTrade home"
             >
               <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-amber-400 via-orange-500 to-red-500 flex items-center justify-center font-bold text-sm text-white shadow-lg">JT</div>
@@ -957,49 +960,114 @@ export default function Home() {
               </div>
             </button>
           </div>
-          <div className="flex items-center gap-1 bg-white/5 rounded-lg p-0.5 overflow-x-auto flex-1 justify-center">
+
+          {/* Desktop tab bar (lg+) */}
+          <nav className="hidden lg:flex items-center gap-1 bg-white/5 rounded-lg p-0.5 overflow-x-auto flex-1 justify-center" aria-label="Primary">
             {(["home", "market", "global", "signals", "portfolio", "bot", "etfs", "strategies", "scan", "search", "learn"] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => { setActiveTab(tab); if (tab === "signals" && !signalsData) loadSignals(); if (tab === "global" && !globalData) loadGlobal(); if (tab === "portfolio" && portfolio.length > 0 && portfolioData.length === 0) refreshPortfolio(); if (tab === "etfs" && !etfData) loadEtfs(); if (tab === "bot" && !botState) loadBot(); }}
-                className={`px-2.5 sm:px-3.5 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${activeTab === tab ? "bg-white/10 text-white" : "text-gray-400 hover:text-white"}`}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all whitespace-nowrap ${activeTab === tab ? "bg-white/10 text-white" : "text-gray-400 hover:text-white"}`}
               >
                 {tab === "home" ? "Home" : tab === "market" ? "Market" : tab === "global" ? "Global" : tab === "signals" ? "Signals" : tab === "portfolio" ? `Portfolio${portfolio.length > 0 ? ` (${portfolio.length})` : ""}` : tab === "bot" ? "Bot" : tab === "etfs" ? "ETFs" : tab === "strategies" ? "Strategies" : tab === "scan" ? "Scan" : tab === "search" ? "Lookup" : "Learn"}
               </button>
             ))}
-          </div>
-          {/* Market toggle */}
-          <div className="flex-shrink-0 flex items-center bg-white/5 border border-white/5 rounded-lg p-0.5" role="group" aria-label="Market">
+          </nav>
+
+          {/* Right cluster */}
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+            {/* Market toggle (always visible) */}
+            <div className="flex items-center bg-white/5 border border-white/5 rounded-lg p-0.5" role="group" aria-label="Market">
+              <button
+                onClick={() => switchMarket("IN")}
+                className={`px-2 sm:px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all ${market === "IN" ? "bg-white/10 text-white" : "text-gray-400 hover:text-white"}`}
+                title="India (NSE)"
+                aria-pressed={market === "IN"}
+              >
+                <span className="mr-1">🇮🇳</span>IN
+              </button>
+              <button
+                onClick={() => switchMarket("US")}
+                className={`px-2 sm:px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all ${market === "US" ? "bg-white/10 text-white" : "text-gray-400 hover:text-white"}`}
+                title="USA (S&P 500)"
+                aria-pressed={market === "US"}
+              >
+                <span className="mr-1">🇺🇸</span>US
+              </button>
+            </div>
+
+            {/* Theme toggle (lg+ only — moves into drawer on mobile) */}
             <button
-              onClick={() => switchMarket("IN")}
-              className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all ${market === "IN" ? "bg-white/10 text-white" : "text-gray-400 hover:text-white"}`}
-              title="India (NSE)"
-              aria-pressed={market === "IN"}
+              onClick={toggleTheme}
+              className="hidden lg:flex flex-shrink-0 w-9 h-9 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 items-center justify-center transition-all"
+              title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              aria-label="Toggle theme"
             >
-              <span className="mr-1">🇮🇳</span>IN
+              {theme === "dark" ? (
+                <svg className="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+              ) : (
+                <svg className="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+              )}
             </button>
+
+            {/* Hamburger (mobile only) */}
             <button
-              onClick={() => switchMarket("US")}
-              className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all ${market === "US" ? "bg-white/10 text-white" : "text-gray-400 hover:text-white"}`}
-              title="USA (S&P 500)"
-              aria-pressed={market === "US"}
+              onClick={() => setMobileNavOpen((v) => !v)}
+              className="lg:hidden flex-shrink-0 w-9 h-9 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 flex items-center justify-center transition-all"
+              aria-label={mobileNavOpen ? "Close menu" : "Open menu"}
+              aria-expanded={mobileNavOpen}
             >
-              <span className="mr-1">🇺🇸</span>US
+              {mobileNavOpen ? (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              ) : (
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+              )}
             </button>
           </div>
-          {/* Theme toggle */}
-          <button
-            onClick={toggleTheme}
-            className="flex-shrink-0 w-9 h-9 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 flex items-center justify-center transition-all"
-            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-          >
-            {theme === "dark" ? (
-              <svg className="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-            ) : (
-              <svg className="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
-            )}
-          </button>
         </div>
+
+        {/* Mobile drawer */}
+        {mobileNavOpen && (
+          <div className="lg:hidden border-t border-white/5 bg-[var(--header-bg)]">
+            <nav className="max-w-7xl mx-auto px-4 sm:px-6 py-3" aria-label="Mobile primary">
+              <div className="grid grid-cols-2 gap-1.5">
+                {(["home", "market", "global", "signals", "portfolio", "bot", "etfs", "strategies", "scan", "search", "learn"] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => {
+                      setActiveTab(tab);
+                      setMobileNavOpen(false);
+                      if (tab === "signals" && !signalsData) loadSignals();
+                      if (tab === "global" && !globalData) loadGlobal();
+                      if (tab === "portfolio" && portfolio.length > 0 && portfolioData.length === 0) refreshPortfolio();
+                      if (tab === "etfs" && !etfData) loadEtfs();
+                      if (tab === "bot" && !botState) loadBot();
+                    }}
+                    className={`px-3 py-2.5 rounded-lg text-sm font-medium text-left transition-all ${activeTab === tab ? "bg-white/10 text-white" : "bg-white/[0.02] text-gray-300 hover:bg-white/[0.05]"}`}
+                  >
+                    {tab === "home" ? "Home" : tab === "market" ? "Market" : tab === "global" ? "Global" : tab === "signals" ? "Signals" : tab === "portfolio" ? `Portfolio${portfolio.length > 0 ? ` (${portfolio.length})` : ""}` : tab === "bot" ? "Bot" : tab === "etfs" ? "ETFs" : tab === "strategies" ? "Strategies" : tab === "scan" ? "Scan" : tab === "search" ? "Lookup" : "Learn"}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => { toggleTheme(); setMobileNavOpen(false); }}
+                className="mt-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium text-left transition-all bg-white/[0.02] text-gray-300 hover:bg-white/[0.05] flex items-center gap-2"
+              >
+                {theme === "dark" ? (
+                  <>
+                    <svg className="w-4 h-4 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                    Switch to light mode
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+                    Switch to dark mode
+                  </>
+                )}
+              </button>
+            </nav>
+          </div>
+        )}
       </header>
 
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6">
@@ -1033,7 +1101,7 @@ export default function Home() {
                   </span>
                 </h1>
                 <p className="text-base sm:text-lg text-gray-400 max-w-2xl mx-auto leading-relaxed mb-8">
-                  <strong className="text-gray-200">JuicedTrade Stock Screener</strong> evaluates every NSE-listed Indian stock and the entire S&amp;P 500 against 100 strategies adapted from bestselling trading literature — every trading day. Get buy and sell signals, run backtests, screen ETFs by theme, and watch an autonomous bot trade those signals in real time.
+                  <strong className="text-gray-200">JuicedTrade Stock Screener</strong> runs 100 trading strategies, adapted from bestselling trading literature, across every NSE-listed Indian stock and the entire S&amp;P 500. Every trading day. Get buy and sell signals, run backtests, screen ETFs by theme, and watch an autonomous bot trade those signals in real time.
                 </p>
                 <div className="flex flex-wrap items-center justify-center gap-3 mb-10">
                   <button
@@ -1066,7 +1134,7 @@ export default function Home() {
                   Strategies adapted from bestselling trading literature
                 </h2>
                 <p className="text-sm text-gray-400 max-w-2xl mx-auto leading-relaxed">
-                  Swing · Intraday · Advanced · Positional · Scalping · Options · Price Action · Candlestick Patterns · Value Investing · Trend Following · Index Investing — 100 strategies across <strong className="text-gray-200">11 categories</strong>, every stock evaluated daily.
+                  Swing · Intraday · Advanced · Positional · Scalping · Options · Price Action · Candlestick Patterns · Value Investing · Trend Following · Index Investing. <strong className="text-gray-200">100 strategies across 11 categories</strong>, every stock evaluated daily.
                 </p>
               </div>
             </section>
@@ -1078,7 +1146,7 @@ export default function Home() {
                   Everything you need to find the next trade
                 </h2>
                 <p className="text-gray-500 max-w-2xl mx-auto">
-                  A complete decision stack — from market overview to entry signal to backtest — for both Indian and US markets, in one place.
+                  A complete decision stack for both Indian and US markets, in one place: market overview, entry signals, backtests, and a paper bot.
                 </p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1098,7 +1166,7 @@ export default function Home() {
                   {
                     icon: "🎯",
                     title: "Multi-Strategy Scan",
-                    body: "Surfaces stocks where 2 or more strategies agree on a BUY signal. Ranked by confluence — find the highest-conviction setups in seconds.",
+                    body: "Surfaces stocks where 2 or more strategies agree on a BUY signal. Ranked by confluence, so you find the highest-conviction setups in seconds.",
                     cta: "scan" as const,
                   },
                   {
@@ -1202,7 +1270,7 @@ export default function Home() {
                   Why JuicedTrade
                 </h2>
                 <p className="text-gray-500 max-w-2xl mx-auto">
-                  Other tools make you compose one condition or read one chart at a time. JuicedTrade evaluates 100 strategies in parallel — every stock, every day, both markets — and shows you exactly which ones agree.
+                  Other tools make you compose one condition or read one chart at a time. JuicedTrade evaluates 100 strategies in parallel across every stock in both markets, every day, and shows you exactly which ones agree.
                 </p>
               </div>
               <div className="overflow-x-auto rounded-2xl border border-white/5">
@@ -1219,7 +1287,7 @@ export default function Home() {
                   <tbody className="text-gray-300">
                     {[
                       { f: "Pre-built named strategies", j: `${STRATEGIES.length} included`, c: "User-built", s: "User-built", t: "Pine Script" },
-                      { f: "Multi-strategy confluence", j: "Yes — ranked", c: "Single condition", s: "—", t: "—" },
+                      { f: "Multi-strategy confluence", j: "Yes, ranked", c: "Single condition", s: "—", t: "—" },
                       { f: "NSE + S&P 500 in one toggle", j: "Yes", c: "NSE only", s: "NSE only", t: "Yes (paid)" },
                       { f: "Autonomous paper bot", j: "Built-in", c: "—", s: "—", t: "—" },
                       { f: "ETF screener with signals", j: "Yes (themed)", c: "—", s: "—", t: "Lists only" },
@@ -1255,7 +1323,7 @@ export default function Home() {
                   {[
                     {
                       q: "What is JuicedTrade?",
-                      a: "JuicedTrade is a free stock screener for Indian (NSE) and US (S&P 500) markets. It evaluates every stock against 100 trading strategies — adapted from bestselling trading literature and open-source technical signal concepts — and produces daily buy, sell, and neutral signals.",
+                      a: "JuicedTrade is a free stock screener for Indian (NSE) and US (S&P 500) markets. It evaluates every stock against 100 trading strategies adapted from bestselling trading literature and open-source technical signal concepts, and produces daily buy, sell, and neutral signals.",
                     },
                     {
                       q: "Is it really free?",
@@ -1263,19 +1331,19 @@ export default function Home() {
                     },
                     {
                       q: "Does JuicedTrade place real trades?",
-                      a: "No. JuicedTrade does not connect to any brokerage and cannot place real orders. The built-in trading bot is a paper-trading simulator — purely to demonstrate strategy performance over time.",
+                      a: "No. JuicedTrade does not connect to any brokerage and cannot place real orders. The built-in trading bot is a paper-trading simulator, purely to demonstrate strategy performance over time.",
                     },
                     {
                       q: "Which markets are covered?",
-                      a: "India: all 2,100+ NSE-listed equities. United States: all 500 S&P 500 stocks. Switch markets from the header toggle at any time — the entire app adapts.",
+                      a: "India: all 2,100+ NSE-listed equities. United States: all 500 S&P 500 stocks. Switch markets from the header toggle at any time and the entire app adapts.",
                     },
                     {
                       q: "How is it different from Chartink, Screener.in, or TradingView?",
-                      a: "Three things: (1) JuicedTrade evaluates 100 named strategies in parallel and shows which ones agree — you don't compose conditions; (2) covers NSE and S&P 500 in one tool with one toggle; (3) ships an autonomous paper-trading bot that acts on the same strategies.",
+                      a: "Three things: (1) JuicedTrade evaluates 100 named strategies in parallel and shows which ones agree, so you don't have to compose conditions; (2) covers NSE and S&P 500 in one tool with one toggle; (3) ships an autonomous paper-trading bot that acts on the same strategies.",
                     },
                     {
                       q: "Where does the data come from?",
-                      a: "JuicedTrade pulls live and historical market data — price, volume, and OHLC — from public market feeds, refreshed daily. NSE and S&P 500 universes are sourced from official exchange listings. All indicators, strategy signals, and backtests are computed inside JuicedTrade — there is no third-party signal vendor.",
+                      a: "JuicedTrade pulls live and historical market data (price, volume, and OHLC) from public market feeds, refreshed daily. NSE and S&P 500 universes are sourced from official exchange listings. All indicators, strategy signals, and backtests are computed inside JuicedTrade. There is no third-party signal vendor.",
                     },
                     {
                       q: "Is this investment advice?",
@@ -1351,7 +1419,7 @@ export default function Home() {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="text-xl font-bold">Global Market Cues</h2>
-                <p className="text-sm text-gray-500 mt-1">How world markets are influencing today&apos;s India and US sessions — predictions derived from 20+ global indicators.</p>
+                <p className="text-sm text-gray-500 mt-1">How world markets are influencing today&apos;s India and US sessions. Predictions derived from 20+ global indicators.</p>
               </div>
               <button
                 onClick={loadGlobal}
@@ -1695,7 +1763,7 @@ export default function Home() {
                       {signalsData.market.secondaryPrice && <span>{signalsData.market.secondaryName}: <span className="font-mono font-semibold text-white">{signalsData.market.secondaryPrice}</span></span>}
                     </div>
                   </div>
-                  <div className="flex items-center gap-8">
+                  <div className="flex flex-wrap items-center gap-6 sm:gap-8">
                     {/* Gauge */}
                     <div className="flex-shrink-0 relative w-36 h-36">
                       <svg viewBox="0 0 120 120" className="w-full h-full -rotate-90">
@@ -2043,73 +2111,82 @@ export default function Home() {
                     }`}>
                       {/* Header */}
                       <div
-                        className="flex items-center justify-between p-4 cursor-pointer hover:bg-white/[0.01] transition-colors"
+                        className="p-4 cursor-pointer hover:bg-white/[0.01] transition-colors"
                         onClick={() => setExpandedPortfolio(isExpanded ? null : rowKey)}
                       >
-                        <div className="flex items-center gap-4">
-                          <div>
+                        {/* Top row: symbol + remove/chevron — always one line */}
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0 flex-1">
                             <div className="text-base font-bold flex items-center gap-1.5">
                               <span title={holding.market === "US" ? "US stock" : "India / NSE stock"} className="text-base leading-none">{flagFor(holding.market)}</span>
-                              {holding.symbol}
+                              <span className="truncate">{holding.symbol}</span>
                             </div>
-                            <div className="text-xs text-gray-500">{data?.quote.name || "Loading..."}</div>
+                            <div className="text-xs text-gray-500 truncate">{data?.quote.name || "Loading..."}</div>
                           </div>
-                          {data && (
-                            <div className="text-right">
-                              <div className="text-sm font-mono font-semibold">{ccy}{data.quote.price.toFixed(2)}</div>
-                              <div className={`text-xs font-mono ${data.quote.changePercent >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                                Today: {data.quote.changePercent >= 0 ? "+" : ""}{data.quote.changePercent.toFixed(2)}%
-                              </div>
-                            </div>
-                          )}
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); removeFromPortfolio(holding.symbol, holding.market); }}
+                              className="p-1.5 text-gray-600 hover:text-red-400 transition-colors rounded"
+                              title="Remove"
+                              aria-label="Remove from portfolio"
+                            >
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            </button>
+                            <svg className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-5">
-                          {/* Buy Price & P&L */}
-                          <div className="text-right">
-                            <div className="text-xs text-gray-500">Buy: <span className="font-mono text-gray-300">{ccy}{holding.buyPrice.toFixed(2)}</span> x {holding.quantity}</div>
-                            {data && (
-                              <div className={`text-sm font-mono font-bold ${pnl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                                {pnl >= 0 ? "+" : ""}{ccy}{Math.abs(pnl).toFixed(2)} ({pnlPercent >= 0 ? "+" : ""}{pnlPercent.toFixed(2)}%)
-                              </div>
-                            )}
-                          </div>
 
-                          {/* Recommendation Badge */}
+                        {/* Numbers row: prices + P&L — wraps cleanly on small viewports */}
+                        <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
                           {data && (
-                            <span className={`px-3 py-1.5 rounded-lg text-xs font-bold ${
-                              data.signals.recSignal === "STRONG_BUY" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" :
-                              data.signals.recSignal === "BUY" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
-                              data.signals.recSignal === "STRONG_SELL" ? "bg-red-500/20 text-red-400 border border-red-500/30" :
-                              data.signals.recSignal === "SELL" ? "bg-red-500/10 text-red-400 border border-red-500/20" :
-                              "bg-gray-500/10 text-gray-400 border border-gray-500/20"
-                            }`}>
-                              {data.signals.recSignal.replace("_", " ")}
-                            </span>
-                          )}
-
-                          {/* Signal summary mini */}
-                          {data && (
-                            <div className="flex items-center gap-1">
-                              <span className="text-emerald-400 text-xs font-bold">{data.signals.buyCount}B</span>
-                              <div className="w-16 h-2 bg-white/5 rounded-full overflow-hidden flex">
-                                <div className="bg-emerald-500 h-full" style={{ width: `${(data.signals.buyCount / data.signals.total) * 100}%` }} />
-                                <div className="bg-red-500 h-full" style={{ width: `${(data.signals.sellCount / data.signals.total) * 100}%` }} />
+                            <div>
+                              <div className="text-[10px] text-gray-500 uppercase tracking-wider">Current</div>
+                              <div className="font-mono font-semibold">{ccy}{data.quote.price.toFixed(2)}</div>
+                              <div className={`text-[11px] font-mono ${data.quote.changePercent >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                                {data.quote.changePercent >= 0 ? "+" : ""}{data.quote.changePercent.toFixed(2)}% today
                               </div>
-                              <span className="text-red-400 text-xs font-bold">{data.signals.sellCount}S</span>
                             </div>
                           )}
-
-                          <button
-                            onClick={(e) => { e.stopPropagation(); removeFromPortfolio(holding.symbol, holding.market); }}
-                            className="p-1.5 text-gray-600 hover:text-red-400 transition-colors rounded"
-                            title="Remove"
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                          </button>
-
-                          <svg className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
+                          <div>
+                            <div className="text-[10px] text-gray-500 uppercase tracking-wider">Buy / Qty</div>
+                            <div className="font-mono text-gray-300">{ccy}{holding.buyPrice.toFixed(2)}</div>
+                            <div className="text-[11px] text-gray-500">x {holding.quantity}</div>
+                          </div>
+                          {data && (
+                            <div>
+                              <div className="text-[10px] text-gray-500 uppercase tracking-wider">P&L</div>
+                              <div className={`font-mono font-bold ${pnl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                                {pnl >= 0 ? "+" : ""}{ccy}{Math.abs(pnl).toFixed(2)}
+                              </div>
+                              <div className={`text-[11px] font-mono ${pnlPercent >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                                {pnlPercent >= 0 ? "+" : ""}{pnlPercent.toFixed(2)}%
+                              </div>
+                            </div>
+                          )}
+                          {data && (
+                            <div>
+                              <div className="text-[10px] text-gray-500 uppercase tracking-wider">Signal</div>
+                              <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-bold ${
+                                data.signals.recSignal === "STRONG_BUY" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" :
+                                data.signals.recSignal === "BUY" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
+                                data.signals.recSignal === "STRONG_SELL" ? "bg-red-500/20 text-red-400 border border-red-500/30" :
+                                data.signals.recSignal === "SELL" ? "bg-red-500/10 text-red-400 border border-red-500/20" :
+                                "bg-gray-500/10 text-gray-400 border border-gray-500/20"
+                              }`}>
+                                {data.signals.recSignal.replace("_", " ")}
+                              </span>
+                              <div className="flex items-center gap-1 mt-1">
+                                <span className="text-emerald-400 text-[10px] font-bold">{data.signals.buyCount}B</span>
+                                <div className="flex-1 max-w-[80px] h-1.5 bg-white/5 rounded-full overflow-hidden flex">
+                                  <div className="bg-emerald-500 h-full" style={{ width: `${(data.signals.buyCount / data.signals.total) * 100}%` }} />
+                                  <div className="bg-red-500 h-full" style={{ width: `${(data.signals.sellCount / data.signals.total) * 100}%` }} />
+                                </div>
+                                <span className="text-red-400 text-[10px] font-bold">{data.signals.sellCount}S</span>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -2373,7 +2450,7 @@ export default function Home() {
                   <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">LIVE · AUTONOMOUS</span>
                 </h2>
                 <p className="text-sm text-gray-500 mt-1.5 leading-relaxed">
-                  A strategy-driven portfolio that trades itself every day, using the same signals you see in the screener. <strong className="text-gray-300">This is a showcase</strong> — you cannot place trades here; you can only watch how the strategy library performs over time. The bot runs automatically after each market closes (<span className="text-gray-400">India: 4:00 PM IST · US: 6:00 PM ET</span>), ranks every {market === "US" ? "S&P 500" : "large- and mid-cap NSE"} stock by BUY confluence, and rotates the weakest holding out when a stronger candidate appears. Max 5 positions, equal-weighted from available cash. Starting capital: <span className="text-gray-300 font-mono">{market === "US" ? "$5,000" : "₹10,00,000"}</span>.
+                  A strategy-driven portfolio that trades itself every day, using the same signals you see in the screener. <strong className="text-gray-300">This is a showcase.</strong> You cannot place trades here; you can only watch how the strategy library performs over time. The bot runs automatically after each market closes (<span className="text-gray-400">India: 4:00 PM IST · US: 6:00 PM ET</span>), ranks every {market === "US" ? "S&P 500" : "large- and mid-cap NSE"} stock by BUY confluence, and rotates the weakest holding out when a stronger candidate appears. Max 5 positions, equal-weighted from available cash. Starting capital: <span className="text-gray-300 font-mono">{market === "US" ? "$5,000" : "₹10,00,000"}</span>.
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -2437,7 +2514,7 @@ export default function Home() {
                     <span className={`inline-block w-2 h-2 rounded-full ${botState.lastRunDate ? "bg-emerald-500" : "bg-gray-500"}`}></span>
                     {botState.lastRunDate
                       ? <>Last trade run: <span className="text-gray-300 font-mono">{botState.lastRunDate}</span></>
-                      : <>Bot hasn&apos;t traded yet — will run automatically on the next market close.</>
+                      : <>Bot hasn&apos;t traded yet. It will run automatically on the next market close.</>
                     }
                   </div>
 
@@ -2475,7 +2552,7 @@ export default function Home() {
                       />
                     ) : (
                       <div className="h-40 flex items-center justify-center text-sm text-gray-500">
-                        No history yet — run a trade to populate the chart.
+                        No history yet. Run a trade to populate the chart.
                       </div>
                     )}
                   </div>
@@ -2491,7 +2568,7 @@ export default function Home() {
                       <div className="px-4 py-8 text-center text-sm text-gray-500">No open positions.</div>
                     ) : (
                       <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
+                        <table className="w-full text-sm min-w-[720px]">
                           <thead className="text-[10px] text-gray-500 uppercase tracking-wider bg-white/[0.02]">
                             <tr>
                               <th className="text-left px-4 py-2">Symbol</th>
@@ -2538,8 +2615,8 @@ export default function Home() {
                     {botState.trades.length === 0 ? (
                       <div className="px-4 py-8 text-center text-sm text-gray-500">No trades yet.</div>
                     ) : (
-                      <div className="max-h-[500px] overflow-y-auto">
-                        <table className="w-full text-sm">
+                      <div className="max-h-[500px] overflow-auto">
+                        <table className="w-full text-sm min-w-[640px]">
                           <thead className="text-[10px] text-gray-500 uppercase tracking-wider bg-white/[0.02] sticky top-0">
                             <tr>
                               <th className="text-left px-4 py-2">Date</th>
@@ -2583,7 +2660,7 @@ export default function Home() {
                     <div><strong className="text-gray-300">Schedule.</strong> India trades fire daily after 4:00 PM IST (10:30 UTC). US trades fire daily after 6:00 PM ET (22:00 UTC). Both run only on weekdays.</div>
                     <div><strong className="text-gray-300">Ranking.</strong> Every weekday the bot scores all candidates and current holdings by BUY-strategy count (with average BUY strength as the tie-breaker). The top 5 become the target portfolio.</div>
                     <div><strong className="text-gray-300">Rotation.</strong> Any current holding outside the new top 5 is sold; freed cash funds the new picks equal-weighted. So when a fresh stock has stronger BUY confluence than something held, the weaker holding rotates out automatically.</div>
-                    <div><strong className="text-gray-300">Constraint.</strong> Hard cap: 5 concurrent positions, total capital fixed at start. No leverage, no shorting, no intraday — delivery only.</div>
+                    <div><strong className="text-gray-300">Constraint.</strong> Hard cap: 5 concurrent positions, total capital fixed at start. No leverage, no shorting, no intraday. Delivery only.</div>
                   </div>
                 </div>
               );
@@ -2596,7 +2673,7 @@ export default function Home() {
           <div>
             <div className="mb-6">
               <h2 className="text-xl font-bold">Insider Information</h2>
-              <p className="text-sm text-gray-500 mt-1">Track who owns what — {market === "US" ? "founders, CEOs, super-investors, mega institutions, and SEC insider filings" : "promoters, HNIs, celebrities, FIIs, and institutional deals"}</p>
+              <p className="text-sm text-gray-500 mt-1">Track who owns what. {market === "US" ? "Founders, CEOs, super-investors, mega institutions, and SEC insider filings." : "Promoters, HNIs, celebrities, FIIs, and institutional deals."}</p>
             </div>
 
             {/* Sub-tabs */}
@@ -2948,7 +3025,7 @@ export default function Home() {
                     <svg className="w-8 h-8 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 13h2l3 8 4-16 3 8h6" /></svg>
                   </div>
                   <h3 className="text-lg font-semibold mb-1">ETF Screener</h3>
-                  <p className="text-sm text-gray-500 max-w-md">Click &quot;Scan ETFs&quot; to evaluate every {market === "US" ? "US-listed" : "NSE-listed"} ETF across trend, momentum, and strategy confluence — grouped by theme with a buy, hold, or sell call for each.</p>
+                  <p className="text-sm text-gray-500 max-w-md">Click &quot;Scan ETFs&quot; to evaluate every {market === "US" ? "US-listed" : "NSE-listed"} ETF across trend, momentum, and strategy confluence. Each one is grouped by theme with a buy, hold, or sell call.</p>
                 </div>
               )}
 
@@ -3340,9 +3417,9 @@ export default function Home() {
                         <button
                           onClick={() => {
                             const lines = results.map((r, i) =>
-                              `${i + 1}. ${r.symbol} ${currencySymbol}${r.price.toFixed(2)} (${r.changePercent >= 0 ? "+" : ""}${r.changePercent.toFixed(2)}%) — ${r.signal} [${r.strength}] ${r.details}`
+                              `${i + 1}. ${r.symbol} ${currencySymbol}${r.price.toFixed(2)} (${r.changePercent >= 0 ? "+" : ""}${r.changePercent.toFixed(2)}%) · ${r.signal} [${r.strength}] ${r.details}`
                             );
-                            const text = `${selectedStrategy?.name} — ${signalFilter} Signals\n${selectedStrategy?.description}\n${"─".repeat(50)}\n${lines.join("\n")}\n${"─".repeat(50)}\nScanned ${scannedInfo.scanned}/${scannedInfo.total} stocks | Generated by JuicedTrade`;
+                            const text = `${selectedStrategy?.name} · ${signalFilter} Signals\n${selectedStrategy?.description}\n${"─".repeat(50)}\n${lines.join("\n")}\n${"─".repeat(50)}\nScanned ${scannedInfo.scanned}/${scannedInfo.total} stocks | Generated by JuicedTrade`;
                             navigator.clipboard.writeText(text);
                             setCopiedStrategy(true);
                             setTimeout(() => setCopiedStrategy(false), 2000);
@@ -3702,7 +3779,7 @@ export default function Home() {
                     <h2 className="text-xl font-bold">Master Scan</h2>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/20">ALL 500 STOCKS</span>
                   </div>
-                  <p className="text-sm text-gray-500 mt-1">Scan every {universeLabel} stock against all {STRATEGIES.length} strategies. Ranked by most buy signals — find the best stocks to buy right now.</p>
+                  <p className="text-sm text-gray-500 mt-1">Scan every {universeLabel} stock against all {STRATEGIES.length} strategies. Ranked by most buy signals to surface the best stocks to buy right now.</p>
                 </div>
                 <button
                   onClick={runMasterScan}
@@ -3757,7 +3834,7 @@ export default function Home() {
                   {/* Top Picks Banner */}
                   {masterResults.length >= 3 && !masterScanning && (
                     <div className="bg-gradient-to-r from-amber-500/5 to-red-500/5 border border-amber-500/15 rounded-xl p-4 mb-4">
-                      <div className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-3">Top Picks — Strongest Buy Confluence</div>
+                      <div className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-3">Top Picks · Strongest Buy Confluence</div>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         {[...masterResults].sort((a, b) => b.buyCount - a.buyCount || b.avgStrength - a.avgStrength).slice(0, 3).map((r, i) => (
                           <div key={r.symbol} className="bg-white/[0.03] border border-white/5 rounded-lg p-3 hover:border-amber-500/20 transition-all cursor-pointer" onClick={() => { setActiveTab("search"); setSearchQuery(r.symbol); searchStock(r.symbol); }}>
