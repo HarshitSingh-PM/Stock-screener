@@ -1443,7 +1443,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Swing",
     description: "Uses Bollinger Bands with 9-period EMA. Buy when price takes support on lower BB with bullish 9-EMA. Sell when price faces resistance at upper BB with falling EMA.",
     indicators: ["Bollinger Bands (20, 2)", "EMA (9)"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: bollingerBandEma,
   },
   {
@@ -1453,7 +1453,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Swing",
     description: "Combines Williams %R oscillator with 14-SMA and MACD. Buy when Williams %R reverses from oversold (-80) with price above SMA. Targets pullback entries with minimal stoploss.",
     indicators: ["Williams %R (14)", "SMA (14)", "MACD (12,26,9)"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: williamsRMacd,
   },
   {
@@ -1463,7 +1463,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Swing",
     description: "Catches swings using MACD crossover at Fibonacci retracement levels (23.6%, 38.2%, 50%, 61.8%).",
     indicators: ["MACD (12,26,9)", "Fibonacci Levels"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: macdFibonacci,
   },
   {
@@ -1473,7 +1473,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Swing",
     description: "Detects triangle pattern (narrowing price range) and trades the breakout with volume confirmation.",
     indicators: ["Price Range", "Volume"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: triangleBreakout,
   },
   {
@@ -1483,7 +1483,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Swing",
     description: "Identifies gap-up/gap-down zones and trades retracements to these institutional demand/supply zones.",
     indicators: ["Gap Analysis", "Price Action"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: institutionalMoves,
   },
   {
@@ -1493,7 +1493,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Swing",
     description: "Trades breakouts when Bollinger Bands contract (squeeze) indicating low volatility, then expand with a directional move.",
     indicators: ["Bollinger Bands (20, 2)", "BB Width"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: bbWidthBreakout,
   },
   {
@@ -1503,7 +1503,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Swing",
     description: "Uses Ichimoku Cloud components: Conversion/Base line crossover and price position relative to the cloud for trend confirmation.",
     indicators: ["Ichimoku Cloud (9, 26, 52)"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: ichimokuCloudStrategy,
   },
 
@@ -1515,7 +1515,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Intraday",
     description: "Uses 200-SMA as macro trend filter and Fibonacci retracement levels for pullback entries.",
     indicators: ["SMA (200)", "Fibonacci Levels"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: maFibonacci,
   },
   {
@@ -1525,7 +1525,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Intraday",
     description: "Trend-following using Supertrend with Standard Pivot Points. Buy when price breaks above R1 with Supertrend bullish.",
     indicators: ["Supertrend (10, 3)", "Pivot Points (Standard)"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: supertrendPivot,
   },
   {
@@ -1535,7 +1535,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Intraday",
     description: "Uses volume-weighted average price to identify undervalued (below VWAP) and overvalued (above VWAP) conditions.",
     indicators: ["VWAP Proxy"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: vwapStrategy,
   },
   {
@@ -1545,7 +1545,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Intraday",
     description: "Combines RSI with Volume Oscillator. Buy when RSI is oversold and Volume Oscillator is negative. Both must confirm.",
     indicators: ["RSI (14)", "Volume Oscillator (5, 10)"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: rsiVolumeOscillator,
   },
   {
@@ -1555,7 +1555,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Intraday",
     description: "Waits for pullback to pivot support in uptrend or pivot resistance in downtrend before entering.",
     indicators: ["EMA (20)", "Pivot Points"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: waitTradePullback,
   },
   {
@@ -1565,7 +1565,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Intraday",
     description: "Uses confluence of RSI(5) for short-term and RSI(60) for long-term momentum. Strong signals when both agree.",
     indicators: ["RSI (5)", "RSI (60)"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: doubleRsi,
   },
   {
@@ -1575,7 +1575,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Intraday",
     description: "Central Pivot Range strategy. Narrow CPR indicates trending day (trade breakout). Wide CPR indicates range-bound (trade support/resistance).",
     indicators: ["CPR (TC, BC, Pivot)"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: cprTrendFollowing,
   },
 
@@ -1587,7 +1587,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Advanced",
     description: "Identifies uptrend (higher highs + higher lows) and downtrend (lower highs + lower lows) using swing point analysis.",
     indicators: ["Swing Points"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: dowTheory,
   },
   {
@@ -1597,7 +1597,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Advanced",
     description: "Detects Break of Structure (BoS) and order block zones for institutional-style entries.",
     indicators: ["Break of Structure", "Order Blocks"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: smartMoneyConcept,
   },
   {
@@ -1607,7 +1607,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Advanced",
     description: "Simplified Elliott Wave: Detects wave 2 correction (38.2-61.8% retracement) and wave 3 start.",
     indicators: ["Wave Analysis", "Fibonacci"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: elliottWave,
   },
   {
@@ -1617,7 +1617,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Advanced",
     description: "Williams Fractals: Buy when price breaks above fractal high with price above 50-SMA. Sell when below fractal low.",
     indicators: ["Williams Fractals", "SMA (50)"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: fractalTrading,
   },
   {
@@ -1627,7 +1627,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Advanced",
     description: "RSI + Stochastic RSI confluence. Buy at RSI support with oversold Stochastic RSI. Sell at RSI resistance.",
     indicators: ["RSI (14)", "Stochastic RSI (14, 14)"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: renkoRsiStochastic,
   },
   {
@@ -1637,7 +1637,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Advanced",
     description: "Uses Donchian Channel (highest high/lowest low). Trades pullback to middle after touching upper/lower band.",
     indicators: ["Donchian Channel (20)"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: donchianPullback,
   },
   {
@@ -1647,7 +1647,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Advanced",
     description: "Uses linear regression to determine trend direction. Buy above regression line with positive slope.",
     indicators: ["Linear Regression (20)"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: gannLinearRegression,
   },
 
@@ -1659,7 +1659,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Positional",
     description: "Uses daily pivot points to catch positional swings. Buy near support with bullish candle, sell near resistance with bearish.",
     indicators: ["Pivot Points (Standard)"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: macroTrendPivots,
   },
   {
@@ -1669,7 +1669,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Positional",
     description: "RSI > 60 with bullish Supertrend = buy. RSI < 40 with bearish Supertrend = sell. 40-60 = sideways.",
     indicators: ["Supertrend (10, 3)", "RSI (14)"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: supertrendRsiPositional,
   },
   {
@@ -1679,7 +1679,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Positional",
     description: "Compares stock's short-term vs long-term performance to detect relative strength. Outperforming = buy.",
     indicators: ["Relative Strength", "SMA (20)"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: sectoralAnalysis,
   },
   {
@@ -1689,7 +1689,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Positional",
     description: "Detects W-pattern (double bottom in RSI near 30) for bullish reversal and M-pattern (double top near 70) for bearish.",
     indicators: ["RSI (14)", "Pattern Detection"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: mwRsiPattern,
   },
 
@@ -1701,7 +1701,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Scalping",
     description: "Parabolic SAR below price + RSI > 50 + bullish candle = buy. SAR above + RSI < 50 + bearish = sell.",
     indicators: ["Parabolic SAR", "RSI (14)"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: parabolicSarRsi,
   },
   {
@@ -1711,7 +1711,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Scalping",
     description: "Detects bullish divergence (price lower low, RSI higher low) near lower BB. Bearish divergence near upper BB.",
     indicators: ["RSI (14)", "Bollinger Bands (20, 2)"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: rsiDivergenceBb,
   },
   {
@@ -1721,7 +1721,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Scalping",
     description: "Buy when price below VWAP + RSI < 40. Sell when price above VWAP + RSI > 60.",
     indicators: ["RSI (14)", "VWAP Proxy"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: rsiVwapScalping,
   },
   {
@@ -1731,7 +1731,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Scalping",
     description: "Detects tight consolidation (ATR contracting) then trades the breakout direction.",
     indicators: ["ATR (14)"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: consolidationBreakout,
   },
   {
@@ -1741,7 +1741,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Scalping",
     description: "5-EMA crossing above 13-EMA with price above 50-SMA = buy. Crossing below with price below = sell.",
     indicators: ["EMA (5)", "EMA (13)", "SMA (50)"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: maScalping,
   },
   {
@@ -1751,7 +1751,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Scalping",
     description: "After 3+ consecutive red candles, probability of green increases. Contrarian buy after losing streaks.",
     indicators: ["Candle Pattern"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: martingaleSystem,
   },
 
@@ -1763,7 +1763,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Options",
     description: "Low volatility + range-bound detection for options selling. NEUTRAL signal when ATR low and price in S1-R1.",
     indicators: ["ATR (14)", "Pivot Points"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: weeklyHedged,
   },
   {
@@ -1773,7 +1773,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Options",
     description: "Compares short-term (5/13 EMA) with medium-term (21/50 EMA). Both bullish = strong buy. Conflicting = neutral.",
     indicators: ["EMA (5, 13, 21, 50)"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: multiTimeframeOptions,
   },
   {
@@ -1783,7 +1783,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Options",
     description: "Volume proxy for OI: Rising price + rising volume = strong trend. Falling price + rising volume = strong downtrend.",
     indicators: ["Volume Analysis"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: openInterestProxy,
   },
   {
@@ -1793,7 +1793,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Options",
     description: "Trades Supertrend direction changes. Buy on bearish-to-bullish flip. Sell on bullish-to-bearish flip.",
     indicators: ["Supertrend (10, 3)"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: supertrendSelling,
   },
   {
@@ -1803,7 +1803,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Options",
     description: "Price crossing above VWAP + uptrend = buy. Crossing below + downtrend = sell.",
     indicators: ["VWAP Proxy", "EMA (20)"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: combinedOptionVwap,
   },
   {
@@ -1813,7 +1813,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Options",
     description: "Strong momentum: RSI > 65 + price above 20-EMA + > 2% gain in recent sessions.",
     indicators: ["RSI (14)", "EMA (20)"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: momentumBuyingOption,
   },
   {
@@ -1823,7 +1823,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Options",
     description: "High RSI + low ATR = premium selling opportunity. Range-bound conditions for theta decay.",
     indicators: ["RSI (14)", "ATR (14)"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: expiryDecay,
   },
   {
@@ -1833,7 +1833,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Options",
     description: "Triple confirmation: Price above 20-EMA + above VWAP + RSI > 50 = strong buy. All below = strong sell.",
     indicators: ["EMA (20)", "VWAP Proxy", "RSI (14)"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: combinedStoploss,
   },
   {
@@ -1843,7 +1843,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Options",
     description: "ATR declining + price in BB middle zone = range-bound. Theta decay opportunity for options.",
     indicators: ["ATR (14)", "Bollinger Bands (20, 2)"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: thetaDecay,
   },
   {
@@ -1853,7 +1853,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Options",
     description: "Buy Today Sell Tomorrow: Strong bullish candle (> 1.5% gain) with high volume + RSI rising.",
     indicators: ["RSI (14)", "Volume"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: btstMomentum,
   },
   {
@@ -1863,7 +1863,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Options",
     description: "End-of-day momentum: Close above VWAP with bullish candle = buy for next session.",
     indicators: ["VWAP Proxy"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: threePmNifty,
   },
   {
@@ -1873,7 +1873,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Options",
     description: "Strong bearish momentum: Price below 20-EMA, RSI < 40, big red candle (> 1.5% loss).",
     indicators: ["EMA (20)", "RSI (14)"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: momentumSelling,
   },
   {
@@ -1883,7 +1883,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Options",
     description: "Price at BB lower support + RSI oversold + Volume spike. Strong swing buy signal.",
     indicators: ["Bollinger Bands (20, 2)", "RSI (14)", "Volume"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: swingBuyingOptions,
   },
 
@@ -1895,7 +1895,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Price Action",
     description: "Classic EMA crossover using 9-period and 21-period EMAs. Bullish when 9-EMA crosses above 21-EMA.",
     indicators: ["EMA (9)", "EMA (21)"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: ema9and21Crossover,
   },
   {
@@ -1905,7 +1905,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Price Action",
     description: "Price above 50-SMA AND 200-SMA = bullish. Below both = bearish. Between = consolidation.",
     indicators: ["SMA (50)", "SMA (200)"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: positionalPriceAction,
   },
   {
@@ -1915,7 +1915,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Price Action",
     description: "Detects pin bar candles: Long lower wick (> 2x body) near support = bullish. Long upper wick near resistance = bearish.",
     indicators: ["Candlestick Pattern"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: pinBarReversal,
   },
   {
@@ -1925,7 +1925,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Price Action",
     description: "In uptrend (above 20-EMA), look for pullback to EMA then bounce. In downtrend: reverse.",
     indicators: ["EMA (20)"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: pullbackStrategy,
   },
   {
@@ -1935,7 +1935,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Price Action",
     description: "Macro trend filter using 200-SMA + RSI. Above 200-SMA with RSI > 50 = macro bullish.",
     indicators: ["SMA (200)", "RSI (14)"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: repoRateProxy,
   },
   {
@@ -1945,7 +1945,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Price Action",
     description: "Series of tightening price ranges. Each successive range smaller = VCP setup. Buy on breakout.",
     indicators: ["Price Range Analysis"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: vcpPattern,
   },
   {
@@ -1955,7 +1955,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Price Action",
     description: "In uptrend: two consecutive lower closes followed by bullish candle = buy. In downtrend: reverse.",
     indicators: ["EMA (20)", "Price Action"],
-    book: "51 Trading Strategies",
+    book: "Classic Trading Library",
     evaluate: twoLeggedPullback,
   },
 
@@ -1970,7 +1970,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Value Investing",
     description: "Price well below 52-week high (at least 25% below). Buy when price is at significant discount from recent highs.",
     indicators: ["52-Week High (100 candles)", "Price"],
-    book: "The Intelligent Investor",
+    book: "Classic Trading Library",
     evaluate: (candles: OHLCV[]): StrategyResult => {
       if (candles.length < 100) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
       const closes = candles.map(c => c.close);
@@ -1993,7 +1993,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Value Investing",
     description: "Stable stock: low volatility (ATR < 3% of price), price above 200-SMA, not at extreme overbought.",
     indicators: ["ATR (14)", "SMA (200)", "RSI (14)"],
-    book: "The Intelligent Investor",
+    book: "Classic Trading Library",
     evaluate: (candles: OHLCV[]): StrategyResult => {
       if (candles.length < 200) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
       const closes = candles.map(c => c.close);
@@ -2025,7 +2025,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Value Investing",
     description: "Market overreaction detection. Buy extreme fear (RSI<25 + price >20% below 50-SMA). Sell extreme greed (RSI>80 + price >20% above 50-SMA).",
     indicators: ["RSI (14)", "SMA (50)"],
-    book: "The Intelligent Investor",
+    book: "Classic Trading Library",
     evaluate: (candles: OHLCV[]): StrategyResult => {
       if (candles.length < 50) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
       const closes = candles.map(c => c.close);
@@ -2053,7 +2053,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Value Investing",
     description: "Growth characteristics: price above 50 & 200 SMA, higher highs over 50 days, RSI 50-70.",
     indicators: ["SMA (50)", "SMA (200)", "RSI (14)"],
-    book: "The Intelligent Investor",
+    book: "Classic Trading Library",
     evaluate: (candles: OHLCV[]): StrategyResult => {
       if (candles.length < 200) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
       const closes = candles.map(c => c.close);
@@ -2086,7 +2086,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Value Investing",
     description: "Proxy: stock near 52-week lows (bottom 15% of range) with improving momentum (RSI rising from oversold). Deep value play.",
     indicators: ["52-Week Range (100 candles)", "RSI (14)"],
-    book: "The Intelligent Investor",
+    book: "Classic Trading Library",
     evaluate: (candles: OHLCV[]): StrategyResult => {
       if (candles.length < 100) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
       const closes = candles.map(c => c.close);
@@ -2121,7 +2121,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Trend Following",
     description: "4-9-18 day moving averages. Buy when 4>9>18 (all aligned bullish). Sell when 4<9<18.",
     indicators: ["SMA (4)", "SMA (9)", "SMA (18)"],
-    book: "Technical Analysis of the Financial Markets",
+    book: "Classic Trading Library",
     evaluate: (candles: OHLCV[]): StrategyResult => {
       if (candles.length < 20) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
       const closes = candles.map(c => c.close);
@@ -2149,7 +2149,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Trend Following",
     description: "Bullish divergence: MACD histogram higher low while price makes lower low. Bearish: opposite.",
     indicators: ["MACD (12,26,9)", "Price"],
-    book: "Technical Analysis of the Financial Markets",
+    book: "Classic Trading Library",
     evaluate: (candles: OHLCV[]): StrategyResult => {
       if (candles.length < 30) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
       const closes = candles.map(c => c.close);
@@ -2184,7 +2184,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Trend Following",
     description: "Buy when RSI crosses above 30 from below. Sell when RSI crosses below 70 from above. Centerline 50 adds confirmation.",
     indicators: ["RSI (14)"],
-    book: "Technical Analysis of the Financial Markets",
+    book: "Classic Trading Library",
     evaluate: (candles: OHLCV[]): StrategyResult => {
       if (candles.length < 20) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
       const closes = candles.map(c => c.close);
@@ -2215,7 +2215,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Trend Following",
     description: "Buy when %K crosses above %D in oversold (<20). Sell when %K crosses below %D in overbought (>80).",
     indicators: ["Stochastic (14)"],
-    book: "Technical Analysis of the Financial Markets",
+    book: "Classic Trading Library",
     evaluate: (candles: OHLCV[]): StrategyResult => {
       if (candles.length < 20) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
       const highs = candles.map(c => c.high);
@@ -2254,7 +2254,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Trend Following",
     description: "Identify 20-bar support/resistance. Buy on breakout above resistance with volume. Sell on breakdown below support.",
     indicators: ["20-Bar High/Low", "Volume"],
-    book: "Technical Analysis of the Financial Markets",
+    book: "Classic Trading Library",
     evaluate: (candles: OHLCV[]): StrategyResult => {
       if (candles.length < 25) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
       const last = candles.length - 1;
@@ -2281,7 +2281,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Trend Following",
     description: "Simplified H&S: middle peak highest among 3 peaks in last 30 candles. Break below neckline = bearish. Inverse for bullish.",
     indicators: ["Price Pattern (30 candles)"],
-    book: "Technical Analysis of the Financial Markets",
+    book: "Classic Trading Library",
     evaluate: (candles: OHLCV[]): StrategyResult => {
       if (candles.length < 35) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
       const recent = candles.slice(-30);
@@ -2318,7 +2318,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Trend Following",
     description: "Two peaks/troughs at similar levels (within 2%) in last 30 candles. Double bottom + breakout = buy. Double top + breakdown = sell.",
     indicators: ["Price Pattern (30 candles)"],
-    book: "Technical Analysis of the Financial Markets",
+    book: "Classic Trading Library",
     evaluate: (candles: OHLCV[]): StrategyResult => {
       if (candles.length < 35) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
       const recent = candles.slice(-30);
@@ -2351,7 +2351,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Trend Following",
     description: "Price rising + volume rising = strong uptrend. Price falling + volume rising = strong downtrend. Price rising + volume falling = weak rally.",
     indicators: ["Price Trend", "Volume Trend"],
-    book: "Technical Analysis of the Financial Markets",
+    book: "Classic Trading Library",
     evaluate: (candles: OHLCV[]): StrategyResult => {
       if (candles.length < 15) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
       const recent = candles.slice(-10);
@@ -2378,7 +2378,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Trend Following",
     description: "Price outside 3% envelope around 20-SMA. Above upper = overbought (sell). Below lower = oversold (buy).",
     indicators: ["SMA (20)", "3% Envelope"],
-    book: "Technical Analysis of the Financial Markets",
+    book: "Classic Trading Library",
     evaluate: (candles: OHLCV[]): StrategyResult => {
       if (candles.length < 25) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
       const closes = candles.map(c => c.close);
@@ -2406,7 +2406,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Trend Following",
     description: "12-period ROC. Buy when ROC crosses above 0 from negative. Sell when crosses below 0 from positive.",
     indicators: ["ROC (12)"],
-    book: "Technical Analysis of the Financial Markets",
+    book: "Classic Trading Library",
     evaluate: (candles: OHLCV[]): StrategyResult => {
       if (candles.length < 15) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
       const closes = candles.map(c => c.close);
@@ -2434,7 +2434,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Candlestick",
     description: "Bullish reversal: Long lower shadow (>= 2x body), small body at top, appears after downtrend (price below 20-EMA).",
     indicators: ["EMA (20)", "Candlestick Pattern"],
-    book: "Japanese Candlestick Charting Techniques",
+    book: "Classic Trading Library",
     evaluate: (candles: OHLCV[]): StrategyResult => {
       if (candles.length < 25) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
       const closes = candles.map(c => c.close);
@@ -2462,7 +2462,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Candlestick",
     description: "Bullish engulfing: current green candle body engulfs previous red candle body, after downtrend. Bearish: reverse.",
     indicators: ["EMA (20)", "Candlestick Pattern"],
-    book: "Japanese Candlestick Charting Techniques",
+    book: "Classic Trading Library",
     evaluate: (candles: OHLCV[]): StrategyResult => {
       if (candles.length < 25) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
       const closes = candles.map(c => c.close);
@@ -2492,7 +2492,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Candlestick",
     description: "Doji (body < 10% of range) after trending move. Doji after uptrend = sell signal. Doji after downtrend = buy signal.",
     indicators: ["EMA (20)", "Candlestick Pattern"],
-    book: "Japanese Candlestick Charting Techniques",
+    book: "Classic Trading Library",
     evaluate: (candles: OHLCV[]): StrategyResult => {
       if (candles.length < 25) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
       const closes = candles.map(c => c.close);
@@ -2523,7 +2523,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Candlestick",
     description: "3-candle pattern. Morning star: big red, small body, big green = bullish. Evening star: big green, small body, big red = bearish.",
     indicators: ["Candlestick Pattern"],
-    book: "Japanese Candlestick Charting Techniques",
+    book: "Classic Trading Library",
     evaluate: (candles: OHLCV[]): StrategyResult => {
       if (candles.length < 5) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
       const last = candles.length - 1;
@@ -2554,7 +2554,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Candlestick",
     description: "Dark cloud: green then red opening above high but closing below midpoint = bearish. Piercing: reverse = bullish.",
     indicators: ["Candlestick Pattern"],
-    book: "Japanese Candlestick Charting Techniques",
+    book: "Classic Trading Library",
     evaluate: (candles: OHLCV[]): StrategyResult => {
       if (candles.length < 5) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
       const last = candles.length - 1;
@@ -2579,7 +2579,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Candlestick",
     description: "3 consecutive bullish candles with higher closes = strong buy. 3 bearish with lower closes = strong sell.",
     indicators: ["Candlestick Pattern"],
-    book: "Japanese Candlestick Charting Techniques",
+    book: "Classic Trading Library",
     evaluate: (candles: OHLCV[]): StrategyResult => {
       if (candles.length < 5) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
       const last = candles.length - 1;
@@ -2606,7 +2606,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Candlestick",
     description: "Small candle contained within previous large candle. Bullish harami in downtrend = buy. Bearish harami in uptrend = sell.",
     indicators: ["EMA (20)", "Candlestick Pattern"],
-    book: "Japanese Candlestick Charting Techniques",
+    book: "Classic Trading Library",
     evaluate: (candles: OHLCV[]): StrategyResult => {
       if (candles.length < 25) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
       const closes = candles.map(c => c.close);
@@ -2640,7 +2640,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Candlestick",
     description: "Long upper shadow, small body at bottom. Shooting star after uptrend = sell. Inverted hammer after downtrend = buy.",
     indicators: ["EMA (20)", "Candlestick Pattern"],
-    book: "Japanese Candlestick Charting Techniques",
+    book: "Classic Trading Library",
     evaluate: (candles: OHLCV[]): StrategyResult => {
       if (candles.length < 25) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
       const closes = candles.map(c => c.close);
@@ -2670,7 +2670,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Candlestick",
     description: "Two candles with matching highs (tweezer top = sell) or matching lows (tweezer bottom = buy). Matching within 0.3%.",
     indicators: ["Candlestick Pattern"],
-    book: "Japanese Candlestick Charting Techniques",
+    book: "Classic Trading Library",
     evaluate: (candles: OHLCV[]): StrategyResult => {
       if (candles.length < 5) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
       const last = candles.length - 1;
@@ -2701,7 +2701,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Index Investing",
     description: "Price above 200-SMA = long-term uptrend, stay invested. Below = caution. Simple long-term positioning.",
     indicators: ["SMA (200)"],
-    book: "The Little Book of Common Sense Investing",
+    book: "Classic Trading Library",
     evaluate: (candles: OHLCV[]): StrategyResult => {
       if (candles.length < 200) return { signal: "NEUTRAL", strength: 0, details: "Not enough data (need 200+ candles)" };
       const closes = candles.map(c => c.close);
@@ -2724,7 +2724,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Index Investing",
     description: "When price deviates >10% from 100-SMA, expect reversion. Below by 10% = buy. Above by 10% = sell/reduce.",
     indicators: ["SMA (100)"],
-    book: "The Little Book of Common Sense Investing",
+    book: "Classic Trading Library",
     evaluate: (candles: OHLCV[]): StrategyResult => {
       if (candles.length < 100) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
       const closes = candles.map(c => c.close);
@@ -2750,7 +2750,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Index Investing",
     description: "Low volatility (ATR < avg ATR) + positive trend (above 50 and 100 SMA) = good steady investment.",
     indicators: ["ATR (14)", "SMA (50)", "SMA (100)"],
-    book: "The Little Book of Common Sense Investing",
+    book: "Classic Trading Library",
     evaluate: (candles: OHLCV[]): StrategyResult => {
       if (candles.length < 100) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
       const closes = candles.map(c => c.close);
@@ -2790,7 +2790,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Trend Following",
     description: "Buy when price breaks above 20-day high. Sell when breaks below 20-day low. Classic Richard Dennis / Turtle breakout.",
     indicators: ["20-Day High/Low"],
-    book: "Market Wizards",
+    book: "Classic Trading Library",
     evaluate: (candles: OHLCV[]): StrategyResult => {
       if (candles.length < 25) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
       const last = candles.length - 1;
@@ -2816,7 +2816,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Trend Following",
     description: "Enter near support (within 2% of 20-day low) with uptrend context (above 50-SMA). Tight risk, high reward.",
     indicators: ["20-Day Low", "SMA (50)"],
-    book: "Market Wizards",
+    book: "Classic Trading Library",
     evaluate: (candles: OHLCV[]): StrategyResult => {
       if (candles.length < 55) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
       const closes = candles.map(c => c.close);
@@ -2844,7 +2844,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Trend Following",
     description: "Long-term trend (price vs 50-EMA) + momentum (MACD histogram positive and rising). Both must align.",
     indicators: ["EMA (50)", "MACD (12,26,9)"],
-    book: "Market Wizards",
+    book: "Classic Trading Library",
     evaluate: (candles: OHLCV[]): StrategyResult => {
       if (candles.length < 55) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
       const closes = candles.map(c => c.close);
@@ -2872,7 +2872,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Trend Following",
     description: "Stage 2 breakout: price breaks above flattening 150-day SMA + volume surge (above 1.5x 20-day avg).",
     indicators: ["SMA (150)", "Volume (20-day avg)"],
-    book: "Market Wizards",
+    book: "Classic Trading Library",
     evaluate: (candles: OHLCV[]): StrategyResult => {
       if (candles.length < 155) return { signal: "NEUTRAL", strength: 0, details: "Not enough data (need 155+ candles)" };
       const closes = candles.map(c => c.close);
@@ -2903,7 +2903,7 @@ export const STRATEGIES: Strategy[] = [
     category: "Trend Following",
     description: "10-EMA above 40-EMA = bullish. When both rising and price pulls back to 10-EMA, that is the buy point.",
     indicators: ["EMA (10)", "EMA (40)"],
-    book: "Market Wizards",
+    book: "Classic Trading Library",
     evaluate: (candles: OHLCV[]): StrategyResult => {
       if (candles.length < 45) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
       const closes = candles.map(c => c.close);

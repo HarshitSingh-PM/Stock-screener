@@ -148,7 +148,7 @@ const jsonLdFaq = {
       "name": "What is JuicedTrade?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "JuicedTrade is a free stock screener that evaluates 2,100+ NSE-listed Indian stocks and all 500 S&P 500 US stocks against 100 trading strategies drawn from six classic trading books — including The Intelligent Investor, Technical Analysis of the Financial Markets, Japanese Candlestick Charting Techniques, Market Wizards, and The Little Book of Common Sense Investing — plus OpenBB signal concepts. It gives daily buy/sell/neutral signals, an ETF screener, an autonomous paper-trading bot, market overview dashboards, and backtesting.",
+        "text": "JuicedTrade is a free stock screener that evaluates 2,100+ NSE-listed Indian stocks and all 500 S&P 500 US stocks against 100 trading strategies adapted from bestselling trading literature and open-source signal concepts. It gives daily buy/sell/neutral signals, an ETF screener, an autonomous paper-trading bot, market overview dashboards, and backtesting.",
       },
     },
     {
@@ -180,7 +180,7 @@ const jsonLdFaq = {
       "name": "How many trading strategies does JuicedTrade use?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "JuicedTrade evaluates every stock against 100 strategies covering swing trading, intraday, positional, scalping, options proxies, price action, candlestick patterns, value investing, trend following, and index investing. The strategies are sourced from 51 Trading Strategies (Aseem Singhal), The Intelligent Investor (Benjamin Graham), Technical Analysis of the Financial Markets (John Murphy), Japanese Candlestick Charting Techniques (Steve Nison), The Little Book of Common Sense Investing (John Bogle), Market Wizards (Jack Schwager), plus OpenBB-inspired signal concepts.",
+        "text": "JuicedTrade evaluates every stock against 100 strategies covering swing trading, intraday, positional, scalping, options proxies, price action, candlestick patterns, value investing, trend following, and index investing. The strategies are adapted from bestselling trading literature plus open-source technical signal concepts.",
       },
     },
     {
@@ -196,7 +196,7 @@ const jsonLdFaq = {
       "name": "What data does JuicedTrade use?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Price, volume, and historical data come from Yahoo Finance. The NSE ticker list is sourced from the official NSE EQUITY_L archive, and the S&P 500 list from the public datasets/s-and-p-500-companies repository. All analysis (indicators, strategy signals, backtests) is computed on-the-fly inside JuicedTrade — there is no third-party signal provider.",
+        "text": "JuicedTrade uses live market price, volume, and historical OHLC data from public market feeds, refreshed daily. The NSE and S&P 500 universes are sourced from official exchange listings. All indicators, strategy signals, and backtests are computed inside JuicedTrade — there is no third-party signal provider.",
       },
     },
     {

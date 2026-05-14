@@ -321,105 +321,105 @@ function mapStrategyIndicatorsToChartIds(indicators: string[]): string[] {
 
 const STRATEGIES: StrategyInfo[] = [
   // Chapter 1 - Swing
-  { id: "bb-ema", name: "Bollinger Bands + 9 EMA", chapter: "1.1", category: "Swing", book: "51 Trading Strategies", description: "Buy when price takes support on lower BB with bullish 9-EMA. Sell at upper BB.", indicators: ["BB (20,2)", "EMA (9)"] },
-  { id: "williams-macd", name: "Williams %R + MACD Duo", chapter: "1.2", category: "Swing", book: "51 Trading Strategies", description: "Williams %R oversold reversal + MACD histogram rising + price above SMA.", indicators: ["Williams %R", "MACD", "SMA (14)"] },
-  { id: "macd-fib", name: "MACD + Fibonacci Retracement", chapter: "1.3", category: "Swing", book: "51 Trading Strategies", description: "MACD crossover at Fibonacci retracement levels for swing entries.", indicators: ["MACD", "Fibonacci"] },
-  { id: "triangle-breakout", name: "Riding a Breakout (Triangle)", chapter: "1.4", category: "Swing", book: "51 Trading Strategies", description: "Detects narrowing price range (triangle) followed by volume breakout.", indicators: ["Price Range", "Volume"] },
-  { id: "institutional-moves", name: "Institutional Moves", chapter: "1.5", category: "Swing", book: "51 Trading Strategies", description: "Gap up/down followed by retracement to demand/supply zone.", indicators: ["Gap Detection", "Volume"] },
-  { id: "bb-width", name: "BB Width Breakout", chapter: "1.6", category: "Swing", book: "51 Trading Strategies", description: "Bollinger Band squeeze then directional expansion breakout.", indicators: ["BB Width", "BB (20,2)"] },
-  { id: "ichimoku-cloud", name: "Ichimoku Cloud", chapter: "1.7", category: "Swing", book: "51 Trading Strategies", description: "Conversion/Base line crossover + price above/below the cloud.", indicators: ["Ichimoku (9,26,52)"] },
+  { id: "bb-ema", name: "Bollinger Bands + 9 EMA", chapter: "1.1", category: "Swing", book: "Classic Trading Library", description: "Buy when price takes support on lower BB with bullish 9-EMA. Sell at upper BB.", indicators: ["BB (20,2)", "EMA (9)"] },
+  { id: "williams-macd", name: "Williams %R + MACD Duo", chapter: "1.2", category: "Swing", book: "Classic Trading Library", description: "Williams %R oversold reversal + MACD histogram rising + price above SMA.", indicators: ["Williams %R", "MACD", "SMA (14)"] },
+  { id: "macd-fib", name: "MACD + Fibonacci Retracement", chapter: "1.3", category: "Swing", book: "Classic Trading Library", description: "MACD crossover at Fibonacci retracement levels for swing entries.", indicators: ["MACD", "Fibonacci"] },
+  { id: "triangle-breakout", name: "Riding a Breakout (Triangle)", chapter: "1.4", category: "Swing", book: "Classic Trading Library", description: "Detects narrowing price range (triangle) followed by volume breakout.", indicators: ["Price Range", "Volume"] },
+  { id: "institutional-moves", name: "Institutional Moves", chapter: "1.5", category: "Swing", book: "Classic Trading Library", description: "Gap up/down followed by retracement to demand/supply zone.", indicators: ["Gap Detection", "Volume"] },
+  { id: "bb-width", name: "BB Width Breakout", chapter: "1.6", category: "Swing", book: "Classic Trading Library", description: "Bollinger Band squeeze then directional expansion breakout.", indicators: ["BB Width", "BB (20,2)"] },
+  { id: "ichimoku-cloud", name: "Ichimoku Cloud", chapter: "1.7", category: "Swing", book: "Classic Trading Library", description: "Conversion/Base line crossover + price above/below the cloud.", indicators: ["Ichimoku (9,26,52)"] },
   // Chapter 2 - Intraday
-  { id: "ma-fibonacci", name: "Moving Average + Fibonacci", chapter: "2.1", category: "Intraday", book: "51 Trading Strategies", description: "Price above 200-SMA pulling back to Fibonacci support levels.", indicators: ["SMA (200)", "Fibonacci"] },
-  { id: "supertrend-pivot", name: "Supertrend + Pivot Points", chapter: "2.2", category: "Intraday", book: "51 Trading Strategies", description: "Price above R1 + Supertrend bullish for buy signals.", indicators: ["Supertrend", "Pivots"] },
-  { id: "vwap-stddev", name: "VWAP + Standard Deviations", chapter: "2.3", category: "Intraday", book: "51 Trading Strategies", description: "Price relative to VWAP proxy for overvalued/undervalued detection.", indicators: ["VWAP Proxy"] },
-  { id: "rsi-volume", name: "RSI + Volume Oscillator", chapter: "2.4", category: "Intraday", book: "51 Trading Strategies", description: "RSI oversold/overbought confirmed by Volume Oscillator extremes.", indicators: ["RSI (14)", "Vol Osc (5,10)"] },
-  { id: "wait-trade-pullback", name: "Wait & Trade Pullback", chapter: "2.5", category: "Intraday", book: "51 Trading Strategies", description: "Price in uptrend pulls back to pivot support with bullish candle.", indicators: ["Pivot Points", "Candle Pattern"] },
-  { id: "double-rsi", name: "Double RSI", chapter: "2.6", category: "Intraday", book: "51 Trading Strategies", description: "RSI(5) + RSI(60) confluence for strong overbought/oversold signals.", indicators: ["RSI (5)", "RSI (60)"] },
-  { id: "cpr-trend", name: "CPR with Trend Following", chapter: "2.7", category: "Intraday", book: "51 Trading Strategies", description: "Central Pivot Range: narrow CPR = trending, wide CPR = range-bound.", indicators: ["CPR", "Pivot Points"] },
+  { id: "ma-fibonacci", name: "Moving Average + Fibonacci", chapter: "2.1", category: "Intraday", book: "Classic Trading Library", description: "Price above 200-SMA pulling back to Fibonacci support levels.", indicators: ["SMA (200)", "Fibonacci"] },
+  { id: "supertrend-pivot", name: "Supertrend + Pivot Points", chapter: "2.2", category: "Intraday", book: "Classic Trading Library", description: "Price above R1 + Supertrend bullish for buy signals.", indicators: ["Supertrend", "Pivots"] },
+  { id: "vwap-stddev", name: "VWAP + Standard Deviations", chapter: "2.3", category: "Intraday", book: "Classic Trading Library", description: "Price relative to VWAP proxy for overvalued/undervalued detection.", indicators: ["VWAP Proxy"] },
+  { id: "rsi-volume", name: "RSI + Volume Oscillator", chapter: "2.4", category: "Intraday", book: "Classic Trading Library", description: "RSI oversold/overbought confirmed by Volume Oscillator extremes.", indicators: ["RSI (14)", "Vol Osc (5,10)"] },
+  { id: "wait-trade-pullback", name: "Wait & Trade Pullback", chapter: "2.5", category: "Intraday", book: "Classic Trading Library", description: "Price in uptrend pulls back to pivot support with bullish candle.", indicators: ["Pivot Points", "Candle Pattern"] },
+  { id: "double-rsi", name: "Double RSI", chapter: "2.6", category: "Intraday", book: "Classic Trading Library", description: "RSI(5) + RSI(60) confluence for strong overbought/oversold signals.", indicators: ["RSI (5)", "RSI (60)"] },
+  { id: "cpr-trend", name: "CPR with Trend Following", chapter: "2.7", category: "Intraday", book: "Classic Trading Library", description: "Central Pivot Range: narrow CPR = trending, wide CPR = range-bound.", indicators: ["CPR", "Pivot Points"] },
   // Chapter 3 - Advanced
-  { id: "dow-theory", name: "Dow Theory (HH/HL)", chapter: "3.1", category: "Advanced", book: "51 Trading Strategies", description: "Higher highs + higher lows = uptrend. Lower highs + lower lows = downtrend.", indicators: ["Swing Points"] },
-  { id: "smart-money", name: "Smart Money Concept", chapter: "3.2", category: "Advanced", book: "51 Trading Strategies", description: "Break of Structure (BoS) detection for institutional order flow.", indicators: ["BoS", "CHoCH"] },
-  { id: "elliott-wave", name: "Elliott Wave Theory", chapter: "3.3", category: "Advanced", book: "51 Trading Strategies", description: "5-wave impulse pattern detection at correction points (wave 2/4).", indicators: ["Wave Analysis"] },
-  { id: "fractal-trading", name: "Fractal-Based Trading", chapter: "3.4", category: "Advanced", book: "51 Trading Strategies", description: "Williams Fractals (4/4) + 50-SMA directional filter for breakouts.", indicators: ["Fractals", "SMA (50)"] },
-  { id: "renko-rsi-stoch", name: "Renko + RSI + Stoch RSI", chapter: "3.5", category: "Advanced", book: "51 Trading Strategies", description: "RSI + Stochastic RSI confluence at key support/resistance levels.", indicators: ["RSI", "Stoch RSI"] },
-  { id: "donchian-pullback", name: "Donchian Channel Pullback", chapter: "3.6", category: "Advanced", book: "51 Trading Strategies", description: "Price touches Donchian band, pulls back, then retests for entry.", indicators: ["Donchian (20)"] },
-  { id: "gann-linear-reg", name: "Gann Fan + Linear Regression", chapter: "3.7", category: "Advanced", book: "51 Trading Strategies", description: "Linear regression trend direction with price position analysis.", indicators: ["Linear Reg", "Trend"] },
+  { id: "dow-theory", name: "Dow Theory (HH/HL)", chapter: "3.1", category: "Advanced", book: "Classic Trading Library", description: "Higher highs + higher lows = uptrend. Lower highs + lower lows = downtrend.", indicators: ["Swing Points"] },
+  { id: "smart-money", name: "Smart Money Concept", chapter: "3.2", category: "Advanced", book: "Classic Trading Library", description: "Break of Structure (BoS) detection for institutional order flow.", indicators: ["BoS", "CHoCH"] },
+  { id: "elliott-wave", name: "Elliott Wave Theory", chapter: "3.3", category: "Advanced", book: "Classic Trading Library", description: "5-wave impulse pattern detection at correction points (wave 2/4).", indicators: ["Wave Analysis"] },
+  { id: "fractal-trading", name: "Fractal-Based Trading", chapter: "3.4", category: "Advanced", book: "Classic Trading Library", description: "Williams Fractals (4/4) + 50-SMA directional filter for breakouts.", indicators: ["Fractals", "SMA (50)"] },
+  { id: "renko-rsi-stoch", name: "Renko + RSI + Stoch RSI", chapter: "3.5", category: "Advanced", book: "Classic Trading Library", description: "RSI + Stochastic RSI confluence at key support/resistance levels.", indicators: ["RSI", "Stoch RSI"] },
+  { id: "donchian-pullback", name: "Donchian Channel Pullback", chapter: "3.6", category: "Advanced", book: "Classic Trading Library", description: "Price touches Donchian band, pulls back, then retests for entry.", indicators: ["Donchian (20)"] },
+  { id: "gann-linear-reg", name: "Gann Fan + Linear Regression", chapter: "3.7", category: "Advanced", book: "Classic Trading Library", description: "Linear regression trend direction with price position analysis.", indicators: ["Linear Reg", "Trend"] },
   // Chapter 4 - Positional
-  { id: "macro-pivots", name: "Moving with Macro Trends", chapter: "4.1", category: "Positional", book: "51 Trading Strategies", description: "Daily pivot points for positional swings at support/resistance.", indicators: ["Pivot Points"] },
-  { id: "supertrend-rsi", name: "Supertrend + RSI (Positional)", chapter: "4.2", category: "Positional", book: "51 Trading Strategies", description: "RSI > 60 + bullish Supertrend = buy. RSI < 40 + bearish = sell.", indicators: ["Supertrend", "RSI (14)"] },
-  { id: "sectoral-analysis", name: "Sectoral Analysis", chapter: "4.3", category: "Positional", book: "51 Trading Strategies", description: "Stock momentum vs sector - outperforming stocks get buy signals.", indicators: ["Relative Strength"] },
-  { id: "mw-rsi-pattern", name: "M & W RSI Pattern", chapter: "4.4", category: "Positional", book: "51 Trading Strategies", description: "RSI W-bottom (buy) or M-top (sell) pattern detection.", indicators: ["RSI (14)"] },
+  { id: "macro-pivots", name: "Moving with Macro Trends", chapter: "4.1", category: "Positional", book: "Classic Trading Library", description: "Daily pivot points for positional swings at support/resistance.", indicators: ["Pivot Points"] },
+  { id: "supertrend-rsi", name: "Supertrend + RSI (Positional)", chapter: "4.2", category: "Positional", book: "Classic Trading Library", description: "RSI > 60 + bullish Supertrend = buy. RSI < 40 + bearish = sell.", indicators: ["Supertrend", "RSI (14)"] },
+  { id: "sectoral-analysis", name: "Sectoral Analysis", chapter: "4.3", category: "Positional", book: "Classic Trading Library", description: "Stock momentum vs sector - outperforming stocks get buy signals.", indicators: ["Relative Strength"] },
+  { id: "mw-rsi-pattern", name: "M & W RSI Pattern", chapter: "4.4", category: "Positional", book: "Classic Trading Library", description: "RSI W-bottom (buy) or M-top (sell) pattern detection.", indicators: ["RSI (14)"] },
   // Chapter 5 - Scalping
-  { id: "sar-rsi-ha", name: "Parabolic SAR + RSI + Heiken Ashi", chapter: "5.1", category: "Scalping", book: "51 Trading Strategies", description: "SAR below price + RSI > 50 + bullish candle = buy confluence.", indicators: ["SAR", "RSI", "Heiken Ashi"] },
-  { id: "rsi-divergence-bb", name: "RSI Divergence + Bollinger Bands", chapter: "5.2", category: "Scalping", book: "51 Trading Strategies", description: "RSI divergence with price at Bollinger Band extremes.", indicators: ["RSI Divergence", "BB"] },
-  { id: "rsi-vwap-scalp", name: "RSI + VWAP Scalping", chapter: "5.3", category: "Scalping", book: "51 Trading Strategies", description: "Price below VWAP + RSI < 40 = buy. Above VWAP + RSI > 60 = sell.", indicators: ["RSI", "VWAP Proxy"] },
-  { id: "consolidation-breakout", name: "Consolidation Breakouts", chapter: "5.4", category: "Scalping", book: "51 Trading Strategies", description: "ATR contraction (tight range) followed by directional breakout.", indicators: ["ATR", "Range"] },
-  { id: "ma-scalping", name: "Moving Average Scalping", chapter: "5.5", category: "Scalping", book: "51 Trading Strategies", description: "5-EMA crosses 13-EMA + price above/below 50-SMA.", indicators: ["EMA (5,13)", "SMA (50)"] },
-  { id: "martingale", name: "Martingale System", chapter: "5.6", category: "Scalping", book: "51 Trading Strategies", description: "After 3+ consecutive red candles, buy on mean reversion probability.", indicators: ["Candle Pattern"] },
+  { id: "sar-rsi-ha", name: "Parabolic SAR + RSI + Heiken Ashi", chapter: "5.1", category: "Scalping", book: "Classic Trading Library", description: "SAR below price + RSI > 50 + bullish candle = buy confluence.", indicators: ["SAR", "RSI", "Heiken Ashi"] },
+  { id: "rsi-divergence-bb", name: "RSI Divergence + Bollinger Bands", chapter: "5.2", category: "Scalping", book: "Classic Trading Library", description: "RSI divergence with price at Bollinger Band extremes.", indicators: ["RSI Divergence", "BB"] },
+  { id: "rsi-vwap-scalp", name: "RSI + VWAP Scalping", chapter: "5.3", category: "Scalping", book: "Classic Trading Library", description: "Price below VWAP + RSI < 40 = buy. Above VWAP + RSI > 60 = sell.", indicators: ["RSI", "VWAP Proxy"] },
+  { id: "consolidation-breakout", name: "Consolidation Breakouts", chapter: "5.4", category: "Scalping", book: "Classic Trading Library", description: "ATR contraction (tight range) followed by directional breakout.", indicators: ["ATR", "Range"] },
+  { id: "ma-scalping", name: "Moving Average Scalping", chapter: "5.5", category: "Scalping", book: "Classic Trading Library", description: "5-EMA crosses 13-EMA + price above/below 50-SMA.", indicators: ["EMA (5,13)", "SMA (50)"] },
+  { id: "martingale", name: "Martingale System", chapter: "5.6", category: "Scalping", book: "Classic Trading Library", description: "After 3+ consecutive red candles, buy on mean reversion probability.", indicators: ["Candle Pattern"] },
   // Chapter 6 - Options
-  { id: "weekly-hedged", name: "Weekly Hedged Strategy", chapter: "6.1", category: "Options", book: "51 Trading Strategies", description: "Low volatility range-bound detection for options selling.", indicators: ["ATR", "Pivots"] },
-  { id: "multi-tf-options", name: "Multi-Timeframe Options", chapter: "6.2", category: "Options", book: "51 Trading Strategies", description: "Short-term (5/13 EMA) vs medium-term (21/50 EMA) trend alignment.", indicators: ["EMA (5,13,21,50)"] },
-  { id: "oi-analysis", name: "Open Interest Analysis", chapter: "6.3", category: "Options", book: "51 Trading Strategies", description: "Volume + price direction analysis as OI proxy. Rising both = strong trend.", indicators: ["Volume", "Price"] },
-  { id: "supertrend-selling", name: "Supertrend Selling", chapter: "6.4", category: "Options", book: "51 Trading Strategies", description: "Supertrend direction change signals for options entry.", indicators: ["Supertrend"] },
-  { id: "option-vwap", name: "Combined Option + VWAP", chapter: "6.5", category: "Options", book: "51 Trading Strategies", description: "Price crossing VWAP proxy + trend direction confirmation.", indicators: ["VWAP Proxy", "EMA"] },
-  { id: "momentum-buying", name: "Momentum Buying Option", chapter: "6.6", category: "Options", book: "51 Trading Strategies", description: "RSI > 65 + price above 20-EMA + strong recent gains.", indicators: ["RSI", "EMA (20)"] },
-  { id: "expiry-decay", name: "Expiry Decay Strategy", chapter: "6.7", category: "Options", book: "51 Trading Strategies", description: "High RSI + low ATR = premium selling opportunity (range-bound).", indicators: ["RSI", "ATR"] },
-  { id: "combined-stoploss", name: "Combined Stoploss Strategy", chapter: "6.8", category: "Options", book: "51 Trading Strategies", description: "Triple confirmation: above 20-EMA + above VWAP + RSI > 50.", indicators: ["EMA", "VWAP", "RSI"] },
-  { id: "theta-decay", name: "Theta Decay Strategy", chapter: "6.9", category: "Options", book: "51 Trading Strategies", description: "ATR declining + price within BB middle zone = range-bound.", indicators: ["ATR", "BB"] },
-  { id: "btst-momentum", name: "BTST Momentum", chapter: "6.10", category: "Options", book: "51 Trading Strategies", description: "Strong bullish candle (>1.5%) + high volume + RSI rising.", indicators: ["Volume", "RSI", "Price"] },
-  { id: "3pm-nifty", name: "3 PM Nifty Strategy", chapter: "6.11", category: "Options", book: "51 Trading Strategies", description: "End-of-day momentum: close vs VWAP for next session direction.", indicators: ["VWAP Proxy", "Close"] },
-  { id: "momentum-selling", name: "Momentum Selling", chapter: "6.12", category: "Options", book: "51 Trading Strategies", description: "Price below 20-EMA + RSI < 40 + big red candle (>1.5% loss).", indicators: ["EMA", "RSI"] },
-  { id: "swing-buying-options", name: "Swing Buying Options", chapter: "6.13", category: "Options", book: "51 Trading Strategies", description: "BB lower support + RSI oversold + Volume spike = swing buy.", indicators: ["BB", "RSI", "Volume"] },
+  { id: "weekly-hedged", name: "Weekly Hedged Strategy", chapter: "6.1", category: "Options", book: "Classic Trading Library", description: "Low volatility range-bound detection for options selling.", indicators: ["ATR", "Pivots"] },
+  { id: "multi-tf-options", name: "Multi-Timeframe Options", chapter: "6.2", category: "Options", book: "Classic Trading Library", description: "Short-term (5/13 EMA) vs medium-term (21/50 EMA) trend alignment.", indicators: ["EMA (5,13,21,50)"] },
+  { id: "oi-analysis", name: "Open Interest Analysis", chapter: "6.3", category: "Options", book: "Classic Trading Library", description: "Volume + price direction analysis as OI proxy. Rising both = strong trend.", indicators: ["Volume", "Price"] },
+  { id: "supertrend-selling", name: "Supertrend Selling", chapter: "6.4", category: "Options", book: "Classic Trading Library", description: "Supertrend direction change signals for options entry.", indicators: ["Supertrend"] },
+  { id: "option-vwap", name: "Combined Option + VWAP", chapter: "6.5", category: "Options", book: "Classic Trading Library", description: "Price crossing VWAP proxy + trend direction confirmation.", indicators: ["VWAP Proxy", "EMA"] },
+  { id: "momentum-buying", name: "Momentum Buying Option", chapter: "6.6", category: "Options", book: "Classic Trading Library", description: "RSI > 65 + price above 20-EMA + strong recent gains.", indicators: ["RSI", "EMA (20)"] },
+  { id: "expiry-decay", name: "Expiry Decay Strategy", chapter: "6.7", category: "Options", book: "Classic Trading Library", description: "High RSI + low ATR = premium selling opportunity (range-bound).", indicators: ["RSI", "ATR"] },
+  { id: "combined-stoploss", name: "Combined Stoploss Strategy", chapter: "6.8", category: "Options", book: "Classic Trading Library", description: "Triple confirmation: above 20-EMA + above VWAP + RSI > 50.", indicators: ["EMA", "VWAP", "RSI"] },
+  { id: "theta-decay", name: "Theta Decay Strategy", chapter: "6.9", category: "Options", book: "Classic Trading Library", description: "ATR declining + price within BB middle zone = range-bound.", indicators: ["ATR", "BB"] },
+  { id: "btst-momentum", name: "BTST Momentum", chapter: "6.10", category: "Options", book: "Classic Trading Library", description: "Strong bullish candle (>1.5%) + high volume + RSI rising.", indicators: ["Volume", "RSI", "Price"] },
+  { id: "3pm-nifty", name: "3 PM Nifty Strategy", chapter: "6.11", category: "Options", book: "Classic Trading Library", description: "End-of-day momentum: close vs VWAP for next session direction.", indicators: ["VWAP Proxy", "Close"] },
+  { id: "momentum-selling", name: "Momentum Selling", chapter: "6.12", category: "Options", book: "Classic Trading Library", description: "Price below 20-EMA + RSI < 40 + big red candle (>1.5% loss).", indicators: ["EMA", "RSI"] },
+  { id: "swing-buying-options", name: "Swing Buying Options", chapter: "6.13", category: "Options", book: "Classic Trading Library", description: "BB lower support + RSI oversold + Volume spike = swing buy.", indicators: ["BB", "RSI", "Volume"] },
   // Chapter 7 - Price Action
-  { id: "ema-crossover", name: "9 & 21 EMA Crossover", chapter: "7.1", category: "Price Action", book: "51 Trading Strategies", description: "Classic EMA crossover. Bullish when 9-EMA crosses above 21-EMA.", indicators: ["EMA (9)", "EMA (21)"] },
-  { id: "positional-pa", name: "Positional Price Action", chapter: "7.2", category: "Price Action", book: "51 Trading Strategies", description: "Price above both 50-SMA and 200-SMA = bullish. Below both = bearish.", indicators: ["SMA (50)", "SMA (200)"] },
-  { id: "pin-bar", name: "Pin Bar Reversal Pattern", chapter: "7.3", category: "Price Action", book: "51 Trading Strategies", description: "Long wick candles (>2x body) near support/resistance for reversals.", indicators: ["Candle Pattern"] },
-  { id: "pullback", name: "Pullback Strategy", chapter: "7.4", category: "Price Action", book: "51 Trading Strategies", description: "In uptrend, price pulls back to 20-EMA then bounces.", indicators: ["EMA (20)", "Trend"] },
-  { id: "repo-rate", name: "Trading on Repo Rates", chapter: "7.5", category: "Price Action", book: "51 Trading Strategies", description: "200-SMA macro trend filter + RSI momentum confirmation.", indicators: ["SMA (200)", "RSI"] },
-  { id: "vcp", name: "Volatility Contraction (VCP)", chapter: "7.6", category: "Price Action", book: "51 Trading Strategies", description: "Tightening price ranges (each contraction smaller) = pending breakout.", indicators: ["Range Analysis"] },
-  { id: "two-leg-pullback", name: "Two-Legged Pullback", chapter: "7.7", category: "Price Action", book: "51 Trading Strategies", description: "Two consecutive pullback legs in trend, then reversal candle.", indicators: ["Candle Pattern", "Trend"] },
+  { id: "ema-crossover", name: "9 & 21 EMA Crossover", chapter: "7.1", category: "Price Action", book: "Classic Trading Library", description: "Classic EMA crossover. Bullish when 9-EMA crosses above 21-EMA.", indicators: ["EMA (9)", "EMA (21)"] },
+  { id: "positional-pa", name: "Positional Price Action", chapter: "7.2", category: "Price Action", book: "Classic Trading Library", description: "Price above both 50-SMA and 200-SMA = bullish. Below both = bearish.", indicators: ["SMA (50)", "SMA (200)"] },
+  { id: "pin-bar", name: "Pin Bar Reversal Pattern", chapter: "7.3", category: "Price Action", book: "Classic Trading Library", description: "Long wick candles (>2x body) near support/resistance for reversals.", indicators: ["Candle Pattern"] },
+  { id: "pullback", name: "Pullback Strategy", chapter: "7.4", category: "Price Action", book: "Classic Trading Library", description: "In uptrend, price pulls back to 20-EMA then bounces.", indicators: ["EMA (20)", "Trend"] },
+  { id: "repo-rate", name: "Trading on Repo Rates", chapter: "7.5", category: "Price Action", book: "Classic Trading Library", description: "200-SMA macro trend filter + RSI momentum confirmation.", indicators: ["SMA (200)", "RSI"] },
+  { id: "vcp", name: "Volatility Contraction (VCP)", chapter: "7.6", category: "Price Action", book: "Classic Trading Library", description: "Tightening price ranges (each contraction smaller) = pending breakout.", indicators: ["Range Analysis"] },
+  { id: "two-leg-pullback", name: "Two-Legged Pullback", chapter: "7.7", category: "Price Action", book: "Classic Trading Library", description: "Two consecutive pullback legs in trend, then reversal candle.", indicators: ["Candle Pattern", "Trend"] },
 
   // The Intelligent Investor - Benjamin Graham
-  { id: "graham-margin-of-safety", name: "Margin of Safety", chapter: "Ch 20", category: "Value Investing", book: "The Intelligent Investor", description: "Buy when price is >25% below 52-week high. Deep discount = margin of safety.", indicators: ["52W High", "Price"] },
-  { id: "graham-defensive-value", name: "Defensive Value Screen", chapter: "Ch 14", category: "Value Investing", book: "The Intelligent Investor", description: "Low volatility + above 200-SMA + not overbought. Stable defensive stock.", indicators: ["ATR", "SMA (200)", "RSI"] },
-  { id: "graham-mr-market", name: "Mr. Market Contrarian", chapter: "Ch 8", category: "Value Investing", book: "The Intelligent Investor", description: "Buy extreme fear (RSI<25 + price 20% below 50-SMA). Sell extreme greed.", indicators: ["RSI", "SMA (50)"] },
-  { id: "graham-enterprising", name: "Enterprising Investor", chapter: "Ch 15", category: "Value Investing", book: "The Intelligent Investor", description: "Growth: above 50 & 200 SMA, higher highs, RSI 50-70.", indicators: ["SMA (50,200)", "RSI"] },
-  { id: "graham-net-current-asset", name: "Net Asset Value Play", chapter: "Ch 7", category: "Value Investing", book: "The Intelligent Investor", description: "Near 52W lows (bottom 15%) with rising RSI. Deep value reversal.", indicators: ["52W Range", "RSI"] },
+  { id: "graham-margin-of-safety", name: "Margin of Safety", chapter: "Ch 20", category: "Value Investing", book: "Classic Trading Library", description: "Buy when price is >25% below 52-week high. Deep discount = margin of safety.", indicators: ["52W High", "Price"] },
+  { id: "graham-defensive-value", name: "Defensive Value Screen", chapter: "Ch 14", category: "Value Investing", book: "Classic Trading Library", description: "Low volatility + above 200-SMA + not overbought. Stable defensive stock.", indicators: ["ATR", "SMA (200)", "RSI"] },
+  { id: "graham-mr-market", name: "Mr. Market Contrarian", chapter: "Ch 8", category: "Value Investing", book: "Classic Trading Library", description: "Buy extreme fear (RSI<25 + price 20% below 50-SMA). Sell extreme greed.", indicators: ["RSI", "SMA (50)"] },
+  { id: "graham-enterprising", name: "Enterprising Investor", chapter: "Ch 15", category: "Value Investing", book: "Classic Trading Library", description: "Growth: above 50 & 200 SMA, higher highs, RSI 50-70.", indicators: ["SMA (50,200)", "RSI"] },
+  { id: "graham-net-current-asset", name: "Net Asset Value Play", chapter: "Ch 7", category: "Value Investing", book: "Classic Trading Library", description: "Near 52W lows (bottom 15%) with rising RSI. Deep value reversal.", indicators: ["52W Range", "RSI"] },
 
   // Technical Analysis - John Murphy
-  { id: "murphy-triple-ma", name: "Triple Moving Average", chapter: "Ch 9", category: "Trend Following", book: "Technical Analysis of Financial Markets", description: "4-9-18 SMA alignment. Buy: 4>9>18. Sell: 4<9<18.", indicators: ["SMA (4,9,18)"] },
-  { id: "murphy-macd-histogram", name: "MACD Histogram Divergence", chapter: "Ch 10", category: "Trend Following", book: "Technical Analysis of Financial Markets", description: "MACD histogram divergence with price for reversal signals.", indicators: ["MACD Histogram"] },
-  { id: "murphy-rsi-70-30", name: "RSI 70/30 Classic", chapter: "Ch 10", category: "Trend Following", book: "Technical Analysis of Financial Markets", description: "Buy RSI crossing above 30. Sell RSI crossing below 70.", indicators: ["RSI (14)"] },
-  { id: "murphy-stochastic-kd", name: "Stochastic %K/%D", chapter: "Ch 10", category: "Trend Following", book: "Technical Analysis of Financial Markets", description: "Buy %K crosses %D in oversold (<20). Sell in overbought (>80).", indicators: ["Stochastic (14)"] },
-  { id: "murphy-support-resistance", name: "Support/Resistance Breakout", chapter: "Ch 4", category: "Trend Following", book: "Technical Analysis of Financial Markets", description: "Buy breakout above 20-day high. Sell breakdown below 20-day low.", indicators: ["20-Day Range"] },
-  { id: "murphy-head-shoulders", name: "Head & Shoulders", chapter: "Ch 5", category: "Trend Following", book: "Technical Analysis of Financial Markets", description: "Head & Shoulders pattern detection for major reversals.", indicators: ["Pattern"] },
-  { id: "murphy-double-top-bottom", name: "Double Top/Bottom", chapter: "Ch 5", category: "Trend Following", book: "Technical Analysis of Financial Markets", description: "Two peaks/troughs at similar levels signal reversal.", indicators: ["Pattern"] },
-  { id: "murphy-volume-confirmation", name: "Volume Price Confirm", chapter: "Ch 7", category: "Trend Following", book: "Technical Analysis of Financial Markets", description: "Rising price + rising volume = strong trend confirmation.", indicators: ["Volume", "Price"] },
-  { id: "murphy-ma-envelope", name: "MA Envelope", chapter: "Ch 9", category: "Trend Following", book: "Technical Analysis of Financial Markets", description: "Price outside 3% envelope of 20-SMA signals overbought/oversold.", indicators: ["SMA (20)", "Envelope"] },
-  { id: "murphy-roc", name: "Rate of Change (ROC)", chapter: "Ch 10", category: "Trend Following", book: "Technical Analysis of Financial Markets", description: "12-period ROC crossing zero line for momentum shifts.", indicators: ["ROC (12)"] },
+  { id: "murphy-triple-ma", name: "Triple Moving Average", chapter: "Ch 9", category: "Trend Following", book: "Classic Trading Library", description: "4-9-18 SMA alignment. Buy: 4>9>18. Sell: 4<9<18.", indicators: ["SMA (4,9,18)"] },
+  { id: "murphy-macd-histogram", name: "MACD Histogram Divergence", chapter: "Ch 10", category: "Trend Following", book: "Classic Trading Library", description: "MACD histogram divergence with price for reversal signals.", indicators: ["MACD Histogram"] },
+  { id: "murphy-rsi-70-30", name: "RSI 70/30 Classic", chapter: "Ch 10", category: "Trend Following", book: "Classic Trading Library", description: "Buy RSI crossing above 30. Sell RSI crossing below 70.", indicators: ["RSI (14)"] },
+  { id: "murphy-stochastic-kd", name: "Stochastic %K/%D", chapter: "Ch 10", category: "Trend Following", book: "Classic Trading Library", description: "Buy %K crosses %D in oversold (<20). Sell in overbought (>80).", indicators: ["Stochastic (14)"] },
+  { id: "murphy-support-resistance", name: "Support/Resistance Breakout", chapter: "Ch 4", category: "Trend Following", book: "Classic Trading Library", description: "Buy breakout above 20-day high. Sell breakdown below 20-day low.", indicators: ["20-Day Range"] },
+  { id: "murphy-head-shoulders", name: "Head & Shoulders", chapter: "Ch 5", category: "Trend Following", book: "Classic Trading Library", description: "Head & Shoulders pattern detection for major reversals.", indicators: ["Pattern"] },
+  { id: "murphy-double-top-bottom", name: "Double Top/Bottom", chapter: "Ch 5", category: "Trend Following", book: "Classic Trading Library", description: "Two peaks/troughs at similar levels signal reversal.", indicators: ["Pattern"] },
+  { id: "murphy-volume-confirmation", name: "Volume Price Confirm", chapter: "Ch 7", category: "Trend Following", book: "Classic Trading Library", description: "Rising price + rising volume = strong trend confirmation.", indicators: ["Volume", "Price"] },
+  { id: "murphy-ma-envelope", name: "MA Envelope", chapter: "Ch 9", category: "Trend Following", book: "Classic Trading Library", description: "Price outside 3% envelope of 20-SMA signals overbought/oversold.", indicators: ["SMA (20)", "Envelope"] },
+  { id: "murphy-roc", name: "Rate of Change (ROC)", chapter: "Ch 10", category: "Trend Following", book: "Classic Trading Library", description: "12-period ROC crossing zero line for momentum shifts.", indicators: ["ROC (12)"] },
 
   // Japanese Candlestick - Steve Nison
-  { id: "nison-hammer", name: "Hammer Pattern", chapter: "Ch 4", category: "Candlestick", book: "Japanese Candlestick Charting", description: "Long lower shadow (2x body) after downtrend. Bullish reversal.", indicators: ["Candle Pattern"] },
-  { id: "nison-engulfing", name: "Engulfing Pattern", chapter: "Ch 4", category: "Candlestick", book: "Japanese Candlestick Charting", description: "Current candle body engulfs previous. Bullish/bearish reversal.", indicators: ["Candle Pattern"] },
-  { id: "nison-doji-star", name: "Doji Star", chapter: "Ch 8", category: "Candlestick", book: "Japanese Candlestick Charting", description: "Doji (open=close) after trending move signals indecision/reversal.", indicators: ["Candle Pattern"] },
-  { id: "nison-morning-evening-star", name: "Morning/Evening Star", chapter: "Ch 5", category: "Candlestick", book: "Japanese Candlestick Charting", description: "3-candle reversal: large, small body, large opposite direction.", indicators: ["Candle Pattern"] },
-  { id: "nison-dark-cloud-piercing", name: "Dark Cloud / Piercing", chapter: "Ch 4", category: "Candlestick", book: "Japanese Candlestick Charting", description: "2-candle pattern: opens beyond previous, closes into body.", indicators: ["Candle Pattern"] },
-  { id: "nison-three-soldiers-crows", name: "Three Soldiers/Crows", chapter: "Ch 6", category: "Candlestick", book: "Japanese Candlestick Charting", description: "3 consecutive same-direction candles with progressive closes.", indicators: ["Candle Pattern"] },
-  { id: "nison-harami", name: "Harami Pattern", chapter: "Ch 6", category: "Candlestick", book: "Japanese Candlestick Charting", description: "Small candle within previous large candle signals reversal.", indicators: ["Candle Pattern"] },
-  { id: "nison-shooting-star", name: "Shooting Star", chapter: "Ch 5", category: "Candlestick", book: "Japanese Candlestick Charting", description: "Long upper shadow at top of uptrend signals bearish reversal.", indicators: ["Candle Pattern"] },
-  { id: "nison-tweezers", name: "Tweezers Top/Bottom", chapter: "Ch 6", category: "Candlestick", book: "Japanese Candlestick Charting", description: "Two candles with matching highs/lows at turning points.", indicators: ["Candle Pattern"] },
+  { id: "nison-hammer", name: "Hammer Pattern", chapter: "Ch 4", category: "Candlestick", book: "Classic Trading Library", description: "Long lower shadow (2x body) after downtrend. Bullish reversal.", indicators: ["Candle Pattern"] },
+  { id: "nison-engulfing", name: "Engulfing Pattern", chapter: "Ch 4", category: "Candlestick", book: "Classic Trading Library", description: "Current candle body engulfs previous. Bullish/bearish reversal.", indicators: ["Candle Pattern"] },
+  { id: "nison-doji-star", name: "Doji Star", chapter: "Ch 8", category: "Candlestick", book: "Classic Trading Library", description: "Doji (open=close) after trending move signals indecision/reversal.", indicators: ["Candle Pattern"] },
+  { id: "nison-morning-evening-star", name: "Morning/Evening Star", chapter: "Ch 5", category: "Candlestick", book: "Classic Trading Library", description: "3-candle reversal: large, small body, large opposite direction.", indicators: ["Candle Pattern"] },
+  { id: "nison-dark-cloud-piercing", name: "Dark Cloud / Piercing", chapter: "Ch 4", category: "Candlestick", book: "Classic Trading Library", description: "2-candle pattern: opens beyond previous, closes into body.", indicators: ["Candle Pattern"] },
+  { id: "nison-three-soldiers-crows", name: "Three Soldiers/Crows", chapter: "Ch 6", category: "Candlestick", book: "Classic Trading Library", description: "3 consecutive same-direction candles with progressive closes.", indicators: ["Candle Pattern"] },
+  { id: "nison-harami", name: "Harami Pattern", chapter: "Ch 6", category: "Candlestick", book: "Classic Trading Library", description: "Small candle within previous large candle signals reversal.", indicators: ["Candle Pattern"] },
+  { id: "nison-shooting-star", name: "Shooting Star", chapter: "Ch 5", category: "Candlestick", book: "Classic Trading Library", description: "Long upper shadow at top of uptrend signals bearish reversal.", indicators: ["Candle Pattern"] },
+  { id: "nison-tweezers", name: "Tweezers Top/Bottom", chapter: "Ch 6", category: "Candlestick", book: "Classic Trading Library", description: "Two candles with matching highs/lows at turning points.", indicators: ["Candle Pattern"] },
 
   // Common Sense Investing - John Bogle
-  { id: "bogle-trend-following", name: "Long-Term Trend", chapter: "Ch 8", category: "Index Investing", book: "Common Sense Investing", description: "Price above 200-SMA = long-term uptrend. Simple and effective.", indicators: ["SMA (200)"] },
-  { id: "bogle-mean-reversion", name: "Mean Reversion", chapter: "Ch 9", category: "Index Investing", book: "Common Sense Investing", description: "Price >10% from 100-SMA expects reversion. Buy below, sell above.", indicators: ["SMA (100)"] },
-  { id: "bogle-low-cost-momentum", name: "Low-Cost Momentum", chapter: "Ch 12", category: "Index Investing", book: "Common Sense Investing", description: "Low volatility + positive trend = steady investment candidate.", indicators: ["ATR", "SMA (50,100)"] },
+  { id: "bogle-trend-following", name: "Long-Term Trend", chapter: "Ch 8", category: "Index Investing", book: "Classic Trading Library", description: "Price above 200-SMA = long-term uptrend. Simple and effective.", indicators: ["SMA (200)"] },
+  { id: "bogle-mean-reversion", name: "Mean Reversion", chapter: "Ch 9", category: "Index Investing", book: "Classic Trading Library", description: "Price >10% from 100-SMA expects reversion. Buy below, sell above.", indicators: ["SMA (100)"] },
+  { id: "bogle-low-cost-momentum", name: "Low-Cost Momentum", chapter: "Ch 12", category: "Index Investing", book: "Classic Trading Library", description: "Low volatility + positive trend = steady investment candidate.", indicators: ["ATR", "SMA (50,100)"] },
 
   // Market Wizards - Jack Schwager
-  { id: "wizard-trend-breakout", name: "Turtle Breakout", chapter: "Dennis", category: "Trend Following", book: "Market Wizards", description: "Buy breakout above 20-day high. Sell below 20-day low. (Richard Dennis)", indicators: ["20-Day Range"] },
-  { id: "wizard-risk-reward", name: "Risk-Adjusted Entry", chapter: "Hite", category: "Trend Following", book: "Market Wizards", description: "Enter near support (within 2% of 20-day low) with uptrend. (Larry Hite)", indicators: ["20-Day Low", "SMA (50)"] },
-  { id: "wizard-seykota-trend", name: "Seykota Trend System", chapter: "Seykota", category: "Trend Following", book: "Market Wizards", description: "50-EMA trend + MACD momentum must align. (Ed Seykota)", indicators: ["EMA (50)", "MACD"] },
-  { id: "wizard-weinstein-stage", name: "Weinstein Stage 2", chapter: "Weinstein", category: "Trend Following", book: "Market Wizards", description: "Price breaks above flattening 150-SMA + volume surge. (Mark Weinstein)", indicators: ["SMA (150)", "Volume"] },
-  { id: "wizard-schwartz-momentum", name: "Schwartz Momentum", chapter: "Schwartz", category: "Trend Following", book: "Market Wizards", description: "10-EMA above 40-EMA, both rising, pullback to 10-EMA = buy. (Marty Schwartz)", indicators: ["EMA (10,40)"] },
+  { id: "wizard-trend-breakout", name: "Turtle Breakout", chapter: "Dennis", category: "Trend Following", book: "Classic Trading Library", description: "Buy breakout above 20-day high. Sell below 20-day low. (Richard Dennis)", indicators: ["20-Day Range"] },
+  { id: "wizard-risk-reward", name: "Risk-Adjusted Entry", chapter: "Hite", category: "Trend Following", book: "Classic Trading Library", description: "Enter near support (within 2% of 20-day low) with uptrend. (Larry Hite)", indicators: ["20-Day Low", "SMA (50)"] },
+  { id: "wizard-seykota-trend", name: "Seykota Trend System", chapter: "Seykota", category: "Trend Following", book: "Classic Trading Library", description: "50-EMA trend + MACD momentum must align. (Ed Seykota)", indicators: ["EMA (50)", "MACD"] },
+  { id: "wizard-weinstein-stage", name: "Weinstein Stage 2", chapter: "Weinstein", category: "Trend Following", book: "Classic Trading Library", description: "Price breaks above flattening 150-SMA + volume surge. (Mark Weinstein)", indicators: ["SMA (150)", "Volume"] },
+  { id: "wizard-schwartz-momentum", name: "Schwartz Momentum", chapter: "Schwartz", category: "Trend Following", book: "Classic Trading Library", description: "10-EMA above 40-EMA, both rising, pullback to 10-EMA = buy. (Marty Schwartz)", indicators: ["EMA (10,40)"] },
 
   // OpenBB-Inspired Signal Concepts
   { id: "obv-trend-confirm", name: "OBV Trend Confirmation", chapter: "OB1", category: "Trend Following", book: "OpenBB Signals", description: "On Balance Volume rising with price confirms buying pressure. Divergence warns of reversal.", indicators: ["OBV", "SMA (20)"] },
@@ -456,13 +456,8 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 const BOOKS = [
-  "All Books",
-  "51 Trading Strategies",
-  "The Intelligent Investor",
-  "Technical Analysis of Financial Markets",
-  "Japanese Candlestick Charting",
-  "Common Sense Investing",
-  "Market Wizards",
+  "All Sources",
+  "Classic Trading Library",
   "OpenBB Signals",
 ];
 
@@ -544,7 +539,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [scannedInfo, setScannedInfo] = useState({ scanned: 0, total: 0 });
   const [categoryFilter, setCategoryFilter] = useState("All");
-  const [bookFilter, setBookFilter] = useState("All Books");
+  const [bookFilter, setBookFilter] = useState("All Sources");
   const [chartStock, setChartStock] = useState<string | null>(null);
 
   // Scan
@@ -901,7 +896,7 @@ export default function Home() {
 
   const filteredStrategies = STRATEGIES.filter((s) => {
     const catMatch = categoryFilter === "All" || s.category === categoryFilter;
-    const bookMatch = bookFilter === "All Books" || s.book === bookFilter;
+    const bookMatch = bookFilter === "All Sources" || s.book === bookFilter;
     return catMatch && bookMatch;
   });
 
@@ -1001,7 +996,7 @@ export default function Home() {
                   </span>
                 </h1>
                 <p className="text-base sm:text-lg text-gray-400 max-w-2xl mx-auto leading-relaxed mb-8">
-                  <strong className="text-gray-200">JuicedTrade Stock Screener</strong> evaluates every NSE-listed Indian stock and the entire S&amp;P 500 against 100 strategies from six classic trading books — every single day. Get buy/sell signals, run backtests, screen ETFs by theme, and watch an autonomous bot trade the signals in real time.
+                  <strong className="text-gray-200">JuicedTrade Stock Screener</strong> evaluates every NSE-listed Indian stock and the entire S&amp;P 500 against 100 strategies adapted from bestselling trading literature — every single day. Get buy/sell signals, run backtests, screen ETFs by theme, and watch an autonomous bot trade the signals in real time.
                 </p>
                 <div className="flex flex-wrap items-center justify-center gap-3 mb-10">
                   <button
@@ -1027,28 +1022,15 @@ export default function Home() {
               </div>
             </section>
 
-            {/* SOCIAL PROOF — book sources */}
+            {/* SOCIAL PROOF — strategy categories */}
             <section className="border-y border-white/5 bg-white/[0.015]" aria-labelledby="sources-heading">
-              <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
-                <h2 id="sources-heading" className="text-[10px] uppercase tracking-[0.2em] text-gray-500 text-center mb-5 font-semibold">
-                  Strategies sourced from
+              <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 text-center">
+                <h2 id="sources-heading" className="text-[10px] uppercase tracking-[0.2em] text-gray-500 mb-3 font-semibold">
+                  Strategies adapted from bestselling trading literature
                 </h2>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 text-center">
-                  {[
-                    { title: "51 Trading Strategies", author: "A. Singhal", count: 51 },
-                    { title: "Intelligent Investor", author: "B. Graham", count: 5 },
-                    { title: "Technical Analysis", author: "J. Murphy", count: 10 },
-                    { title: "Candlestick Charting", author: "S. Nison", count: 9 },
-                    { title: "Common Sense Investing", author: "J. Bogle", count: 3 },
-                    { title: "Market Wizards", author: "J. Schwager", count: 5 },
-                  ].map((b) => (
-                    <div key={b.title} className="px-3 py-3 rounded-lg bg-white/[0.02] border border-white/5">
-                      <div className="text-xs font-semibold text-gray-300 truncate">{b.title}</div>
-                      <div className="text-[10px] text-gray-500">{b.author}</div>
-                      <div className="text-[10px] text-amber-400 mt-1 font-mono">{b.count} strategies</div>
-                    </div>
-                  ))}
-                </div>
+                <p className="text-sm text-gray-400 max-w-2xl mx-auto leading-relaxed">
+                  Swing · Intraday · Positional · Scalping · Options · Price Action · Candlestick Patterns · Value Investing · Trend Following · Index Investing — 100 strategies across <strong className="text-gray-200">11 categories</strong>, every stock evaluated daily.
+                </p>
               </div>
             </section>
 
@@ -1256,7 +1238,7 @@ export default function Home() {
                     },
                     {
                       q: "Where does the data come from?",
-                      a: "Price, volume, and historical OHLCV come from Yahoo Finance. NSE tickers from the official EQUITY_L archive. S&P 500 list from the public datasets/s-and-p-500-companies repository. All indicators and strategy logic are computed inside JuicedTrade.",
+                      a: "JuicedTrade pulls live and historical market data — price, volume, and OHLC — from public market feeds, refreshed daily. NSE and S&P 500 universes are sourced from official exchange listings. All indicators, strategy signals, and backtests are computed inside JuicedTrade — there is no third-party signal vendor.",
                     },
                     {
                       q: "Is this investment advice?",
@@ -3025,7 +3007,7 @@ export default function Home() {
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="text-[10px] font-mono text-gray-500">Ch {s.chapter}</span>
+                            <span className="text-[10px] font-mono text-gray-500">{s.category}</span>
                             <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${CATEGORY_COLORS[s.category] || ""}`}>{s.category}</span>
                           </div>
                           <h3 className="text-sm font-semibold truncate">{s.name}</h3>
@@ -3077,7 +3059,7 @@ export default function Home() {
                 <>
                   <div className="bg-white/[0.02] border border-white/5 rounded-xl p-5 mb-4">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-xs font-mono text-gray-500">Chapter {selectedStrategy.chapter}</span>
+                      <span className="text-xs font-mono text-gray-500">{selectedStrategy.category}</span>
                       <span className={`px-2 py-0.5 rounded text-xs font-medium border ${CATEGORY_COLORS[selectedStrategy.category] || ""}`}>{selectedStrategy.category}</span>
                       <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-white/5 text-gray-400 border border-white/10">{selectedStrategy.book}</span>
                     </div>
@@ -3285,7 +3267,7 @@ export default function Home() {
                             const lines = results.map((r, i) =>
                               `${i + 1}. ${r.symbol} ${currencySymbol}${r.price.toFixed(2)} (${r.changePercent >= 0 ? "+" : ""}${r.changePercent.toFixed(2)}%) — ${r.signal} [${r.strength}] ${r.details}`
                             );
-                            const text = `${selectedStrategy?.name} (${selectedStrategy?.chapter}) — ${signalFilter} Signals\n${selectedStrategy?.description}\n${"─".repeat(50)}\n${lines.join("\n")}\n${"─".repeat(50)}\nScanned ${scannedInfo.scanned}/${scannedInfo.total} stocks | Generated by StrategyScreener`;
+                            const text = `${selectedStrategy?.name} — ${signalFilter} Signals\n${selectedStrategy?.description}\n${"─".repeat(50)}\n${lines.join("\n")}\n${"─".repeat(50)}\nScanned ${scannedInfo.scanned}/${scannedInfo.total} stocks | Generated by JuicedTrade`;
                             navigator.clipboard.writeText(text);
                             setCopiedStrategy(true);
                             setTimeout(() => setCopiedStrategy(false), 2000);
@@ -3421,7 +3403,7 @@ export default function Home() {
                       const lines = sorted.map((r, i) =>
                         `${i + 1}. ${r.symbol} (${currencySymbol}${r.price.toFixed(2)}) ${r.changePercent >= 0 ? "+" : ""}${r.changePercent.toFixed(2)}% | BUY: ${r.buyCount}/${r.totalStrategies} | Avg Strength: ${r.avgStrength}${r.buyStrategies ? "\n   Top: " + r.buyStrategies.slice(0, 3).map(s => s.name).join(", ") : ""}`
                       );
-                      const text = `Multi-Strategy Scan Results (${new Date().toLocaleDateString("en-IN")})\nSorted by: ${scanSort}\n${"─".repeat(50)}\n${lines.join("\n")}\n${"─".repeat(50)}\nGenerated by StrategyScreener`;
+                      const text = `Multi-Strategy Scan Results (${new Date().toLocaleDateString("en-IN")})\nSorted by: ${scanSort}\n${"─".repeat(50)}\n${lines.join("\n")}\n${"─".repeat(50)}\nGenerated by JuicedTrade`;
                       navigator.clipboard.writeText(text);
                       setCopiedScan(true);
                       setTimeout(() => setCopiedScan(false), 2000);
@@ -3539,7 +3521,7 @@ export default function Home() {
                                   className="w-full flex items-center justify-between bg-emerald-500/5 hover:bg-emerald-500/10 rounded-lg p-2.5 text-left transition-colors group"
                                 >
                                   <div className="flex items-center gap-2 flex-1 min-w-0">
-                                    <span className="text-[10px] font-mono text-gray-500 flex-shrink-0">Ch {s.chapter}</span>
+                                    <span className="text-[10px] font-mono text-gray-500 flex-shrink-0">{s.category}</span>
                                     <span className="text-sm font-medium truncate group-hover:text-emerald-400 transition-colors">{s.name}</span>
                                     <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border flex-shrink-0 ${CATEGORY_COLORS[s.category] || ""}`}>{s.category}</span>
                                     <span className="text-[10px] text-gray-600 truncate hidden sm:inline">{s.book}</span>
@@ -3588,7 +3570,7 @@ export default function Home() {
                                   className="w-full flex items-center justify-between bg-red-500/5 hover:bg-red-500/10 rounded-lg p-2.5 text-left transition-colors group"
                                 >
                                   <div className="flex items-center gap-2 flex-1 min-w-0">
-                                    <span className="text-[10px] font-mono text-gray-500 flex-shrink-0">Ch {s.chapter}</span>
+                                    <span className="text-[10px] font-mono text-gray-500 flex-shrink-0">{s.category}</span>
                                     <span className="text-sm font-medium truncate group-hover:text-red-400 transition-colors">{s.name}</span>
                                     <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border flex-shrink-0 ${CATEGORY_COLORS[s.category] || ""}`}>{s.category}</span>
                                     <span className="text-[10px] text-gray-600 truncate hidden sm:inline">{s.book}</span>
@@ -3942,7 +3924,7 @@ export default function Home() {
                       <div key={sr.id} className={`bg-white/[0.02] border rounded-xl p-4 transition-all ${sr.signal === "BUY" ? "border-emerald-500/20" : sr.signal === "SELL" ? "border-red-500/20" : "border-white/5"}`}>
                         <div className="flex items-center justify-between mb-1">
                           <div className="flex items-center gap-2">
-                            <span className="text-xs font-mono text-gray-500">Ch {sr.chapter}</span>
+                            <span className="text-xs font-mono text-gray-500">{sr.category}</span>
                             <h4 className="text-sm font-semibold">{sr.name}</h4>
                             <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${CATEGORY_COLORS[sr.category] || ""}`}>{sr.category}</span>
                           </div>
@@ -4198,7 +4180,7 @@ export default function Home() {
             {learnTab === "strategies" && (
               <div>
                 <p className="text-sm text-gray-500 mb-4">All {STRATEGIES.length} strategies in this screener, organized by source book. Click any strategy name to scan stocks with it.</p>
-                {BOOKS.filter(b => b !== "All Books").map((book) => {
+                {BOOKS.filter(b => b !== "All Sources").map((book) => {
                   const bookStrategies = STRATEGIES.filter(s => s.book === book);
                   if (bookStrategies.length === 0) return null;
                   return (
@@ -4214,7 +4196,7 @@ export default function Home() {
                             className="bg-white/[0.02] border border-white/5 rounded-lg p-3 text-left hover:bg-white/[0.04] hover:border-white/10 transition-all group"
                           >
                             <div className="flex items-center gap-2 mb-1">
-                              <span className="text-[10px] font-mono text-gray-500">Ch {s.chapter}</span>
+                              <span className="text-[10px] font-mono text-gray-500">{s.category}</span>
                               <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${CATEGORY_COLORS[s.category] || ""}`}>{s.category}</span>
                             </div>
                             <div className="text-sm font-semibold group-hover:text-blue-400 transition-colors">{s.name}</div>
@@ -4239,7 +4221,7 @@ export default function Home() {
       <footer className="border-t border-white/5 py-4 mt-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between text-xs text-gray-600">
           <span>Based on 6 classic books + OpenBB concepts &middot; {STRATEGIES.length} strategies</span>
-          <span>Data: Yahoo Finance &middot; For educational purposes only</span>
+          <span>Market data refreshed daily &middot; For educational purposes only</span>
         </div>
       </footer>
     </div>
