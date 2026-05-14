@@ -1,16 +1,15 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import YahooFinance from "yahoo-finance2";
 import { sma, ema, rsi, bollingerBands, pivotPoints, atr } from "@/lib/indicators";
+import { getMarket, getMarketConfig } from "@/lib/markets";
 
 const yahooFinance = new (YahooFinance as any)({ suppressNotices: ["yahooSurvey"] });
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    // Fetch Sensex and Nifty 50
-    const indices = [
-      { symbol: "^BSESN", name: "SENSEX" },
-      { symbol: "^NSEI", name: "NIFTY 50" },
-    ];
+    const market = getMarket(request.nextUrl.searchParams.get("market"));
+    const cfg = getMarketConfig(market);
+    const indices = cfg.indices;
 
     const results = await Promise.all(
       indices.map(async ({ symbol, name }) => {
@@ -200,6 +199,7 @@ export async function GET() {
 
     return NextResponse.json({
       indices: results.filter(Boolean),
+      market,
     });
   } catch (e) {
     return NextResponse.json({ error: "Failed to fetch market data" }, { status: 500 });

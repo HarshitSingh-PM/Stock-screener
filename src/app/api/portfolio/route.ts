@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStockQuote, getHistoricalData } from "@/lib/stockData";
 import { STRATEGIES } from "@/lib/strategies";
+import { getMarket } from "@/lib/markets";
 import {
   OHLCV, sma, ema, rsi, bollingerBands, atr, macd, supertrend, pivotPoints,
   obv, adl, adx, mfi, stochastic, roc,
@@ -140,6 +141,7 @@ function computeLevels(candles: OHLCV[]): LevelAnalysis {
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const symbolsParam = searchParams.get("symbols"); // comma-separated
+  const market = getMarket(searchParams.get("market"));
 
   if (!symbolsParam) {
     return NextResponse.json({ error: "symbols parameter required" }, { status: 400 });
@@ -160,8 +162,8 @@ export async function GET(request: NextRequest) {
     const batchResults = await Promise.allSettled(
       batch.map(async (symbol) => {
         const [quote, candles] = await Promise.all([
-          getStockQuote(symbol),
-          getHistoricalData(symbol, 300), // Get more data for 200-SMA
+          getStockQuote(symbol, market),
+          getHistoricalData(symbol, 300, market), // Get more data for 200-SMA
         ]);
 
         if (!quote || candles.length < 20) return null;

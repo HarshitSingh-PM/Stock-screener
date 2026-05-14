@@ -8,6 +8,7 @@ import { TUTORIAL_INDICATORS, TUTORIAL_CONCEPTS } from "@/lib/tutorials";
 
 const CandlestickChart = dynamic(() => import("@/components/CandlestickChart"), { ssr: false });
 const MarketChart = dynamic(() => import("@/components/MarketChart"), { ssr: false });
+const BotEquityChart = dynamic(() => import("@/components/BotEquityChart"), { ssr: false });
 
 interface StrategyInfo {
   id: string;
@@ -80,7 +81,15 @@ interface SignalsData {
   signals: MarketSignal[];
   events: MarketEvent[];
   sentiment: { score: number; label: string; bullish: number; bearish: number; neutral: number; total: number };
-  market: { niftyPrice: string; niftyChange: string; sensexPrice: string | null; sensexChange: string | null };
+  market: {
+    market?: "IN" | "US";
+    primaryName: string;
+    primaryPrice: string;
+    primaryChange: string;
+    secondaryName: string;
+    secondaryPrice: string | null;
+    secondaryChange: string | null;
+  };
 }
 
 interface GlobalMarket {
@@ -122,6 +131,7 @@ interface GlobalData {
   markets: GlobalMarket[];
   insights: CorrelationInsight[];
   prediction: { score: number; label: string; factors: PredictionFactor[] };
+  usPrediction?: { score: number; label: string; factors: PredictionFactor[] };
   timestamp: string;
 }
 
@@ -146,6 +156,7 @@ interface InsiderData {
   holders: NotableHolderInfo[];
   deals: InsiderDeal[];
   bulkDeals: InsiderDeal[];
+  types?: string[];
 }
 
 interface PortfolioHolding {
@@ -187,6 +198,86 @@ interface PortfolioStockData {
   };
   levels: PortfolioLevels;
   signals: PortfolioSignalSummary;
+}
+
+interface ETFResult {
+  symbol: string;
+  name: string;
+  theme: string;
+  note?: string;
+  price: number;
+  change: number;
+  changePercent: number;
+  volume: number;
+  high52w: number;
+  low52w: number;
+  recommendation: "STRONG_BUY" | "BUY" | "HOLD" | "SELL" | "STRONG_SELL";
+  score: number;
+  buyCount: number;
+  sellCount: number;
+  neutralCount: number;
+  totalStrategies: number;
+  rationale: string[];
+}
+
+interface ETFData {
+  total: number;
+  scanned: number;
+  themes: string[];
+  byTheme: Record<string, ETFResult[]>;
+}
+
+interface BotHoldingLive {
+  symbol: string;
+  quantity: number;
+  avgBuyPrice: number;
+  buyDate: string;
+  currentPrice: number;
+  currentValue: number;
+  cost: number;
+  unrealizedPnL: number;
+  unrealizedPnLPercent: number;
+}
+
+interface BotTradeView {
+  date: string;
+  timestamp: string;
+  symbol: string;
+  action: "BUY" | "SELL";
+  quantity: number;
+  price: number;
+  total: number;
+  reason: string;
+  realizedPnL?: number;
+}
+
+interface BotSnapshotView {
+  date: string;
+  cash: number;
+  holdingsValue: number;
+  equity: number;
+  pnl: number;
+  pnlPercent: number;
+  positions: number;
+  tradesCount: number;
+}
+
+interface BotStateView {
+  market: "IN" | "US";
+  startingCapital: number;
+  cash: number;
+  holdingsValue: number;
+  equity: number;
+  totalPnL: number;
+  totalPnLPercent: number;
+  realizedPnL: number;
+  unrealizedPnL: number;
+  holdings: BotHoldingLive[];
+  trades: BotTradeView[];
+  snapshots: BotSnapshotView[];
+  lastRunDate: string | null;
+  positionsOpen: number;
+  maxPositions: number;
 }
 
 interface StockDetail {
@@ -375,7 +466,14 @@ const BOOKS = [
   "OpenBB Signals",
 ];
 
-function formatNumber(n: number): string {
+function formatNumber(n: number, market: "IN" | "US" = "IN"): string {
+  if (market === "US") {
+    if (n >= 1e12) return (n / 1e12).toFixed(2) + "T";
+    if (n >= 1e9) return (n / 1e9).toFixed(2) + "B";
+    if (n >= 1e6) return (n / 1e6).toFixed(2) + "M";
+    if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
+    return n.toFixed(2);
+  }
   if (n >= 1e12) return (n / 1e12).toFixed(2) + "T";
   if (n >= 1e9) return (n / 1e9).toFixed(2) + "B";
   if (n >= 1e7) return (n / 1e7).toFixed(2) + "Cr";
@@ -426,7 +524,8 @@ function Spinner() {
 }
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<"market" | "global" | "signals" | "portfolio" | "insider" | "strategies" | "scan" | "search" | "learn">("market");
+  const [activeTab, setActiveTab] = useState<"home" | "market" | "global" | "signals" | "portfolio" | "bot" | "etfs" | "strategies" | "scan" | "search" | "learn">("home");
+  const [strategiesSubTab, setStrategiesSubTab] = useState<"screener" | "insider">("screener");
   const [selectedStrategy, setSelectedStrategy] = useState<StrategyInfo | null>(null);
   const [signalFilter, setSignalFilter] = useState("ALL");
   const [results, setResults] = useState<ScreenerResult[]>([]);
@@ -473,6 +572,46 @@ export default function Home() {
     localStorage.setItem("strategyScreenerTheme", next);
   }, [theme]);
 
+  // Market (IN | US)
+  type Market = "IN" | "US";
+  const [market, setMarket] = useState<Market>("IN");
+  useEffect(() => {
+    const saved = localStorage.getItem("strategyScreenerMarket") as Market | null;
+    if (saved === "US" || saved === "IN") setMarket(saved);
+  }, []);
+  const switchMarket = useCallback((next: Market) => {
+    if (next === market) return;
+    setMarket(next);
+    localStorage.setItem("strategyScreenerMarket", next);
+    // Clear cached market-specific data so tabs refetch
+    setResults([]);
+    setScanResults([]);
+    setMasterResults([]);
+    setSignalsData(null);
+    setPortfolioData([]);
+    setInsiderData({ holders: [], deals: [], bulkDeals: [] });
+    setStockDetail(null);
+    setChartStock(null);
+    setExpandedScan(null);
+    setExpandedMaster(null);
+    setBacktestData(null);
+    setSelectedStrategy(null);
+    setSearchQuery("");
+    setEtfData(null);
+    setExpandedEtf(null);
+    setInsiderTypeFilter("All");
+    setInsiderSearch("");
+    setExpandedHolder(null);
+    setBotState(null);
+  }, [market]);
+  const currencySymbol = market === "US" ? "$" : "₹";
+  const fmtPrice = useCallback((v: number, decimals = 2) =>
+    `${currencySymbol}${v.toLocaleString(market === "US" ? "en-US" : "en-IN", {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    })}`, [currencySymbol, market]);
+  const universeLabel = market === "US" ? "S&P 500" : "NSE";
+
   // Learn
   const [learnTab, setLearnTab] = useState<"indicators" | "concepts" | "strategies">("indicators");
   const [expandedLearn, setExpandedLearn] = useState<string | null>(null);
@@ -510,29 +649,42 @@ export default function Home() {
   const [stockDetail, setStockDetail] = useState<StockDetail | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
 
+  // ETFs
+  const [etfData, setEtfData] = useState<ETFData | null>(null);
+  const [etfLoading, setEtfLoading] = useState(false);
+  const [etfThemeFilter, setEtfThemeFilter] = useState<string>("All");
+  const [etfRecFilter, setEtfRecFilter] = useState<"All" | "BUY" | "HOLD" | "SELL">("All");
+  const [expandedEtf, setExpandedEtf] = useState<string | null>(null);
+
+  // Bot
+  const [botState, setBotState] = useState<BotStateView | null>(null);
+  const [botLoading, setBotLoading] = useState(false);
+  const [botRunning, setBotRunning] = useState(false);
+  const [botResetting, setBotResetting] = useState(false);
+
   const runScreener = useCallback(async (strategy: StrategyInfo, signal: string, offset = 0) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/screener?strategy=${strategy.id}&signal=${signal}&limit=30&offset=${offset}`);
+      const res = await fetch(`/api/screener?strategy=${strategy.id}&signal=${signal}&limit=30&offset=${offset}&market=${market}`);
       const data = await res.json();
       if (offset === 0) setResults(data.results);
       else setResults((prev) => [...prev, ...data.results]);
       setScannedInfo({ scanned: (offset || 0) + data.scanned, total: data.total });
     } catch { /* ignore */ }
     setLoading(false);
-  }, []);
+  }, [market]);
 
   const runScan = useCallback(async (offset = 0) => {
     setScanLoading(true);
     try {
-      const res = await fetch(`/api/scan?limit=30&offset=${offset}&minBuy=2`);
+      const res = await fetch(`/api/scan?limit=30&offset=${offset}&minBuy=2&market=${market}`);
       const data = await res.json();
       if (offset === 0) setScanResults(data.results);
       else setScanResults((prev) => [...prev, ...data.results]);
       setScanInfo({ scanned: data.scanned, total: data.total });
     } catch { /* ignore */ }
     setScanLoading(false);
-  }, []);
+  }, [market]);
 
   const loadInsiderTab = useCallback(async (tab: "holders" | "deals" | "bulk") => {
     setInsiderTab(tab);
@@ -543,16 +695,16 @@ export default function Home() {
 
     setInsiderLoading(true);
     try {
-      const res = await fetch(`/api/insider?tab=${tab}`);
+      const res = await fetch(`/api/insider?tab=${tab}&market=${market}`);
       if (res.ok) {
         const data = await res.json();
-        if (tab === "holders") setInsiderData(prev => ({ ...prev, holders: data.holders }));
+        if (tab === "holders") setInsiderData(prev => ({ ...prev, holders: data.holders, types: data.types }));
         else if (tab === "deals") setInsiderData(prev => ({ ...prev, deals: data.deals }));
         else if (tab === "bulk") setInsiderData(prev => ({ ...prev, bulkDeals: data.deals }));
       }
     } catch { /* ignore */ }
     setInsiderLoading(false);
-  }, [insiderData]);
+  }, [insiderData, market]);
 
   const runMasterScan = useCallback(async () => {
     setMasterScanning(true);
@@ -568,7 +720,7 @@ export default function Home() {
 
     // First call to get total
     try {
-      const res = await fetch(`/api/scan?limit=${batchSize}&offset=0&minBuy=1`);
+      const res = await fetch(`/api/scan?limit=${batchSize}&offset=0&minBuy=1&market=${market}`);
       const data = await res.json();
       total = data.total;
       allResults = [...data.results];
@@ -583,7 +735,7 @@ export default function Home() {
     // Keep fetching remaining batches
     while (offset < total) {
       try {
-        const res = await fetch(`/api/scan?limit=${batchSize}&offset=${offset}&minBuy=1`);
+        const res = await fetch(`/api/scan?limit=${batchSize}&offset=${offset}&minBuy=1&market=${market}`);
         const data = await res.json();
         allResults = [...allResults, ...data.results];
         offset = data.scanned;
@@ -596,7 +748,7 @@ export default function Home() {
     }
 
     setMasterScanning(false);
-  }, []);
+  }, [market]);
 
   // Load portfolio from localStorage on mount
   useEffect(() => {
@@ -638,14 +790,14 @@ export default function Home() {
     setPortfolioLoading(true);
     try {
       const symbols = portfolio.map(p => p.symbol).join(",");
-      const res = await fetch(`/api/portfolio?symbols=${symbols}`);
+      const res = await fetch(`/api/portfolio?symbols=${symbols}&market=${market}`);
       if (res.ok) {
         const data = await res.json();
         setPortfolioData(data.stocks);
       }
     } catch { /* ignore */ }
     setPortfolioLoading(false);
-  }, [portfolio]);
+  }, [portfolio, market]);
 
   const loadGlobal = useCallback(async () => {
     setGlobalLoading(true);
@@ -659,22 +811,59 @@ export default function Home() {
   const loadSignals = useCallback(async () => {
     setSignalsLoading(true);
     try {
-      const res = await fetch("/api/signals");
+      const res = await fetch(`/api/signals?market=${market}`);
       if (res.ok) setSignalsData(await res.json());
     } catch { /* ignore */ }
     setSignalsLoading(false);
-  }, []);
+  }, [market]);
+
+  const loadBot = useCallback(async () => {
+    setBotLoading(true);
+    try {
+      const res = await fetch(`/api/bot/state?market=${market}`);
+      if (res.ok) setBotState(await res.json());
+    } catch { /* ignore */ }
+    setBotLoading(false);
+  }, [market]);
+
+  const runBotNow = useCallback(async () => {
+    setBotRunning(true);
+    try {
+      await fetch(`/api/bot/run?market=${market}`, { method: "POST" });
+      await loadBot();
+    } catch { /* ignore */ }
+    setBotRunning(false);
+  }, [market, loadBot]);
+
+  const resetBot = useCallback(async () => {
+    if (!confirm(`Reset bot back to starting capital for ${market === "US" ? "US" : "India"}? This wipes all holdings and trade history.`)) return;
+    setBotResetting(true);
+    try {
+      await fetch(`/api/bot/reset?market=${market}`, { method: "POST" });
+      await loadBot();
+    } catch { /* ignore */ }
+    setBotResetting(false);
+  }, [market, loadBot]);
+
+  const loadEtfs = useCallback(async () => {
+    setEtfLoading(true);
+    try {
+      const res = await fetch(`/api/etfs?market=${market}`);
+      if (res.ok) setEtfData(await res.json());
+    } catch { /* ignore */ }
+    setEtfLoading(false);
+  }, [market]);
 
   const searchStock = useCallback(async (symbol: string) => {
     if (!symbol.trim()) return;
     setSearchLoading(true);
     setStockDetail(null);
     try {
-      const res = await fetch(`/api/stocks?symbol=${symbol.trim().toUpperCase()}`);
+      const res = await fetch(`/api/stocks?symbol=${symbol.trim().toUpperCase()}&market=${market}`);
       if (res.ok) setStockDetail(await res.json());
     } catch { /* ignore */ }
     setSearchLoading(false);
-  }, []);
+  }, [market]);
 
   const handleSelectStrategy = (s: StrategyInfo) => {
     setSelectedStrategy(s);
@@ -698,22 +887,47 @@ export default function Home() {
       <header className="sticky top-0 z-50 backdrop-blur-xl border-b border-white/5" style={{ background: "var(--header-bg)" }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 flex-shrink-0">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center font-bold text-sm text-white">SS</div>
-            <div className="hidden sm:block">
-              <h1 className="text-lg font-bold tracking-tight">StrategyScreener</h1>
-              <p className="text-[10px] text-gray-500 -mt-0.5">Nifty 500 &middot; {STRATEGIES.length} Strategies</p>
-            </div>
+            <button
+              onClick={() => setActiveTab("home")}
+              className="flex items-center gap-3 hover:opacity-90 transition-opacity"
+              aria-label="JuicedTrade home"
+            >
+              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-amber-400 via-orange-500 to-red-500 flex items-center justify-center font-bold text-sm text-white shadow-lg">JT</div>
+              <div className="hidden sm:block text-left">
+                <h1 className="text-lg font-bold tracking-tight">JuicedTrade</h1>
+                <p className="text-[10px] text-gray-500 -mt-0.5">{universeLabel} &middot; {STRATEGIES.length} Strategies</p>
+              </div>
+            </button>
           </div>
           <div className="flex items-center gap-1 bg-white/5 rounded-lg p-0.5 overflow-x-auto flex-1 justify-center">
-            {(["market", "global", "signals", "portfolio", "insider", "strategies", "scan", "search", "learn"] as const).map((tab) => (
+            {(["home", "market", "global", "signals", "portfolio", "bot", "etfs", "strategies", "scan", "search", "learn"] as const).map((tab) => (
               <button
                 key={tab}
-                onClick={() => { setActiveTab(tab); if (tab === "signals" && !signalsData) loadSignals(); if (tab === "global" && !globalData) loadGlobal(); if (tab === "portfolio" && portfolio.length > 0 && portfolioData.length === 0) refreshPortfolio(); if (tab === "insider" && insiderData.holders.length === 0) loadInsiderTab("holders"); }}
+                onClick={() => { setActiveTab(tab); if (tab === "signals" && !signalsData) loadSignals(); if (tab === "global" && !globalData) loadGlobal(); if (tab === "portfolio" && portfolio.length > 0 && portfolioData.length === 0) refreshPortfolio(); if (tab === "etfs" && !etfData) loadEtfs(); if (tab === "bot" && !botState) loadBot(); }}
                 className={`px-2.5 sm:px-3.5 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${activeTab === tab ? "bg-white/10 text-white" : "text-gray-400 hover:text-white"}`}
               >
-                {tab === "market" ? "Market" : tab === "global" ? "Global" : tab === "signals" ? "Signals" : tab === "portfolio" ? `Portfolio${portfolio.length > 0 ? ` (${portfolio.length})` : ""}` : tab === "insider" ? "Insider" : tab === "strategies" ? "Strategies" : tab === "scan" ? "Scan" : tab === "search" ? "Lookup" : "Learn"}
+                {tab === "home" ? "Home" : tab === "market" ? "Market" : tab === "global" ? "Global" : tab === "signals" ? "Signals" : tab === "portfolio" ? `Portfolio${portfolio.length > 0 ? ` (${portfolio.length})` : ""}` : tab === "bot" ? "Bot" : tab === "etfs" ? "ETFs" : tab === "strategies" ? "Strategies" : tab === "scan" ? "Scan" : tab === "search" ? "Lookup" : "Learn"}
               </button>
             ))}
+          </div>
+          {/* Market toggle */}
+          <div className="flex-shrink-0 flex items-center bg-white/5 border border-white/5 rounded-lg p-0.5" role="group" aria-label="Market">
+            <button
+              onClick={() => switchMarket("IN")}
+              className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all ${market === "IN" ? "bg-white/10 text-white" : "text-gray-400 hover:text-white"}`}
+              title="India (NSE)"
+              aria-pressed={market === "IN"}
+            >
+              <span className="mr-1">🇮🇳</span>IN
+            </button>
+            <button
+              onClick={() => switchMarket("US")}
+              className={`px-2.5 py-1.5 rounded-md text-xs font-semibold transition-all ${market === "US" ? "bg-white/10 text-white" : "text-gray-400 hover:text-white"}`}
+              title="USA (S&P 500)"
+              aria-pressed={market === "US"}
+            >
+              <span className="mr-1">🇺🇸</span>US
+            </button>
           </div>
           {/* Theme toggle */}
           <button
@@ -731,14 +945,358 @@ export default function Home() {
       </header>
 
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6">
+        {/* ─── HOME / LANDING TAB ─── */}
+        {activeTab === "home" && (
+          <div className="-mx-4 sm:-mx-6 -my-6">
+            {/* HERO */}
+            <section className="relative overflow-hidden">
+              <div
+                className="absolute inset-0 -z-10 opacity-60"
+                style={{
+                  background:
+                    "radial-gradient(60% 50% at 50% 0%, rgba(251,191,36,0.18) 0%, rgba(239,68,68,0.12) 35%, rgba(0,0,0,0) 70%)",
+                }}
+              />
+              <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-16 sm:pt-24 pb-12 text-center">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs font-medium mb-6">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400"></span>
+                  </span>
+                  Free during public beta · No sign-up required
+                </div>
+                <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight leading-[1.05] mb-5">
+                  <span className="bg-gradient-to-br from-white via-amber-100 to-amber-400 bg-clip-text text-transparent">
+                    100 trading strategies.
+                  </span>
+                  <br />
+                  <span className="bg-gradient-to-br from-amber-300 via-orange-400 to-red-500 bg-clip-text text-transparent">
+                    Two markets. One screener.
+                  </span>
+                </h1>
+                <p className="text-base sm:text-lg text-gray-400 max-w-2xl mx-auto leading-relaxed mb-8">
+                  <strong className="text-gray-200">JuicedTrade Stock Screener</strong> evaluates every NSE-listed Indian stock and the entire S&amp;P 500 against 100 strategies from six classic trading books — every single day. Get buy/sell signals, run backtests, screen ETFs by theme, and watch an autonomous bot trade the signals in real time.
+                </p>
+                <div className="flex flex-wrap items-center justify-center gap-3 mb-10">
+                  <button
+                    onClick={() => setActiveTab("market")}
+                    className="px-6 py-3 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-black font-bold text-sm shadow-lg shadow-amber-500/20 transition-all"
+                  >
+                    Launch the Screener →
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("bot")}
+                    className="px-6 py-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-semibold text-sm transition-all"
+                  >
+                    See the Bot in Action
+                  </button>
+                </div>
+                <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-gray-500">
+                  <span className="flex items-center gap-1.5"><span className="text-lg">🇮🇳</span> 2,100+ NSE stocks</span>
+                  <span className="flex items-center gap-1.5"><span className="text-lg">🇺🇸</span> 500 S&amp;P stocks</span>
+                  <span className="flex items-center gap-1.5"><span className="text-emerald-400">●</span> {STRATEGIES.length} strategies</span>
+                  <span className="flex items-center gap-1.5"><span className="text-blue-400">●</span> 80+ ETFs scanned</span>
+                  <span className="flex items-center gap-1.5"><span className="text-purple-400">●</span> 1-click backtest</span>
+                </div>
+              </div>
+            </section>
+
+            {/* SOCIAL PROOF — book sources */}
+            <section className="border-y border-white/5 bg-white/[0.015]" aria-labelledby="sources-heading">
+              <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+                <h2 id="sources-heading" className="text-[10px] uppercase tracking-[0.2em] text-gray-500 text-center mb-5 font-semibold">
+                  Strategies sourced from
+                </h2>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 text-center">
+                  {[
+                    { title: "51 Trading Strategies", author: "A. Singhal", count: 51 },
+                    { title: "Intelligent Investor", author: "B. Graham", count: 5 },
+                    { title: "Technical Analysis", author: "J. Murphy", count: 10 },
+                    { title: "Candlestick Charting", author: "S. Nison", count: 9 },
+                    { title: "Common Sense Investing", author: "J. Bogle", count: 3 },
+                    { title: "Market Wizards", author: "J. Schwager", count: 5 },
+                  ].map((b) => (
+                    <div key={b.title} className="px-3 py-3 rounded-lg bg-white/[0.02] border border-white/5">
+                      <div className="text-xs font-semibold text-gray-300 truncate">{b.title}</div>
+                      <div className="text-[10px] text-gray-500">{b.author}</div>
+                      <div className="text-[10px] text-amber-400 mt-1 font-mono">{b.count} strategies</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            {/* FEATURES */}
+            <section className="max-w-6xl mx-auto px-4 sm:px-6 py-16" aria-labelledby="features-heading">
+              <div className="text-center mb-12">
+                <h2 id="features-heading" className="text-3xl sm:text-4xl font-bold tracking-tight mb-3">
+                  Everything you need to find the next trade
+                </h2>
+                <p className="text-gray-500 max-w-2xl mx-auto">
+                  A complete decision stack — from market overview to entry signal to backtest — for both Indian and US markets, in one place.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {[
+                  {
+                    icon: "📊",
+                    title: "100-Strategy Screener",
+                    body: "Every stock evaluated against 100 named strategies daily. Filter by book, category, or signal. See exactly which strategies agree.",
+                    cta: "strategies" as const,
+                  },
+                  {
+                    icon: "🤖",
+                    title: "Autonomous Trading Bot",
+                    body: "Paper-trading bot trades the signals every day with ₹10L (IN) or $5K (US). Max 5 positions. Live equity curve with buy/sell markers.",
+                    cta: "bot" as const,
+                  },
+                  {
+                    icon: "🎯",
+                    title: "Multi-Strategy Scan",
+                    body: "Surface stocks where 2+ strategies agree on a BUY signal. Ranked by confluence — find the highest-conviction setups in seconds.",
+                    cta: "scan" as const,
+                  },
+                  {
+                    icon: "💼",
+                    title: "ETF Screener by Theme",
+                    body: "80+ ETFs grouped by theme (Sector, Thematic, Bonds, Commodities, International). Each gets a Buy/Hold/Sell score with rationale.",
+                    cta: "etfs" as const,
+                  },
+                  {
+                    icon: "📈",
+                    title: "Market Overview",
+                    body: "Nifty/Sensex (IN) or S&P 500/Dow/Nasdaq (US) with pivots, Fibonacci, ATR targets, and clustered support/resistance.",
+                    cta: "market" as const,
+                  },
+                  {
+                    icon: "🌍",
+                    title: "Global Market Cues",
+                    body: "20+ world markets with a quantitative prediction (0-100) for both India and US sessions. See exactly which factors are driving direction.",
+                    cta: "global" as const,
+                  },
+                  {
+                    icon: "📡",
+                    title: "Signals & Sentiment",
+                    body: "15+ buy/sell technical indicators, sentiment gauge, market events. Live read of the index's underlying technical posture.",
+                    cta: "signals" as const,
+                  },
+                  {
+                    icon: "🔬",
+                    title: "1-Click Backtest",
+                    body: "Backtest any strategy on the primary index plus 5 major stocks over a year. Win rate, avg return, drawdown, full trade history.",
+                    cta: "strategies" as const,
+                  },
+                  {
+                    icon: "🔎",
+                    title: "Stock Lookup",
+                    body: "Type any symbol to see all 100 strategy signals at once, full 52-week stats, and an interactive candlestick chart.",
+                    cta: "search" as const,
+                  },
+                ].map((f) => (
+                  <button
+                    key={f.title}
+                    onClick={() => setActiveTab(f.cta)}
+                    className="group text-left bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 hover:border-white/10 rounded-2xl p-5 transition-all"
+                  >
+                    <div className="text-2xl mb-2.5">{f.icon}</div>
+                    <h3 className="font-bold mb-1.5 group-hover:text-amber-300 transition-colors">{f.title}</h3>
+                    <p className="text-sm text-gray-500 leading-relaxed">{f.body}</p>
+                    <div className="mt-3 text-xs font-semibold text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                      Open →
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            {/* HOW IT WORKS */}
+            <section className="bg-white/[0.015] border-y border-white/5" aria-labelledby="how-heading">
+              <div className="max-w-5xl mx-auto px-4 sm:px-6 py-16">
+                <div className="text-center mb-10">
+                  <h2 id="how-heading" className="text-3xl sm:text-4xl font-bold tracking-tight mb-3">
+                    How it works
+                  </h2>
+                  <p className="text-gray-500 max-w-xl mx-auto">
+                    Three steps to a strategy-ranked watchlist. No accounts, no setup, no spreadsheets.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  {[
+                    {
+                      n: "01",
+                      title: "Pick your market",
+                      body: "Toggle 🇮🇳 India or 🇺🇸 US in the header. The screener, ETFs, signals, and bot all switch markets together.",
+                    },
+                    {
+                      n: "02",
+                      title: "Choose a strategy or scan",
+                      body: "Open the Strategies tab to run a single strategy across the universe, or Scan to find multi-strategy confluence.",
+                    },
+                    {
+                      n: "03",
+                      title: "Validate with backtest + chart",
+                      body: "One-click backtest gives win rate and drawdown. Click any result for the candlestick chart with indicators overlaid.",
+                    },
+                  ].map((s) => (
+                    <div key={s.n} className="bg-white/[0.02] border border-white/5 rounded-2xl p-6">
+                      <div className="text-3xl font-bold font-mono bg-gradient-to-br from-amber-400 to-orange-500 bg-clip-text text-transparent">
+                        {s.n}
+                      </div>
+                      <h3 className="font-bold mt-3 mb-2">{s.title}</h3>
+                      <p className="text-sm text-gray-500 leading-relaxed">{s.body}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            {/* COMPARISON */}
+            <section className="max-w-5xl mx-auto px-4 sm:px-6 py-16" aria-labelledby="compare-heading">
+              <div className="text-center mb-10">
+                <h2 id="compare-heading" className="text-3xl sm:text-4xl font-bold tracking-tight mb-3">
+                  Why JuicedTrade
+                </h2>
+                <p className="text-gray-500 max-w-2xl mx-auto">
+                  Other tools make you compose one condition or read one chart at a time. JuicedTrade evaluates 100 strategies in parallel — every stock, every day, both markets — and shows you exactly which ones agree.
+                </p>
+              </div>
+              <div className="overflow-x-auto rounded-2xl border border-white/5">
+                <table className="w-full text-sm">
+                  <thead className="bg-white/[0.03]">
+                    <tr>
+                      <th className="text-left px-4 py-3 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">&nbsp;</th>
+                      <th className="text-center px-4 py-3 text-xs font-bold text-amber-400">JuicedTrade</th>
+                      <th className="text-center px-4 py-3 text-[10px] uppercase tracking-wider text-gray-500">Chartink</th>
+                      <th className="text-center px-4 py-3 text-[10px] uppercase tracking-wider text-gray-500">Screener.in</th>
+                      <th className="text-center px-4 py-3 text-[10px] uppercase tracking-wider text-gray-500">TradingView</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-gray-300">
+                    {[
+                      { f: "Pre-built named strategies", j: `${STRATEGIES.length} from 6 books`, c: "User-built", s: "User-built", t: "Pine Script" },
+                      { f: "Multi-strategy confluence", j: "Yes — ranked", c: "Single condition", s: "—", t: "—" },
+                      { f: "NSE + S&P 500 in one toggle", j: "Yes", c: "NSE only", s: "NSE only", t: "Yes (paid)" },
+                      { f: "Autonomous paper bot", j: "Built-in", c: "—", s: "—", t: "—" },
+                      { f: "ETF screener with signals", j: "Yes (themed)", c: "—", s: "—", t: "Lists only" },
+                      { f: "1-click backtest", j: "Yes", c: "Limited", s: "—", t: "Yes (paid)" },
+                      { f: "Price", j: "Free (beta)", c: "Freemium", s: "Freemium", t: "Freemium → $15-60/mo" },
+                    ].map((row) => (
+                      <tr key={row.f} className="border-t border-white/5">
+                        <td className="px-4 py-3 text-xs text-gray-400">{row.f}</td>
+                        <td className="px-4 py-3 text-center text-xs font-semibold text-emerald-400">{row.j}</td>
+                        <td className="px-4 py-3 text-center text-xs text-gray-500">{row.c}</td>
+                        <td className="px-4 py-3 text-center text-xs text-gray-500">{row.s}</td>
+                        <td className="px-4 py-3 text-center text-xs text-gray-500">{row.t}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-[10px] text-gray-600 mt-3 text-center">
+                Competitor pricing and capabilities are summarized from publicly available information at time of writing. Names and trademarks are property of their respective owners.
+              </p>
+            </section>
+
+            {/* FAQ — also encoded as JSON-LD in layout.tsx for ARO */}
+            <section className="bg-white/[0.015] border-y border-white/5" aria-labelledby="faq-heading">
+              <div className="max-w-3xl mx-auto px-4 sm:px-6 py-16">
+                <div className="text-center mb-10">
+                  <h2 id="faq-heading" className="text-3xl sm:text-4xl font-bold tracking-tight mb-3">
+                    Frequently asked questions
+                  </h2>
+                  <p className="text-gray-500">Quick answers to common questions about JuicedTrade.</p>
+                </div>
+                <div className="space-y-3">
+                  {[
+                    {
+                      q: "What is JuicedTrade?",
+                      a: "JuicedTrade is a free stock screener for Indian (NSE) and US (S&P 500) markets. It evaluates every stock against 100 trading strategies — drawn from six classic books plus OpenBB signal concepts — and gives daily buy / sell / neutral signals.",
+                    },
+                    {
+                      q: "Is it really free?",
+                      a: "Yes. JuicedTrade is free during the public beta. There is no sign-up, no credit card, and no paid tier. Open the app and start screening immediately.",
+                    },
+                    {
+                      q: "Does JuicedTrade place real trades?",
+                      a: "No. JuicedTrade does not connect to any brokerage and cannot place real orders. The built-in trading bot is a paper-trading simulator — purely to demonstrate strategy performance over time.",
+                    },
+                    {
+                      q: "Which markets are covered?",
+                      a: "India: all 2,100+ NSE-listed equities. United States: all 500 S&P 500 stocks. Switch markets from the header toggle at any time — the entire app adapts.",
+                    },
+                    {
+                      q: "How is it different from Chartink, Screener.in, or TradingView?",
+                      a: "Three things: (1) JuicedTrade evaluates 100 named strategies in parallel and shows which ones agree — you don't compose conditions; (2) covers NSE and S&P 500 in one tool with one toggle; (3) ships an autonomous paper-trading bot that acts on the same strategies.",
+                    },
+                    {
+                      q: "Where does the data come from?",
+                      a: "Price, volume, and historical OHLCV come from Yahoo Finance. NSE tickers from the official EQUITY_L archive. S&P 500 list from the public datasets/s-and-p-500-companies repository. All indicators and strategy logic are computed inside JuicedTrade.",
+                    },
+                    {
+                      q: "Is this investment advice?",
+                      a: "No. JuicedTrade is an analytical and educational tool, not registered with SEBI or the SEC. Always do your own research and consult a licensed advisor before investing.",
+                    },
+                  ].map((item, i) => (
+                    <details key={i} className="group bg-white/[0.02] border border-white/5 rounded-xl overflow-hidden">
+                      <summary className="cursor-pointer list-none px-5 py-4 flex items-center justify-between hover:bg-white/[0.02] transition-colors">
+                        <h3 className="text-sm font-semibold text-gray-200 pr-4">{item.q}</h3>
+                        <svg className="w-4 h-4 text-gray-500 transition-transform group-open:rotate-180 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </summary>
+                      <div className="px-5 pb-4 text-sm text-gray-400 leading-relaxed">{item.a}</div>
+                    </details>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            {/* FINAL CTA */}
+            <section className="max-w-3xl mx-auto px-4 sm:px-6 py-16 text-center">
+              <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-3">
+                Ready to see what 100 strategies say about your watchlist?
+              </h2>
+              <p className="text-gray-500 mb-8">
+                No account. No credit card. Just open the screener and pick a market.
+              </p>
+              <button
+                onClick={() => setActiveTab("market")}
+                className="px-8 py-4 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-black font-bold text-base shadow-lg shadow-amber-500/20 transition-all"
+              >
+                Launch JuicedTrade →
+              </button>
+            </section>
+
+            {/* FOOTER */}
+            <footer className="border-t border-white/5">
+              <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between text-xs text-gray-500">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-400 via-orange-500 to-red-500 flex items-center justify-center font-bold text-[10px] text-white">JT</div>
+                  <div>
+                    <div className="font-semibold text-gray-300">JuicedTrade Stock Screener</div>
+                    <div className="text-[10px] text-gray-600">© {new Date().getFullYear()} JuicedTrade. Free during public beta.</div>
+                  </div>
+                </div>
+                <div className="text-[10px] text-gray-600 max-w-md sm:text-right leading-relaxed">
+                  JuicedTrade is an analytical tool, not investment advice. Not registered with SEBI or the SEC. Always do your own research before investing.
+                </div>
+              </div>
+            </footer>
+          </div>
+        )}
+
         {/* ─── MARKET TAB ─── */}
         {activeTab === "market" && (
           <div>
             <div className="mb-6">
               <h2 className="text-xl font-bold">Market Overview</h2>
-              <p className="text-sm text-gray-500 mt-1">Sensex & Nifty 50 with key levels, targets, supports and resistances</p>
+              <p className="text-sm text-gray-500 mt-1">
+                {market === "US"
+                  ? "S&P 500, Dow & Nasdaq with key levels, targets, supports and resistances"
+                  : "Sensex & Nifty 50 with key levels, targets, supports and resistances"}
+              </p>
             </div>
-            <MarketChart />
+            <MarketChart market={market} />
           </div>
         )}
 
@@ -767,43 +1325,39 @@ export default function Home() {
               </div>
             )}
 
-            {globalData && (
-              <div className="space-y-6">
-                {/* ── India Prediction Gauge ── */}
+            {globalData && (() => {
+              const PredictionPanel = ({ title, flag, badge, pred, factorsSubtitle }: { title: string; flag: string; badge: string; pred: { score: number; label: string; factors: PredictionFactor[] }; factorsSubtitle: string }) => (
                 <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6">
                   <div className="flex items-center gap-2 mb-4">
-                    <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">India Market Prediction</h3>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">Based on Global Cues</span>
+                    <span className="text-lg leading-none">{flag}</span>
+                    <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">{title}</h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">{badge}</span>
                   </div>
-                  <div className="flex items-center gap-8">
-                    {/* Prediction Gauge */}
+                  <div className="flex flex-wrap items-center gap-8">
                     <div className="flex-shrink-0 relative w-40 h-40">
                       <svg viewBox="0 0 120 120" className="w-full h-full -rotate-90">
                         <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="12" />
                         <circle cx="60" cy="60" r="50" fill="none"
-                          stroke={globalData.prediction.score >= 65 ? "#10b981" : globalData.prediction.score >= 55 ? "#22c55e" : globalData.prediction.score >= 45 ? "#eab308" : globalData.prediction.score >= 35 ? "#f97316" : "#ef4444"}
+                          stroke={pred.score >= 65 ? "#10b981" : pred.score >= 55 ? "#22c55e" : pred.score >= 45 ? "#eab308" : pred.score >= 35 ? "#f97316" : "#ef4444"}
                           strokeWidth="12" strokeLinecap="round"
-                          strokeDasharray={`${globalData.prediction.score * 3.14} 314`}
+                          strokeDasharray={`${pred.score * 3.14} 314`}
                         />
                       </svg>
                       <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <span className={`text-4xl font-bold ${globalData.prediction.score >= 55 ? "text-emerald-400" : globalData.prediction.score >= 45 ? "text-yellow-400" : "text-red-400"}`}>
-                          {globalData.prediction.score}
+                        <span className={`text-4xl font-bold ${pred.score >= 55 ? "text-emerald-400" : pred.score >= 45 ? "text-yellow-400" : "text-red-400"}`}>
+                          {pred.score}
                         </span>
-                        <span className="text-[10px] text-gray-500 uppercase text-center leading-tight mt-0.5">{globalData.prediction.label}</span>
+                        <span className="text-[10px] text-gray-500 uppercase text-center leading-tight mt-0.5">{pred.label}</span>
                       </div>
                     </div>
-
-                    {/* Prediction Factors */}
-                    <div className="flex-1 space-y-2">
-                      <div className="text-xs text-gray-500 mb-2">Key factors influencing Nifty/Sensex (sorted by impact):</div>
-                      {globalData.prediction.factors.map((f, i) => (
+                    <div className="flex-1 min-w-[280px] space-y-2">
+                      <div className="text-xs text-gray-500 mb-2">{factorsSubtitle}</div>
+                      {pred.factors.map((f, i) => (
                         <div key={i} className="flex items-center gap-3">
                           <div className="w-24 text-xs font-medium text-gray-300 truncate flex-shrink-0">{f.factor}</div>
                           <div className={`w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${f.direction === "UP" ? "bg-emerald-500/20 text-emerald-400" : f.direction === "DOWN" ? "bg-red-500/20 text-red-400" : "bg-gray-500/20 text-gray-400"}`}>
                             {f.direction === "UP" ? "▲" : f.direction === "DOWN" ? "▼" : "—"}
                           </div>
-                          {/* Weight bar (centered at 50%) */}
                           <div className="flex-1 h-2.5 bg-white/5 rounded-full overflow-hidden relative">
                             <div className="absolute inset-y-0 left-1/2 w-px bg-white/10" />
                             {f.weight >= 0 ? (
@@ -820,6 +1374,28 @@ export default function Home() {
                     </div>
                   </div>
                 </div>
+              );
+              return (
+              <div className="space-y-6">
+                {/* ── India Prediction ── */}
+                <PredictionPanel
+                  title="India Market Prediction"
+                  flag="🇮🇳"
+                  badge="Based on Global Cues"
+                  pred={globalData.prediction}
+                  factorsSubtitle="Key factors influencing Nifty/Sensex (sorted by impact):"
+                />
+
+                {/* ── US Prediction ── */}
+                {globalData.usPrediction && (
+                  <PredictionPanel
+                    title="US Market Prediction"
+                    flag="🇺🇸"
+                    badge="Based on Global Cues"
+                    pred={globalData.usPrediction}
+                    factorsSubtitle="Key factors influencing S&P 500 / Nasdaq (sorted by impact):"
+                  />
+                )}
 
                 {/* ── Global Markets Grid ── */}
                 <div>
@@ -1023,7 +1599,8 @@ export default function Home() {
                   Last updated: {new Date(globalData.timestamp).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST
                 </div>
               </div>
-            )}
+              );
+            })()}
 
             {!globalLoading && !globalData && (
               <div className="flex flex-col items-center justify-center h-64 text-center">
@@ -1069,8 +1646,8 @@ export default function Home() {
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Market Sentiment</h3>
                     <div className="flex items-center gap-3 text-xs text-gray-500">
-                      <span>Nifty: <span className="font-mono font-semibold text-white">{signalsData.market.niftyPrice}</span> <span className={parseFloat(signalsData.market.niftyChange) >= 0 ? "text-emerald-400" : "text-red-400"}>{parseFloat(signalsData.market.niftyChange) >= 0 ? "+" : ""}{signalsData.market.niftyChange}%</span></span>
-                      {signalsData.market.sensexPrice && <span>Sensex: <span className="font-mono font-semibold text-white">{signalsData.market.sensexPrice}</span></span>}
+                      <span>{signalsData.market.primaryName}: <span className="font-mono font-semibold text-white">{signalsData.market.primaryPrice}</span> <span className={parseFloat(signalsData.market.primaryChange) >= 0 ? "text-emerald-400" : "text-red-400"}>{parseFloat(signalsData.market.primaryChange) >= 0 ? "+" : ""}{signalsData.market.primaryChange}%</span></span>
+                      {signalsData.market.secondaryPrice && <span>{signalsData.market.secondaryName}: <span className="font-mono font-semibold text-white">{signalsData.market.secondaryPrice}</span></span>}
                     </div>
                   </div>
                   <div className="flex items-center gap-8">
@@ -1113,7 +1690,7 @@ export default function Home() {
                         </div>
                         <span className="text-xs text-gray-500 w-16">Bearish</span>
                       </div>
-                      <div className="text-[10px] text-gray-600 mt-1">Based on {signalsData.sentiment.total} technical indicators analyzed on Nifty 50</div>
+                      <div className="text-[10px] text-gray-600 mt-1">Based on {signalsData.sentiment.total} technical indicators analyzed on {signalsData.market.primaryName}</div>
                     </div>
                   </div>
                 </div>
@@ -1228,7 +1805,7 @@ export default function Home() {
                   <svg className="w-8 h-8 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
                 </div>
                 <h3 className="text-lg font-semibold mb-1">Market Signals Dashboard</h3>
-                <p className="text-sm text-gray-500 max-w-md">Click &quot;Refresh Signals&quot; to load 15+ buy/sell indicators with market events and sentiment analysis for Nifty 50.</p>
+                <p className="text-sm text-gray-500 max-w-md">Click &quot;Refresh Signals&quot; to load 15+ buy/sell indicators with market events and sentiment analysis for {market === "US" ? "the S&P 500" : "Nifty 50"}.</p>
               </div>
             )}
           </div>
@@ -1275,7 +1852,7 @@ export default function Home() {
                     value={addBuyPrice}
                     onChange={(e) => setAddBuyPrice(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && addToPortfolio()}
-                    placeholder="₹0.00"
+                    placeholder={`${currencySymbol}0.00`}
                     className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:border-violet-500/50 transition-all placeholder:text-gray-600 font-mono"
                   />
                 </div>
@@ -1340,16 +1917,16 @@ export default function Home() {
               return (
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
                   <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4 text-center">
-                    <div className="text-2xl font-bold font-mono text-white">₹{formatNumber(totalInvested)}</div>
+                    <div className="text-2xl font-bold font-mono text-white">{currencySymbol}{formatNumber(totalInvested, market)}</div>
                     <div className="text-[10px] text-gray-500 uppercase mt-1">Invested</div>
                   </div>
                   <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4 text-center">
-                    <div className="text-2xl font-bold font-mono text-white">₹{formatNumber(totalCurrent)}</div>
+                    <div className="text-2xl font-bold font-mono text-white">{currencySymbol}{formatNumber(totalCurrent, market)}</div>
                     <div className="text-[10px] text-gray-500 uppercase mt-1">Current Value</div>
                   </div>
                   <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4 text-center">
                     <div className={`text-2xl font-bold font-mono ${totalPnl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                      {totalPnl >= 0 ? "+" : ""}₹{formatNumber(Math.abs(totalPnl))}
+                      {totalPnl >= 0 ? "+" : ""}{currencySymbol}{formatNumber(Math.abs(totalPnl), market)}
                     </div>
                     <div className="text-[10px] text-gray-500 uppercase mt-1">P&L</div>
                   </div>
@@ -1396,7 +1973,7 @@ export default function Home() {
                           </div>
                           {data && (
                             <div className="text-right">
-                              <div className="text-sm font-mono font-semibold">₹{data.quote.price.toFixed(2)}</div>
+                              <div className="text-sm font-mono font-semibold">{currencySymbol}{data.quote.price.toFixed(2)}</div>
                               <div className={`text-xs font-mono ${data.quote.changePercent >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                                 Today: {data.quote.changePercent >= 0 ? "+" : ""}{data.quote.changePercent.toFixed(2)}%
                               </div>
@@ -1406,10 +1983,10 @@ export default function Home() {
                         <div className="flex items-center gap-5">
                           {/* Buy Price & P&L */}
                           <div className="text-right">
-                            <div className="text-xs text-gray-500">Buy: <span className="font-mono text-gray-300">₹{holding.buyPrice.toFixed(2)}</span> x {holding.quantity}</div>
+                            <div className="text-xs text-gray-500">Buy: <span className="font-mono text-gray-300">{currencySymbol}{holding.buyPrice.toFixed(2)}</span> x {holding.quantity}</div>
                             {data && (
                               <div className={`text-sm font-mono font-bold ${pnl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                                {pnl >= 0 ? "+" : ""}₹{Math.abs(pnl).toFixed(2)} ({pnlPercent >= 0 ? "+" : ""}{pnlPercent.toFixed(2)}%)
+                                {pnl >= 0 ? "+" : ""}{currencySymbol}{Math.abs(pnl).toFixed(2)} ({pnlPercent >= 0 ? "+" : ""}{pnlPercent.toFixed(2)}%)
                               </div>
                             )}
                           </div>
@@ -1466,32 +2043,32 @@ export default function Home() {
                                 <div className="space-y-2">
                                   <div className="flex items-center justify-between">
                                     <span className="text-xs text-emerald-400">Target 3 (Extended)</span>
-                                    <span className="text-sm font-mono font-semibold text-emerald-400">₹{data.levels.targets.target3.toFixed(2)}</span>
+                                    <span className="text-sm font-mono font-semibold text-emerald-400">{currencySymbol}{data.levels.targets.target3.toFixed(2)}</span>
                                     <span className="text-[10px] text-gray-500">+{((data.levels.targets.target3 - data.quote.price) / data.quote.price * 100).toFixed(1)}%</span>
                                   </div>
                                   <div className="flex items-center justify-between">
                                     <span className="text-xs text-emerald-400">Target 2 (Medium)</span>
-                                    <span className="text-sm font-mono font-semibold text-emerald-400">₹{data.levels.targets.target2.toFixed(2)}</span>
+                                    <span className="text-sm font-mono font-semibold text-emerald-400">{currencySymbol}{data.levels.targets.target2.toFixed(2)}</span>
                                     <span className="text-[10px] text-gray-500">+{((data.levels.targets.target2 - data.quote.price) / data.quote.price * 100).toFixed(1)}%</span>
                                   </div>
                                   <div className="flex items-center justify-between">
                                     <span className="text-xs text-emerald-300">Target 1 (Near)</span>
-                                    <span className="text-sm font-mono font-semibold text-emerald-300">₹{data.levels.targets.target1.toFixed(2)}</span>
+                                    <span className="text-sm font-mono font-semibold text-emerald-300">{currencySymbol}{data.levels.targets.target1.toFixed(2)}</span>
                                     <span className="text-[10px] text-gray-500">+{((data.levels.targets.target1 - data.quote.price) / data.quote.price * 100).toFixed(1)}%</span>
                                   </div>
                                   <div className="flex items-center justify-between py-1.5 border-y border-white/10">
                                     <span className="text-xs text-white font-semibold">Current Price</span>
-                                    <span className="text-sm font-mono font-bold text-white">₹{data.quote.price.toFixed(2)}</span>
+                                    <span className="text-sm font-mono font-bold text-white">{currencySymbol}{data.quote.price.toFixed(2)}</span>
                                     <span className="text-[10px] text-gray-500">—</span>
                                   </div>
                                   <div className="flex items-center justify-between">
                                     <span className="text-xs text-amber-400">Buy Price</span>
-                                    <span className="text-sm font-mono font-semibold text-amber-400">₹{holding.buyPrice.toFixed(2)}</span>
+                                    <span className="text-sm font-mono font-semibold text-amber-400">{currencySymbol}{holding.buyPrice.toFixed(2)}</span>
                                     <span className={`text-[10px] ${pnlPercent >= 0 ? "text-emerald-400" : "text-red-400"}`}>{pnlPercent >= 0 ? "+" : ""}{pnlPercent.toFixed(1)}%</span>
                                   </div>
                                   <div className="flex items-center justify-between">
                                     <span className="text-xs text-red-400 font-semibold">Stop Loss</span>
-                                    <span className="text-sm font-mono font-bold text-red-400">₹{data.levels.targets.stopLoss.toFixed(2)}</span>
+                                    <span className="text-sm font-mono font-bold text-red-400">{currencySymbol}{data.levels.targets.stopLoss.toFixed(2)}</span>
                                     <span className="text-[10px] text-red-400">{((data.levels.targets.stopLoss - data.quote.price) / data.quote.price * 100).toFixed(1)}%</span>
                                   </div>
                                 </div>
@@ -1505,20 +2082,20 @@ export default function Home() {
                                     <div key={`r-${i}`} className="flex items-center justify-between">
                                       <span className="text-xs text-red-400/70">R{data.levels.resistance.length - i}</span>
                                       <div className="flex-1 mx-3 h-px bg-red-500/20" />
-                                      <span className="text-xs font-mono text-red-400">₹{r.toFixed(2)}</span>
+                                      <span className="text-xs font-mono text-red-400">{currencySymbol}{r.toFixed(2)}</span>
                                       <span className="text-[10px] text-gray-500 w-14 text-right">+{((r - data.quote.price) / data.quote.price * 100).toFixed(1)}%</span>
                                     </div>
                                   ))}
                                   <div className="flex items-center justify-between py-1 bg-white/5 rounded px-2 -mx-1">
                                     <span className="text-xs text-white font-bold">CMP</span>
-                                    <span className="text-xs font-mono font-bold text-white">₹{data.quote.price.toFixed(2)}</span>
+                                    <span className="text-xs font-mono font-bold text-white">{currencySymbol}{data.quote.price.toFixed(2)}</span>
                                     <span className="text-[10px] text-gray-500 w-14 text-right">—</span>
                                   </div>
                                   {data.levels.support.map((s, i) => (
                                     <div key={`s-${i}`} className="flex items-center justify-between">
                                       <span className="text-xs text-emerald-400/70">S{i + 1}</span>
                                       <div className="flex-1 mx-3 h-px bg-emerald-500/20" />
-                                      <span className="text-xs font-mono text-emerald-400">₹{s.toFixed(2)}</span>
+                                      <span className="text-xs font-mono text-emerald-400">{currencySymbol}{s.toFixed(2)}</span>
                                       <span className="text-[10px] text-gray-500 w-14 text-right">{((s - data.quote.price) / data.quote.price * 100).toFixed(1)}%</span>
                                     </div>
                                   ))}
@@ -1564,7 +2141,7 @@ export default function Home() {
                                     return (
                                       <div key={f.label} className={`flex items-center justify-between px-2 py-1 rounded ${isNear ? "bg-yellow-500/10 border border-yellow-500/20" : ""}`}>
                                         <span className={`text-xs ${isNear ? "text-yellow-400 font-semibold" : "text-gray-400"}`}>Fib {f.label}</span>
-                                        <span className={`text-xs font-mono ${isNear ? "text-yellow-400 font-bold" : "text-gray-300"}`}>₹{f.value.toFixed(2)}</span>
+                                        <span className={`text-xs font-mono ${isNear ? "text-yellow-400 font-bold" : "text-gray-300"}`}>{currencySymbol}{f.value.toFixed(2)}</span>
                                         <span className="text-[10px] text-gray-500">{f.value > data.quote.price ? "+" : ""}{((f.value - data.quote.price) / data.quote.price * 100).toFixed(1)}%</span>
                                       </div>
                                     );
@@ -1588,7 +2165,7 @@ export default function Home() {
                                     return (
                                       <div key={m.label} className="flex items-center justify-between">
                                         <span className="text-xs text-gray-400 w-16">{m.label}</span>
-                                        <span className="text-xs font-mono text-gray-300">₹{m.value!.toFixed(2)}</span>
+                                        <span className="text-xs font-mono text-gray-300">{currencySymbol}{m.value!.toFixed(2)}</span>
                                         <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${above ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"}`}>
                                           {above ? "Above" : "Below"}
                                         </span>
@@ -1598,7 +2175,7 @@ export default function Home() {
                                   {data.levels.supertrendLevel !== null && (
                                     <div className="flex items-center justify-between pt-1.5 border-t border-white/5">
                                       <span className="text-xs text-gray-400 w-16">Supertrend</span>
-                                      <span className="text-xs font-mono text-gray-300">₹{data.levels.supertrendLevel.toFixed(2)}</span>
+                                      <span className="text-xs font-mono text-gray-300">{currencySymbol}{data.levels.supertrendLevel.toFixed(2)}</span>
                                       <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${data.levels.supertrendDirection === 1 ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"}`}>
                                         {data.levels.supertrendDirection === 1 ? "BULLISH" : "BEARISH"}
                                       </span>
@@ -1667,7 +2244,7 @@ export default function Home() {
                             </button>
                             {portfolioChartStock === holding.symbol && (
                               <div className="rounded-lg overflow-hidden border border-white/5">
-                                <CandlestickChart symbol={holding.symbol} />
+                                <CandlestickChart symbol={holding.symbol} market={market} />
                               </div>
                             )}
                           </div>
@@ -1703,12 +2280,232 @@ export default function Home() {
           </div>
         )}
 
-        {/* ─── INSIDER TAB ─── */}
-        {activeTab === "insider" && (
+        {/* ─── BOT PERFORMANCE TAB ─── */}
+        {activeTab === "bot" && (
+          <div>
+            <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
+              <div>
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                  <span>🤖</span> Bot Performance
+                </h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  Autonomous trader. Buys top BUY-signal stocks, sells when strategies turn bearish. Max 5 concurrent positions. Starting capital: {market === "US" ? "$5,000" : "₹10,00,000"}. Cash-only delivery, no intraday.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={runBotNow}
+                  disabled={botRunning || botLoading}
+                  className="px-4 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-lg text-xs font-semibold text-emerald-400 transition-all disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {botRunning ? <><Spinner /> Trading...</> : "Run today's trade"}
+                </button>
+                <button
+                  onClick={loadBot}
+                  disabled={botLoading || botRunning}
+                  className="px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/5 rounded-lg text-xs font-semibold text-gray-300 transition-all disabled:opacity-50"
+                  title="Refresh state with live prices"
+                >
+                  Refresh
+                </button>
+                <button
+                  onClick={resetBot}
+                  disabled={botResetting || botRunning}
+                  className="px-3 py-2 bg-red-500/5 hover:bg-red-500/15 border border-red-500/15 rounded-lg text-xs font-semibold text-red-400 transition-all disabled:opacity-50"
+                  title="Wipe state and start fresh"
+                >
+                  {botResetting ? <Spinner /> : "Reset"}
+                </button>
+              </div>
+            </div>
+
+            {botLoading && !botState && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  {[...Array(5)].map((_, i) => <div key={i} className="skeleton h-24 rounded-xl" />)}
+                </div>
+                <div className="skeleton h-[400px] w-full rounded-xl" />
+              </div>
+            )}
+
+            {botState && (() => {
+              const fmt = (n: number) => `${currencySymbol}${formatNumber(n, market)}`;
+              const fmtFull = (n: number) => fmtPrice(n);
+              const cards = [
+                { label: "Cash", value: fmt(botState.cash), sub: `${((botState.cash / botState.startingCapital) * 100).toFixed(1)}% of capital`, tone: "neutral" as const },
+                { label: "Holdings Value", value: fmt(botState.holdingsValue), sub: `${botState.positionsOpen}/${botState.maxPositions} positions`, tone: "neutral" as const },
+                { label: "Equity (Total)", value: fmt(botState.equity), sub: `vs. ${fmt(botState.startingCapital)} start`, tone: "neutral" as const },
+                { label: "Total P&L", value: `${botState.totalPnL >= 0 ? "+" : "-"}${fmt(Math.abs(botState.totalPnL))}`, sub: `${botState.totalPnLPercent >= 0 ? "+" : ""}${botState.totalPnLPercent.toFixed(2)}%`, tone: (botState.totalPnL >= 0 ? "good" : "bad") as "good" | "bad" },
+                { label: "Realized P&L", value: `${botState.realizedPnL >= 0 ? "+" : "-"}${fmt(Math.abs(botState.realizedPnL))}`, sub: `${botState.trades.filter(t => t.action === "SELL").length} sells executed`, tone: (botState.realizedPnL >= 0 ? "good" : "bad") as "good" | "bad" },
+              ];
+
+              const equityData = botState.snapshots.map((s) => ({ date: s.date, equity: s.equity }));
+
+              return (
+                <div className="space-y-6">
+                  {/* Status banner */}
+                  <div className="flex items-center gap-2 text-[11px] text-gray-500">
+                    <span className={`inline-block w-2 h-2 rounded-full ${botState.lastRunDate ? "bg-emerald-500" : "bg-gray-500"}`}></span>
+                    {botState.lastRunDate
+                      ? <>Last trade run: <span className="text-gray-300 font-mono">{botState.lastRunDate}</span></>
+                      : <>Bot hasn&apos;t traded yet. Click &quot;Run today&apos;s trade&quot; to start.</>
+                    }
+                  </div>
+
+                  {/* P&L Cards */}
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                    {cards.map((c) => (
+                      <div key={c.label} className="bg-white/[0.02] border border-white/5 rounded-xl p-4">
+                        <div className="text-[10px] text-gray-500 uppercase tracking-wider">{c.label}</div>
+                        <div className={`text-xl font-bold font-mono mt-1 ${c.tone === "good" ? "text-emerald-400" : c.tone === "bad" ? "text-red-400" : "text-white"}`}>
+                          {c.value}
+                        </div>
+                        <div className="text-[10px] text-gray-600 mt-1">{c.sub}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Equity Curve + Trade Markers */}
+                  <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                        Equity Curve · Buy/Sell Markers
+                      </h3>
+                      <div className="flex items-center gap-3 text-[10px] text-gray-500">
+                        <span className="flex items-center gap-1"><span className="text-emerald-400">▲</span> Buy</span>
+                        <span className="flex items-center gap-1"><span className="text-red-400">▼</span> Sell</span>
+                        <span className="flex items-center gap-1"><span className="inline-block w-3 h-px bg-white/30"></span> Starting capital</span>
+                      </div>
+                    </div>
+                    {equityData.length > 0 ? (
+                      <BotEquityChart
+                        startingCapital={botState.startingCapital}
+                        currencySymbol={currencySymbol}
+                        data={equityData}
+                        trades={botState.trades.map((t) => ({ date: t.date, action: t.action, symbol: t.symbol, quantity: t.quantity, price: t.price }))}
+                      />
+                    ) : (
+                      <div className="h-40 flex items-center justify-center text-sm text-gray-500">
+                        No history yet — run a trade to populate the chart.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Current Holdings */}
+                  <div className="bg-white/[0.02] border border-white/5 rounded-xl overflow-hidden">
+                    <div className="px-4 py-3 border-b border-white/5">
+                      <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                        Holdings ({botState.holdings.length}/{botState.maxPositions})
+                      </h3>
+                    </div>
+                    {botState.holdings.length === 0 ? (
+                      <div className="px-4 py-8 text-center text-sm text-gray-500">No open positions.</div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="text-[10px] text-gray-500 uppercase tracking-wider bg-white/[0.02]">
+                            <tr>
+                              <th className="text-left px-4 py-2">Symbol</th>
+                              <th className="text-right px-4 py-2">Qty</th>
+                              <th className="text-right px-4 py-2">Avg Buy</th>
+                              <th className="text-right px-4 py-2">Current</th>
+                              <th className="text-right px-4 py-2">Cost</th>
+                              <th className="text-right px-4 py-2">Value</th>
+                              <th className="text-right px-4 py-2">Unrealized P&L</th>
+                              <th className="text-right px-4 py-2">Bought</th>
+                            </tr>
+                          </thead>
+                          <tbody className="font-mono">
+                            {botState.holdings.map((h) => (
+                              <tr key={h.symbol} className="border-t border-white/5">
+                                <td className="px-4 py-2 font-semibold text-blue-400">{h.symbol}</td>
+                                <td className="text-right px-4 py-2">{h.quantity}</td>
+                                <td className="text-right px-4 py-2 text-gray-400">{fmtFull(h.avgBuyPrice)}</td>
+                                <td className="text-right px-4 py-2 text-white">{fmtFull(h.currentPrice)}</td>
+                                <td className="text-right px-4 py-2 text-gray-400">{fmt(h.cost)}</td>
+                                <td className="text-right px-4 py-2 text-white">{fmt(h.currentValue)}</td>
+                                <td className={`text-right px-4 py-2 font-semibold ${h.unrealizedPnL >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                                  {h.unrealizedPnL >= 0 ? "+" : "-"}{fmt(Math.abs(h.unrealizedPnL))} ({h.unrealizedPnLPercent >= 0 ? "+" : ""}{h.unrealizedPnLPercent.toFixed(2)}%)
+                                </td>
+                                <td className="text-right px-4 py-2 text-[10px] text-gray-500">{h.buyDate}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Trade History */}
+                  <div className="bg-white/[0.02] border border-white/5 rounded-xl overflow-hidden">
+                    <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between">
+                      <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                        Trade History ({botState.trades.length})
+                      </h3>
+                      <span className="text-[10px] text-gray-500">
+                        {botState.trades.filter(t => t.action === "BUY").length} buys · {botState.trades.filter(t => t.action === "SELL").length} sells
+                      </span>
+                    </div>
+                    {botState.trades.length === 0 ? (
+                      <div className="px-4 py-8 text-center text-sm text-gray-500">No trades yet.</div>
+                    ) : (
+                      <div className="max-h-[500px] overflow-y-auto">
+                        <table className="w-full text-sm">
+                          <thead className="text-[10px] text-gray-500 uppercase tracking-wider bg-white/[0.02] sticky top-0">
+                            <tr>
+                              <th className="text-left px-4 py-2">Date</th>
+                              <th className="text-left px-4 py-2">Action</th>
+                              <th className="text-left px-4 py-2">Symbol</th>
+                              <th className="text-right px-4 py-2">Qty</th>
+                              <th className="text-right px-4 py-2">Price</th>
+                              <th className="text-right px-4 py-2">Total</th>
+                              <th className="text-right px-4 py-2">Realized</th>
+                              <th className="text-left px-4 py-2">Reason</th>
+                            </tr>
+                          </thead>
+                          <tbody className="font-mono">
+                            {[...botState.trades].reverse().map((t, i) => (
+                              <tr key={`${t.timestamp}-${i}`} className="border-t border-white/5">
+                                <td className="px-4 py-2 text-[11px] text-gray-400">{t.date}</td>
+                                <td className="px-4 py-2">
+                                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${t.action === "BUY" ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"}`}>
+                                    {t.action}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-2 font-semibold text-blue-400">{t.symbol}</td>
+                                <td className="text-right px-4 py-2">{t.quantity}</td>
+                                <td className="text-right px-4 py-2 text-gray-300">{fmtFull(t.price)}</td>
+                                <td className="text-right px-4 py-2 text-white">{fmt(t.total)}</td>
+                                <td className={`text-right px-4 py-2 text-[11px] ${t.realizedPnL == null ? "text-gray-600" : t.realizedPnL >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                                  {t.realizedPnL == null ? "—" : `${t.realizedPnL >= 0 ? "+" : "-"}${fmt(Math.abs(t.realizedPnL))}`}
+                                </td>
+                                <td className="px-4 py-2 text-[11px] text-gray-500 max-w-md truncate">{t.reason}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Deploy note */}
+                  <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4 text-[11px] text-gray-500 space-y-1">
+                    <div className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold mb-1">Auto-trading on deploy</div>
+                    <div>The bot trades only once per day — runs are idempotent. On Vercel, the cron in <code className="font-mono text-gray-300">vercel.json</code> hits <code className="font-mono text-gray-300">/api/bot/run?both=1</code> daily after market close.</div>
+                    <div>State persists to <code className="font-mono text-gray-300">data/bot-state-{market.toLowerCase()}.json</code>. On serverless deploys without disk persistence, swap the storage layer in <code className="font-mono text-gray-300">src/lib/botStorage.ts</code> for Vercel KV or Upstash (one-file change).</div>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
+        {/* ─── INSIDER (sub-tab under Strategies) ─── */}
+        {activeTab === "strategies" && strategiesSubTab === "insider" && (
           <div>
             <div className="mb-6">
               <h2 className="text-xl font-bold">Insider Information</h2>
-              <p className="text-sm text-gray-500 mt-1">Track who owns what — promoters, HNIs, celebrities, FIIs, and institutional deals</p>
+              <p className="text-sm text-gray-500 mt-1">Track who owns what — {market === "US" ? "founders, CEOs, super-investors, mega institutions, and SEC insider filings" : "promoters, HNIs, celebrities, FIIs, and institutional deals"}</p>
             </div>
 
             {/* Sub-tabs */}
@@ -1750,8 +2547,8 @@ export default function Home() {
                       className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:border-violet-500/50 transition-all placeholder:text-gray-600"
                     />
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    {["All", "Promoter", "Politician", "HNI", "Institutional", "Government", "FII", "Celebrity"].map((t) => (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {["All", ...(insiderData.types || [])].map((t) => (
                       <button key={t} onClick={() => setInsiderTypeFilter(t)}
                         className={`px-2.5 py-1.5 rounded-full text-[11px] font-medium transition-all border ${insiderTypeFilter === t ? "bg-white/10 text-white border-white/20" : "border-white/5 text-gray-500 hover:text-gray-300"}`}
                       >{t}</button>
@@ -1772,6 +2569,9 @@ export default function Home() {
                       const isExpanded = expandedHolder === holder.name;
                       const typeColors: Record<string, string> = {
                         Promoter: "bg-blue-500/15 text-blue-400 border-blue-500/25",
+                        Founder: "bg-blue-500/15 text-blue-400 border-blue-500/25",
+                        CEO: "bg-indigo-500/15 text-indigo-400 border-indigo-500/25",
+                        Insider: "bg-violet-500/15 text-violet-400 border-violet-500/25",
                         HNI: "bg-amber-500/15 text-amber-400 border-amber-500/25",
                         Institutional: "bg-teal-500/15 text-teal-400 border-teal-500/25",
                         Government: "bg-red-500/15 text-red-400 border-red-500/25",
@@ -1791,7 +2591,10 @@ export default function Home() {
                                 holder.type === "HNI" ? "bg-amber-500/20 text-amber-400" :
                                 holder.type === "Government" ? "bg-red-500/20 text-red-400" :
                                 holder.type === "FII" ? "bg-cyan-500/20 text-cyan-400" :
-                                holder.type === "Promoter" ? "bg-blue-500/20 text-blue-400" :
+                                holder.type === "Promoter" || holder.type === "Founder" ? "bg-blue-500/20 text-blue-400" :
+                                holder.type === "CEO" ? "bg-indigo-500/20 text-indigo-400" :
+                                holder.type === "Insider" ? "bg-violet-500/20 text-violet-400" :
+                                holder.type === "Politician" ? "bg-purple-500/20 text-purple-400" :
                                 "bg-teal-500/20 text-teal-400"
                               }`}>
                                 {holder.name.split(" ").map(w => w[0]).slice(0, 2).join("")}
@@ -1854,7 +2657,7 @@ export default function Home() {
             {/* ── DEALS SUB-TAB ── */}
             {insiderTab === "deals" && !insiderLoading && (
               <div>
-                <div className="text-xs text-gray-500 mb-4">Recent insider transactions from top 30 Nifty stocks. Acquisitions may signal bullish outlook, sales may be routine or cautionary.</div>
+                <div className="text-xs text-gray-500 mb-4">Recent insider transactions from top {market === "US" ? "S&P 500" : "Nifty"} stocks. Acquisitions may signal bullish outlook, sales may be routine or cautionary.</div>
                 {insiderData.deals.length === 0 ? (
                   <div className="text-center py-12 text-gray-500 text-sm">No recent deals found. Click the tab to load data.</div>
                 ) : (
@@ -1877,8 +2680,8 @@ export default function Home() {
                               onClick={() => { setActiveTab("search"); setSearchQuery(d.symbol); searchStock(d.symbol); }}
                             >{d.symbol}</span>
                           </div>
-                          <div className="text-right text-xs font-mono">{d.shares > 0 ? formatNumber(d.shares) : "—"}</div>
-                          <div className="text-right text-xs font-mono">{d.value > 0 ? "₹" + formatNumber(d.value) : "—"}</div>
+                          <div className="text-right text-xs font-mono">{d.shares > 0 ? formatNumber(d.shares, market) : "—"}</div>
+                          <div className="text-right text-xs font-mono">{d.value > 0 ? currencySymbol +formatNumber(d.value, market) : "—"}</div>
                           <div className="text-center">
                             <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${isBuy ? "bg-emerald-500/15 text-emerald-400" : isSale ? "bg-red-500/15 text-red-400" : "bg-gray-500/15 text-gray-400"}`}>
                               {isBuy ? "BUY" : isSale ? "SELL" : "OTHER"}
@@ -1897,7 +2700,7 @@ export default function Home() {
               <div>
                 <div className="flex items-center gap-2 mb-4">
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/20">LARGE TRANSACTIONS</span>
-                  <span className="text-xs text-gray-500">Shares &gt;1 lakh or value &gt;1 crore from insider filings of top 30 stocks</span>
+                  <span className="text-xs text-gray-500">{market === "US" ? "Shares >100K or value >$1M from SEC insider filings of top US stocks" : "Shares >1 lakh or value >1 crore from insider filings of top 30 stocks"}</span>
                 </div>
                 {insiderData.bulkDeals.length === 0 ? (
                   <div className="text-center py-12 text-gray-500 text-sm">No bulk deals found. Click the tab to load data.</div>
@@ -1932,10 +2735,10 @@ export default function Home() {
                               </div>
                             </div>
                             <div className="text-right">
-                              <div className="text-lg font-bold font-mono text-white">{formatNumber(d.shares)} shares</div>
+                              <div className="text-lg font-bold font-mono text-white">{formatNumber(d.shares, market)} shares</div>
                               {d.value > 0 && (
                                 <div className="text-sm font-mono text-gray-400">
-                                  ₹{valueInCr >= 1 ? valueInCr.toFixed(2) + " Cr" : formatNumber(d.value)}
+                                  {currencySymbol}{market === "IN" && valueInCr >= 1 ? valueInCr.toFixed(2) + " Cr" : formatNumber(d.value, market)}
                                 </div>
                               )}
                               <div className="text-[10px] text-gray-500 mt-0.5">{d.transactionText}</div>
@@ -1981,8 +2784,175 @@ export default function Home() {
           </div>
         )}
 
+        {/* ─── ETFs TAB ─── */}
+        {activeTab === "etfs" && (() => {
+          const recBadge = (rec: ETFResult["recommendation"]) => {
+            const map = {
+              STRONG_BUY: { label: "Strong Buy", cls: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30" },
+              BUY: { label: "Buy", cls: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" },
+              HOLD: { label: "Hold", cls: "bg-gray-500/10 text-gray-300 border-gray-500/20" },
+              SELL: { label: "Sell", cls: "bg-red-500/10 text-red-400 border-red-500/20" },
+              STRONG_SELL: { label: "Strong Sell", cls: "bg-red-500/15 text-red-300 border-red-500/30" },
+            };
+            return map[rec];
+          };
+          const themes = etfData?.themes || [];
+          const filteredThemes = etfThemeFilter === "All" ? themes : themes.filter((t) => t === etfThemeFilter);
+          const recMatches = (r: ETFResult) => {
+            if (etfRecFilter === "All") return true;
+            if (etfRecFilter === "BUY") return r.recommendation === "BUY" || r.recommendation === "STRONG_BUY";
+            if (etfRecFilter === "SELL") return r.recommendation === "SELL" || r.recommendation === "STRONG_SELL";
+            return r.recommendation === "HOLD";
+          };
+          return (
+            <div>
+              <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
+                <div>
+                  <h2 className="text-xl font-bold">ETF Screener</h2>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {market === "US" ? "US-listed ETFs" : "NSE-listed ETFs"} grouped by theme. Each ETF is scored across trend, momentum, MACD and {STRATEGIES.length}-strategy confluence to produce a buy/hold/sell call.
+                  </p>
+                </div>
+                <button
+                  onClick={loadEtfs}
+                  disabled={etfLoading}
+                  className="px-4 py-2 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 rounded-lg text-xs font-semibold text-blue-400 transition-all disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {etfLoading ? <><Spinner /> Scanning...</> : (etfData ? "Re-scan ETFs" : "Scan ETFs")}
+                </button>
+              </div>
+
+              {/* Filters */}
+              {etfData && (
+                <div className="flex flex-wrap items-center gap-2 mb-5">
+                  <div className="flex flex-wrap gap-1.5 bg-white/[0.02] border border-white/5 rounded-lg p-1">
+                    {["All", ...themes].map((t) => (
+                      <button
+                        key={t}
+                        onClick={() => setEtfThemeFilter(t)}
+                        className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap ${etfThemeFilter === t ? "bg-white/10 text-white" : "text-gray-400 hover:text-white"}`}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex gap-1.5 bg-white/[0.02] border border-white/5 rounded-lg p-1">
+                    {(["All", "BUY", "HOLD", "SELL"] as const).map((r) => (
+                      <button
+                        key={r}
+                        onClick={() => setEtfRecFilter(r)}
+                        className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap ${etfRecFilter === r ? "bg-white/10 text-white" : "text-gray-400 hover:text-white"}`}
+                      >
+                        {r === "All" ? "All Calls" : r}
+                      </button>
+                    ))}
+                  </div>
+                  <span className="ml-auto text-xs text-gray-500">Scanned {etfData.scanned}/{etfData.total}</span>
+                </div>
+              )}
+
+              {!etfData && !etfLoading && (
+                <div className="flex flex-col items-center justify-center py-20 text-center">
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500/10 to-purple-500/10 flex items-center justify-center mb-4">
+                    <svg className="w-8 h-8 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 13h2l3 8 4-16 3 8h6" /></svg>
+                  </div>
+                  <h3 className="text-lg font-semibold mb-1">ETF Screener</h3>
+                  <p className="text-sm text-gray-500 max-w-md">Click &quot;Scan ETFs&quot; to evaluate every {market === "US" ? "US-listed" : "NSE-listed"} ETF across trend, momentum and strategy confluence — grouped by theme with a buy/hold/sell call for each.</p>
+                </div>
+              )}
+
+              {etfLoading && !etfData && (
+                <div className="space-y-3">
+                  {[...Array(6)].map((_, i) => <div key={i} className="skeleton h-20 w-full rounded-xl" />)}
+                </div>
+              )}
+
+              {etfData && filteredThemes.map((theme) => {
+                const items = (etfData.byTheme[theme] || []).filter(recMatches);
+                if (items.length === 0) return null;
+                return (
+                  <div key={theme} className="mb-6">
+                    <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2.5 flex items-center gap-2">
+                      {theme}
+                      <span className="text-[10px] text-gray-600 font-normal normal-case">({items.length})</span>
+                    </h3>
+                    <div className="space-y-2">
+                      {items.map((r) => {
+                        const badge = recBadge(r.recommendation);
+                        const isExpanded = expandedEtf === r.symbol;
+                        return (
+                          <div key={r.symbol} className="bg-white/[0.02] border border-white/5 rounded-xl overflow-hidden">
+                            <button
+                              onClick={() => setExpandedEtf(isExpanded ? null : r.symbol)}
+                              className="w-full flex flex-wrap items-center gap-3 px-4 py-3 hover:bg-white/[0.03] transition-all text-left"
+                            >
+                              <div className="flex-1 min-w-[180px]">
+                                <div className="font-mono font-semibold text-sm">{r.symbol}</div>
+                                <div className="text-[11px] text-gray-500 truncate max-w-md">{r.name}</div>
+                              </div>
+                              <div className="text-right">
+                                <div className="text-sm font-mono font-semibold">{fmtPrice(r.price)}</div>
+                                <div className={`text-[11px] font-mono ${r.changePercent >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                                  {r.changePercent >= 0 ? "+" : ""}{r.changePercent.toFixed(2)}%
+                                </div>
+                              </div>
+                              <div className={`px-2.5 py-1 rounded-md border text-xs font-semibold ${badge.cls}`}>
+                                {badge.label}
+                              </div>
+                              <div className="hidden sm:flex items-center gap-1.5 text-[10px] text-gray-500">
+                                <span className="text-emerald-400">{r.buyCount}↑</span>
+                                <span>·</span>
+                                <span className="text-red-400">{r.sellCount}↓</span>
+                                <span>·</span>
+                                <span>score {r.score >= 0 ? "+" : ""}{r.score}</span>
+                              </div>
+                              <svg className={`w-4 h-4 text-gray-500 transition-transform ${isExpanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                            </button>
+                            {isExpanded && (
+                              <div className="px-4 pb-4 pt-2 border-t border-white/5 space-y-3">
+                                {r.note && <div className="text-xs text-gray-400">{r.note}</div>}
+                                {r.rationale.length > 0 && (
+                                  <ul className="text-xs text-gray-300 space-y-1">
+                                    {r.rationale.map((line, i) => (
+                                      <li key={i} className="flex gap-2"><span className="text-gray-600">•</span>{line}</li>
+                                    ))}
+                                  </ul>
+                                )}
+                                <div className="flex flex-wrap gap-3 text-[11px] text-gray-500">
+                                  <span>52W: <span className="text-emerald-400 font-mono">{fmtPrice(r.high52w)}</span> / <span className="text-red-400 font-mono">{fmtPrice(r.low52w)}</span></span>
+                                  <span>Volume: <span className="text-gray-300 font-mono">{r.volume.toLocaleString(market === "US" ? "en-US" : "en-IN")}</span></span>
+                                </div>
+                                <div className="rounded-lg overflow-hidden border border-white/5">
+                                  <CandlestickChart symbol={r.symbol} indicators={["sma50", "sma200", "rsi"]} market={market} />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
+
         {/* ─── STRATEGIES TAB ─── */}
         {activeTab === "strategies" && (
+          <div className="mb-4 flex items-center gap-1 bg-white/5 rounded-lg p-0.5 w-fit">
+            {(["screener", "insider"] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => { setStrategiesSubTab(s); if (s === "insider" && insiderData.holders.length === 0) loadInsiderTab("holders"); }}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${strategiesSubTab === s ? "bg-white/10 text-white" : "text-gray-400 hover:text-white"}`}
+              >
+                {s === "screener" ? "Screener" : "Insider Info"}
+              </button>
+            ))}
+          </div>
+        )}
+        {activeTab === "strategies" && strategiesSubTab === "screener" && (
           <div className="flex flex-col lg:flex-row gap-6">
             <div className="lg:w-[380px] flex-shrink-0">
               <div className="sticky top-20">
@@ -2067,7 +3037,7 @@ export default function Home() {
                     <svg className="w-8 h-8 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
                   </div>
                   <h3 className="text-lg font-semibold mb-1">Select a Strategy</h3>
-                  <p className="text-sm text-gray-500 max-w-sm">Choose from {STRATEGIES.length} strategies to scan Nifty 500 stocks</p>
+                  <p className="text-sm text-gray-500 max-w-sm">Choose from {STRATEGIES.length} strategies to scan {universeLabel} stocks</p>
                 </div>
               ) : (
                 <>
@@ -2140,7 +3110,7 @@ export default function Home() {
                           <span className="relative group">
                             <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-white/5 text-[9px] text-gray-500 font-bold border border-white/10 cursor-help">i</span>
                             <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-[#1a1a2e] border border-white/10 rounded-lg text-xs text-gray-300 w-72 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity z-50 shadow-xl leading-relaxed">
-                              Run detailed backtest on Nifty 50 + 5 major stocks over 1 year. Shows per-stock breakdown and individual trade history. Entry on signal with strength &ge;25, hold 10 trading days. Peak = best return during hold. Drawdown = worst dip.
+                              Run detailed backtest on the {market === "US" ? "S&P 500" : "Nifty 50"} index + 5 major stocks over 1 year. Shows per-stock breakdown and individual trade history. Entry on signal with strength &ge;25, hold 10 trading days. Peak = best return during hold. Drawdown = worst dip.
                             </span>
                           </span>
                         </div>
@@ -2148,7 +3118,7 @@ export default function Home() {
                           onClick={() => {
                             setBacktestLoading(true);
                             setBacktestData(null);
-                            fetch(`/api/backtest?strategy=${selectedStrategy.id}`)
+                            fetch(`/api/backtest?strategy=${selectedStrategy.id}&market=${market}`)
                               .then((r) => r.json())
                               .then((d) => { setBacktestData(d); setBacktestLoading(false); })
                               .catch(() => setBacktestLoading(false));
@@ -2164,7 +3134,7 @@ export default function Home() {
 
                       {backtestLoading && (
                         <div className="mt-3 flex items-center gap-2 text-xs text-gray-500">
-                          <Spinner /> Backtesting on Nifty 50 + 5 major stocks over 1 year...
+                          <Spinner /> Backtesting on {market === "US" ? "S&P 500" : "Nifty 50"} + 5 major stocks over 1 year...
                         </div>
                       )}
 
@@ -2212,7 +3182,7 @@ export default function Home() {
                               <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1.5">Per-Stock Breakdown</div>
                               <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                                 <div className="bg-white/[0.02] rounded-lg p-2 text-center">
-                                  <div className="text-[10px] text-gray-500">NIFTY 50</div>
+                                  <div className="text-[10px] text-gray-500">{market === "US" ? "S&P 500" : "NIFTY 50"}</div>
                                   <div className={`text-sm font-bold ${backtestData.primary.winRate >= 50 ? "text-emerald-400" : "text-red-400"}`}>{backtestData.primary.winRate}%</div>
                                   <div className="text-[10px] text-gray-600">{backtestData.primary.totalSignals} trades</div>
                                 </div>
@@ -2231,7 +3201,7 @@ export default function Home() {
                           {backtestData.primary.trades && backtestData.primary.trades.length > 0 && (
                             <details className="group">
                               <summary className="text-[10px] text-gray-500 uppercase tracking-wider cursor-pointer hover:text-gray-300 transition-colors">
-                                Trade History (Nifty 50) &mdash; {backtestData.primary.trades.length} trades
+                                Trade History ({market === "US" ? "S&P 500" : "Nifty 50"}) &mdash; {backtestData.primary.trades.length} trades
                               </summary>
                               <div className="mt-2 max-h-48 overflow-y-auto space-y-1">
                                 {backtestData.primary.trades.map((t: any, i: number) => (
@@ -2279,7 +3249,7 @@ export default function Home() {
                         <button
                           onClick={() => {
                             const lines = results.map((r, i) =>
-                              `${i + 1}. ${r.symbol} ₹${r.price.toFixed(2)} (${r.changePercent >= 0 ? "+" : ""}${r.changePercent.toFixed(2)}%) — ${r.signal} [${r.strength}] ${r.details}`
+                              `${i + 1}. ${r.symbol} ${currencySymbol}${r.price.toFixed(2)} (${r.changePercent >= 0 ? "+" : ""}${r.changePercent.toFixed(2)}%) — ${r.signal} [${r.strength}] ${r.details}`
                             );
                             const text = `${selectedStrategy?.name} (${selectedStrategy?.chapter}) — ${signalFilter} Signals\n${selectedStrategy?.description}\n${"─".repeat(50)}\n${lines.join("\n")}\n${"─".repeat(50)}\nScanned ${scannedInfo.scanned}/${scannedInfo.total} stocks | Generated by StrategyScreener`;
                             navigator.clipboard.writeText(text);
@@ -2339,6 +3309,7 @@ export default function Home() {
                                 indicators={mapStrategyIndicatorsToChartIds(selectedStrategy.indicators)}
                                 signalDetails={r.details}
                                 signal={r.signal}
+                                market={market}
                               />
                             </div>
                             <p className="text-xs text-gray-500 mt-2">{r.details}</p>
@@ -2379,7 +3350,7 @@ export default function Home() {
                 {scanLoading ? <><Spinner /> Scanning...</> : (
                   <>
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                    Scan Nifty 500
+                    Scan {universeLabel}
                   </>
                 )}
               </button>
@@ -2414,7 +3385,7 @@ export default function Home() {
                         }
                       });
                       const lines = sorted.map((r, i) =>
-                        `${i + 1}. ${r.symbol} (₹${r.price.toFixed(2)}) ${r.changePercent >= 0 ? "+" : ""}${r.changePercent.toFixed(2)}% | BUY: ${r.buyCount}/${r.totalStrategies} | Avg Strength: ${r.avgStrength}${r.buyStrategies ? "\n   Top: " + r.buyStrategies.slice(0, 3).map(s => s.name).join(", ") : ""}`
+                        `${i + 1}. ${r.symbol} (${currencySymbol}${r.price.toFixed(2)}) ${r.changePercent >= 0 ? "+" : ""}${r.changePercent.toFixed(2)}% | BUY: ${r.buyCount}/${r.totalStrategies} | Avg Strength: ${r.avgStrength}${r.buyStrategies ? "\n   Top: " + r.buyStrategies.slice(0, 3).map(s => s.name).join(", ") : ""}`
                       );
                       const text = `Multi-Strategy Scan Results (${new Date().toLocaleDateString("en-IN")})\nSorted by: ${scanSort}\n${"─".repeat(50)}\n${lines.join("\n")}\n${"─".repeat(50)}\nGenerated by StrategyScreener`;
                       navigator.clipboard.writeText(text);
@@ -2461,7 +3432,7 @@ export default function Home() {
                           <div className="text-xs text-gray-500">{r.name}</div>
                         </div>
                         <div className="text-right">
-                          <div className="text-sm font-mono font-semibold">₹{r.price.toFixed(2)}</div>
+                          <div className="text-sm font-mono font-semibold">{currencySymbol}{r.price.toFixed(2)}</div>
                           <div className={`text-xs font-mono ${r.changePercent >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                             {r.changePercent >= 0 ? "+" : ""}{r.changePercent.toFixed(2)}%
                           </div>
@@ -2615,7 +3586,7 @@ export default function Home() {
                   </svg>
                 </div>
                 <h3 className="text-lg font-semibold mb-1">Multi-Strategy Scanner</h3>
-                <p className="text-sm text-gray-500 max-w-md">Click &quot;Scan Nifty 500&quot; to find stocks that have BUY signals on 2 or more strategies simultaneously. Stocks with the most buy confirmations appear first.</p>
+                <p className="text-sm text-gray-500 max-w-md">Click &quot;Scan {universeLabel}&quot; to find stocks that have BUY signals on 2 or more strategies simultaneously. Stocks with the most buy confirmations appear first.</p>
               </div>
             )}
 
@@ -2640,7 +3611,7 @@ export default function Home() {
                     <h2 className="text-xl font-bold">Master Scan</h2>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/20">ALL 500 STOCKS</span>
                   </div>
-                  <p className="text-sm text-gray-500 mt-1">Scan every Nifty 500 stock against all {STRATEGIES.length} strategies. Ranked by most buy signals — find the best stocks to buy right now.</p>
+                  <p className="text-sm text-gray-500 mt-1">Scan every {universeLabel} stock against all {STRATEGIES.length} strategies. Ranked by most buy signals — find the best stocks to buy right now.</p>
                 </div>
                 <button
                   onClick={runMasterScan}
@@ -2650,7 +3621,7 @@ export default function Home() {
                   {masterScanning ? <><Spinner /> Scanning {masterProgress.scanned}/{masterProgress.total}...</> : (
                     <>
                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                      Master Scan All 500
+                      Master Scan All {universeLabel}
                     </>
                   )}
                 </button>
@@ -2660,7 +3631,7 @@ export default function Home() {
               {masterScanning && (
                 <div className="mb-4">
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs text-gray-500">Scanning Nifty 500...</span>
+                    <span className="text-xs text-gray-500">Scanning {universeLabel}...</span>
                     <span className="text-xs text-gray-400">{masterProgress.scanned}/{masterProgress.total} stocks scanned &middot; <span className="text-emerald-400 font-semibold">{masterProgress.found} with buy signals</span></span>
                   </div>
                   <div className="w-full h-2.5 bg-white/5 rounded-full overflow-hidden">
@@ -2714,7 +3685,7 @@ export default function Home() {
                                 <div className="text-[9px] text-gray-500 uppercase">Buy Signals</div>
                               </div>
                               <div className="text-right">
-                                <div className="text-sm font-mono">₹{r.price.toFixed(2)}</div>
+                                <div className="text-sm font-mono">{currencySymbol}{r.price.toFixed(2)}</div>
                                 <div className={`text-[11px] font-mono ${r.changePercent >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                                   {r.changePercent >= 0 ? "+" : ""}{r.changePercent.toFixed(2)}%
                                 </div>
@@ -2753,7 +3724,7 @@ export default function Home() {
                             <span className="text-sm font-semibold">{r.symbol}</span>
                             <div className="text-[10px] text-gray-500 truncate max-w-[160px]">{r.name}</div>
                           </div>
-                          <div className="text-right text-sm font-mono">₹{r.price.toFixed(2)}</div>
+                          <div className="text-right text-sm font-mono">{currencySymbol}{r.price.toFixed(2)}</div>
                           <div className={`text-right text-sm font-mono ${r.changePercent >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                             {r.changePercent >= 0 ? "+" : ""}{r.changePercent.toFixed(2)}%
                           </div>
@@ -2800,7 +3771,7 @@ export default function Home() {
 
                             {masterChartStock === r.symbol && (
                               <div className="rounded-lg overflow-hidden border border-white/5 mb-3">
-                                <CandlestickChart symbol={r.symbol} />
+                                <CandlestickChart symbol={r.symbol} market={market} />
                               </div>
                             )}
 
@@ -2846,7 +3817,7 @@ export default function Home() {
 
               {!masterScanning && masterResults.length === 0 && masterProgress.scanned === 0 && (
                 <div className="flex flex-col items-center justify-center h-40 text-center">
-                  <p className="text-sm text-gray-500 max-w-md">Click &quot;Master Scan All 500&quot; to automatically scan every stock in Nifty 500 against all {STRATEGIES.length} strategies. Results fill in live, sorted by most buy signals. Takes 2-5 minutes.</p>
+                  <p className="text-sm text-gray-500 max-w-md">Click &quot;Master Scan All {universeLabel}&quot; to automatically scan every stock in {universeLabel} against all {STRATEGIES.length} strategies. Results fill in live, sorted by most buy signals. Takes 2-5 minutes.</p>
                 </div>
               )}
 
@@ -2885,12 +3856,12 @@ export default function Home() {
                   <div className="flex items-start justify-between">
                     <div><h2 className="text-2xl font-bold">{stockDetail.quote.symbol}</h2><p className="text-sm text-gray-400">{stockDetail.quote.name}</p></div>
                     <div className="text-right">
-                      <div className="text-2xl font-bold font-mono">₹{stockDetail.quote.price.toFixed(2)}</div>
+                      <div className="text-2xl font-bold font-mono">{currencySymbol}{stockDetail.quote.price.toFixed(2)}</div>
                       <div className={`text-sm font-mono ${stockDetail.quote.change >= 0 ? "text-emerald-400" : "text-red-400"}`}>{stockDetail.quote.change >= 0 ? "+" : ""}{stockDetail.quote.change.toFixed(2)} ({stockDetail.quote.changePercent.toFixed(2)}%)</div>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
-                    {[{ label: "Volume", value: formatNumber(stockDetail.quote.volume) }, { label: "Market Cap", value: "₹" + formatNumber(stockDetail.quote.marketCap) }, { label: "52W High", value: "₹" + stockDetail.quote.high52w.toFixed(2) }, { label: "52W Low", value: "₹" + stockDetail.quote.low52w.toFixed(2) }].map((item) => (
+                    {[{ label: "Volume", value: formatNumber(stockDetail.quote.volume, market) }, { label: "Market Cap", value: currencySymbol +formatNumber(stockDetail.quote.marketCap, market) }, { label: "52W High", value: currencySymbol +stockDetail.quote.high52w.toFixed(2) }, { label: "52W Low", value: currencySymbol +stockDetail.quote.low52w.toFixed(2) }].map((item) => (
                       <div key={item.label} className="bg-white/[0.03] rounded-lg p-3">
                         <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">{item.label}</div>
                         <div className="text-sm font-semibold font-mono">{item.value}</div>
@@ -2904,7 +3875,7 @@ export default function Home() {
                 <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4">
                   <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Price Chart</h3>
                   <div className="rounded-lg overflow-hidden border border-white/5">
-                    <CandlestickChart symbol={stockDetail.quote.symbol} />
+                    <CandlestickChart symbol={stockDetail.quote.symbol} market={market} />
                   </div>
                 </div>
 
@@ -2960,7 +3931,7 @@ export default function Home() {
                   <svg className="w-8 h-8 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                 </div>
                 <h3 className="text-lg font-semibold mb-1">Search a Stock</h3>
-                <p className="text-sm text-gray-500 max-w-sm">Enter any Nifty 500 symbol to see all {STRATEGIES.length} strategy signals at once</p>
+                <p className="text-sm text-gray-500 max-w-sm">Enter any {universeLabel} symbol to see all {STRATEGIES.length} strategy signals at once</p>
               </div>
             )}
           </div>

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getHistoricalData, getStockQuote } from "@/lib/stockData";
 import { STRATEGIES } from "@/lib/strategies";
-import { NIFTY_500_SYMBOLS } from "@/lib/nifty200";
+import { getMarket, getMarketConfig } from "@/lib/markets";
 
 export const maxDuration = 60;
 
@@ -10,8 +10,10 @@ export async function GET(request: NextRequest) {
   const limit = parseInt(searchParams.get("limit") || "30");
   const offset = parseInt(searchParams.get("offset") || "0");
   const minBuyStrategies = parseInt(searchParams.get("minBuy") || "2");
+  const market = getMarket(searchParams.get("market"));
+  const cfg = getMarketConfig(market);
 
-  const symbols = NIFTY_500_SYMBOLS.slice(offset, offset + limit);
+  const symbols = cfg.universe.slice(offset, offset + limit);
   const results: any[] = [];
 
   const batchSize = 5;
@@ -20,8 +22,8 @@ export async function GET(request: NextRequest) {
     const promises = batch.map(async (symbol) => {
       try {
         const [candles, quote] = await Promise.all([
-          getHistoricalData(symbol, 120),
-          getStockQuote(symbol),
+          getHistoricalData(symbol, 120, market),
+          getStockQuote(symbol, market),
         ]);
 
         if (candles.length < 20 || !quote) return null;
@@ -101,8 +103,9 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     results,
-    total: NIFTY_500_SYMBOLS.length,
-    scanned: Math.min(offset + limit, NIFTY_500_SYMBOLS.length),
+    total: cfg.universe.length,
+    scanned: Math.min(offset + limit, cfg.universe.length),
     minBuyStrategies,
+    market,
   });
 }

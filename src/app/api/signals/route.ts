@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import YahooFinance from "yahoo-finance2";
 import { OHLCV, sma, ema, rsi, bollingerBands, atr, macd, obv, adl, adx, cci, mfi, stochastic, roc } from "@/lib/indicators";
+import { getMarket, getMarketConfig } from "@/lib/markets";
 
 const yahooFinance = new (YahooFinance as any)({ suppressNotices: ["yahooSurvey"] });
 
@@ -519,15 +520,18 @@ function generateMarketEvents(niftyCandles: OHLCV[], sensexCandles: OHLCV[]): Ma
   return events;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const market = getMarket(request.nextUrl.searchParams.get("market"));
+    const cfg = getMarketConfig(market);
+
     const endDate = new Date();
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - 365);
 
-    const [niftyResult, sensexResult]: [any, any] = await Promise.all([
-      yahooFinance.chart("^NSEI", { period1: startDate, period2: endDate, interval: "1d" }),
-      yahooFinance.chart("^BSESN", { period1: startDate, period2: endDate, interval: "1d" }),
+    const [primaryResult, secondaryResult]: [any, any] = await Promise.all([
+      yahooFinance.chart(cfg.primaryIndex.symbol, { period1: startDate, period2: endDate, interval: "1d" }),
+      yahooFinance.chart(cfg.secondaryIndex.symbol, { period1: startDate, period2: endDate, interval: "1d" }),
     ]);
 
     const toCandles = (result: any): OHLCV[] =>
@@ -535,15 +539,15 @@ export async function GET() {
         .filter((q: any) => q.open && q.high && q.low && q.close && q.volume)
         .map((q: any) => ({ date: new Date(q.date), open: q.open, high: q.high, low: q.low, close: q.close, volume: q.volume }));
 
-    const niftyCandles = toCandles(niftyResult);
-    const sensexCandles = toCandles(sensexResult);
+    const primaryCandles = toCandles(primaryResult);
+    const secondaryCandles = toCandles(secondaryResult);
 
-    if (niftyCandles.length < 50) {
+    if (primaryCandles.length < 50) {
       return NextResponse.json({ error: "Insufficient market data" }, { status: 500 });
     }
 
-    const signals = analyzeIndex(niftyCandles);
-    const events = generateMarketEvents(niftyCandles, sensexCandles);
+    const signals = analyzeIndex(primaryCandles);
+    const events = generateMarketEvents(primaryCandles, secondaryCandles);
 
     // Compute overall sentiment
     const bullish = signals.filter(s => s.signal === "BULLISH").length;
@@ -551,9 +555,12 @@ export async function GET() {
     const total = signals.length;
     const sentimentScore = total > 0 ? Math.round(((bullish - bearish) / total) * 50 + 50) : 50;
 
-    const last = niftyCandles.length - 1;
-    const niftyPrice = niftyCandles[last].close;
-    const niftyChange = ((niftyCandles[last].close - niftyCandles[last - 1].close) / niftyCandles[last - 1].close) * 100;
+    const last = primaryCandles.length - 1;
+    const primaryPrice = primaryCandles[last].close;
+    const primaryChange = ((primaryCandles[last].close - primaryCandles[last - 1].close) / primaryCandles[last - 1].close) * 100;
+    const secLast = secondaryCandles.length - 1;
+    const secondaryPrice = secLast >= 0 ? secondaryCandles[secLast].close : null;
+    const secondaryChange = secLast >= 1 ? ((secondaryCandles[secLast].close - secondaryCandles[secLast - 1].close) / secondaryCandles[secLast - 1].close) * 100 : null;
 
     return NextResponse.json({
       signals,
@@ -567,10 +574,13 @@ export async function GET() {
         total,
       },
       market: {
-        niftyPrice: niftyPrice.toFixed(2),
-        niftyChange: niftyChange.toFixed(2),
-        sensexPrice: sensexCandles.length > 0 ? sensexCandles[sensexCandles.length - 1].close.toFixed(2) : null,
-        sensexChange: sensexCandles.length > 1 ? (((sensexCandles[sensexCandles.length - 1].close - sensexCandles[sensexCandles.length - 2].close) / sensexCandles[sensexCandles.length - 2].close) * 100).toFixed(2) : null,
+        market,
+        primaryName: cfg.primaryIndex.name,
+        primaryPrice: primaryPrice.toFixed(2),
+        primaryChange: primaryChange.toFixed(2),
+        secondaryName: cfg.secondaryIndex.name,
+        secondaryPrice: secondaryPrice != null ? secondaryPrice.toFixed(2) : null,
+        secondaryChange: secondaryChange != null ? secondaryChange.toFixed(2) : null,
       },
     });
   } catch (error: any) {

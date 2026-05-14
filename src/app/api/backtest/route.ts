@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import YahooFinance from "yahoo-finance2";
 import { STRATEGIES } from "@/lib/strategies";
 import { backtestStrategy } from "@/lib/backtest";
+import { getMarket, getMarketConfig, toYahooSymbol } from "@/lib/markets";
 
 const yahooFinance = new (YahooFinance as any)({ suppressNotices: ["yahooSurvey"] });
 
@@ -10,8 +11,10 @@ export const maxDuration = 60;
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const strategyId = searchParams.get("strategy");
-  // Use a major Nifty stock for backtesting; default to NIFTY 50 index
-  const symbol = searchParams.get("symbol") || "^NSEI";
+  const market = getMarket(searchParams.get("market"));
+  const cfg = getMarketConfig(market);
+  // Default to the market's primary index for backtesting
+  const symbol = searchParams.get("symbol") || cfg.primaryIndex.symbol;
   const holdDays = parseInt(searchParams.get("hold") || "10");
 
   if (!strategyId) {
@@ -30,7 +33,7 @@ export async function GET(request: NextRequest) {
     startDate.setDate(startDate.getDate() - 465);
 
     const isIndex = symbol.startsWith("^");
-    const yahooSymbol = isIndex ? symbol : `${symbol}.NS`;
+    const yahooSymbol = isIndex ? symbol : toYahooSymbol(symbol, market);
 
     const result: any = await yahooFinance.chart(yahooSymbol, {
       period1: startDate,
@@ -60,7 +63,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Also backtest on a few major stocks for cross-validation
-    const crossSymbols = ["RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", "ICICIBANK.NS"];
+    const crossSymbols = cfg.backtestStocks.map((s) => toYahooSymbol(s, market));
     const crossResults = await Promise.all(
       crossSymbols.map(async (sym) => {
         try {
@@ -134,7 +137,7 @@ export async function GET(request: NextRequest) {
         })),
       },
       crossValidation: validCross.map((r) => ({
-        symbol: crossSymbols[crossResults.indexOf(r)].replace(".NS", ""),
+        symbol: cfg.backtestStocks[crossResults.indexOf(r)],
         totalSignals: r.totalSignals,
         wins: r.wins,
         losses: r.losses,

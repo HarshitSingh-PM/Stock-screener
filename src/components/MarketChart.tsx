@@ -33,22 +33,23 @@ function Tip({ text }: { text: string }) {
   );
 }
 
-function fmt(n: number) {
-  return n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
-}
-
-export default function MarketChart() {
+export default function MarketChart({ market = "IN" }: { market?: "IN" | "US" }) {
   const [data, setData] = useState<IndexData[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeIndex, setActiveIndex] = useState(0);
 
+  const locale = market === "US" ? "en-US" : "en-IN";
+  const fmt = (n: number) => n.toLocaleString(locale, { maximumFractionDigits: 2 });
+  const fmtInt = (n: number) => n.toLocaleString(locale, { maximumFractionDigits: 0 });
+
   useEffect(() => {
     setLoading(true);
-    fetch("/api/market")
+    setActiveIndex(0);
+    fetch(`/api/market?market=${market}`)
       .then((r) => r.json())
       .then((d) => { setData(d.indices); setLoading(false); })
       .catch(() => setLoading(false));
-  }, []);
+  }, [market]);
 
   if (loading) {
     return (
@@ -103,9 +104,9 @@ export default function MarketChart() {
           <Tip text="Average True Range (14-period). Measures daily volatility in points. Higher ATR = more volatile market. Calculated as the smoothed average of True Range = max(High-Low, |High-PrevClose|, |Low-PrevClose|)." />
         </div>
         <div className="text-xs text-gray-500">
-          52W: <span className="font-mono text-emerald-400">{idx.yearHigh.toLocaleString("en-IN", { maximumFractionDigits: 0 })}</span>
+          52W: <span className="font-mono text-emerald-400">{fmtInt(idx.yearHigh)}</span>
           {" / "}
-          <span className="font-mono text-red-400">{idx.yearLow.toLocaleString("en-IN", { maximumFractionDigits: 0 })}</span>
+          <span className="font-mono text-red-400">{fmtInt(idx.yearLow)}</span>
           <Tip text="52-week high and low. The highest and lowest prices recorded in the past 1 year of trading." />
         </div>
       </div>
@@ -115,6 +116,7 @@ export default function MarketChart() {
         symbol={idx.symbol}
         indicators={["sma50", "sma200"]}
         isIndex={true}
+        market={market}
       />
 
       {/* Key levels panel */}
@@ -182,7 +184,7 @@ export default function MarketChart() {
             ].map((t) => (
               <div key={t.label} className="flex items-center justify-between">
                 <span className={`text-xs ${t.color}`}>{t.label}</span>
-                <span className={`text-sm font-mono font-semibold ${t.color}`}>{t.value.toLocaleString("en-IN", { maximumFractionDigits: 0 })}</span>
+                <span className={`text-sm font-mono font-semibold ${t.color}`}>{fmtInt(t.value)}</span>
               </div>
             ))}
           </div>
@@ -202,7 +204,7 @@ export default function MarketChart() {
             ].map((f) => (
               <div key={f.label} className="flex items-center justify-between">
                 <span className="text-[10px] text-gray-500">{f.label}</span>
-                <span className="text-xs font-mono text-gray-400">{f.value.toLocaleString("en-IN", { maximumFractionDigits: 0 })}</span>
+                <span className="text-xs font-mono text-gray-400">{fmtInt(f.value)}</span>
               </div>
             ))}
           </div>

@@ -1,0 +1,39 @@
+# JuicedTrade
+
+> JuicedTrade is a free stock screener for Indian (NSE) and US (S&P 500) markets. It evaluates 100 trading strategies — sourced from six classic trading books plus OpenBB signal concepts — against every stock daily, runs an autonomous paper-trading bot, and screens ETFs grouped by theme.
+
+## What JuicedTrade does
+
+- **Strategy screener** — every stock in the active market evaluated against 100 named strategies; filter by book, category, or buy/sell signal.
+- **Multi-strategy scan** — surfaces stocks where 2+ strategies agree on a BUY signal, ranked by confluence and strength.
+- **Markets covered** — India (all 2,100+ NSE-listed equities) and United States (all 500 S&P 500 stocks). Switch with the header toggle.
+- **ETF screener** — ~33 NSE ETFs and ~52 US ETFs grouped by theme (Broad Market, Sector, Thematic, Bonds, Commodities, International, Real Estate, Dividend, Volatility, Smart Beta) with a buy / hold / sell call per ETF derived from trend, momentum, MACD, and strategy confluence.
+- **Bot performance** — autonomous paper-trading bot with ₹10,00,000 (India) or $5,000 (US) starting capital. Holds at most 5 positions, buys top BUY-confluence stocks, sells when ≥3 strategies turn bearish, trades once per day. Renders an equity curve with buy/sell markers.
+- **Market overview** — Sensex/Nifty (India) or S&P 500/Dow/Nasdaq (US) with key levels, pivot points, fibonacci, ATR-based targets.
+- **Global market cues** — 20+ world markets plus a quantitative prediction (0-100 score) for both India and US sessions, with weighted factor reasoning.
+- **Signals dashboard** — 15+ buy/sell indicators, sentiment gauge, market events.
+- **Backtesting** — one-click 1-year backtest on the primary index plus 5 cross-validation stocks, full trade-by-trade history.
+- **Notable holders & insider deals** — curated lists of significant shareholders per market, plus recent SEC/SEBI insider filings.
+
+## Strategy sources
+
+- 51 Trading Strategies — Aseem Singhal (51 strategies)
+- The Intelligent Investor — Benjamin Graham (5)
+- Technical Analysis of the Financial Markets — John Murphy (10)
+- Japanese Candlestick Charting Techniques — Steve Nison (9)
+- The Little Book of Common Sense Investing — John Bogle (3)
+- Market Wizards — Jack Schwager (5)
+- OpenBB Signal Concepts (17, including OBV, ADL, ADX, CCI, Aroon, MFI, Force Index, Stochastic, golden cross, multi-indicator confluence)
+
+## Pricing
+
+Free during the public beta. No sign-up, no credit card, no paid tier.
+
+## Disclaimer
+
+JuicedTrade is an analytical and educational tool. It does not execute real trades, does not provide investment advice, and is not registered with SEBI or the SEC. Always do your own research and consult a licensed advisor before investing.
+
+## Links
+
+- Homepage: https://juicedtrade.com
+- App: https://juicedtrade.com (Home → Launch Screener)

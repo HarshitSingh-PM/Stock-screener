@@ -16,6 +16,7 @@ interface ChartProps {
   signalDetails?: string;
   signal?: "BUY" | "SELL" | "NEUTRAL";
   isIndex?: boolean;
+  market?: "IN" | "US";
 }
 
 const TIMEFRAMES = [
@@ -57,6 +58,7 @@ export default function CandlestickChart({
   signalDetails,
   signal,
   isIndex = false,
+  market = "IN",
 }: ChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -102,7 +104,7 @@ export default function CandlestickChart({
 
     setLoading(true);
     const indexParam = isIndex ? "&index=1" : "";
-    fetch(`/api/chart?symbol=${encodeURIComponent(symbol)}&indicators=${activeIndicators.join(",")}&tf=${timeframe}${indexParam}`)
+    fetch(`/api/chart?symbol=${encodeURIComponent(symbol)}&indicators=${activeIndicators.join(",")}&tf=${timeframe}${indexParam}&market=${market}`)
       .then((r) => r.json())
       .then((data) => {
         if (!data.ohlc) { setLoading(false); return; }
@@ -218,7 +220,7 @@ export default function CandlestickChart({
       window.removeEventListener("resize", handleResize);
       if (chartRef.current) { chartRef.current.remove(); chartRef.current = null; }
     };
-  }, [symbol, activeIndicators, signal, timeframe, isIndex]);
+  }, [symbol, activeIndicators, signal, timeframe, isIndex, market]);
 
   const toggleIndicator = (id: string) => {
     setActiveIndicators((prev) => prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]);

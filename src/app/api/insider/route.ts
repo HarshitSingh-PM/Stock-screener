@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import YahooFinance from "yahoo-finance2";
-import { NOTABLE_HOLDERS } from "@/lib/notableHolders";
-import { toYahooSymbol } from "@/lib/nifty200";
+import { getNotableHolders } from "@/lib/notableHolders";
+import { toYahooSymbol, getMarket, getMarketConfig, Market } from "@/lib/markets";
 
 const yahooFinance = new (YahooFinance as any)({ suppressNotices: ["yahooSurvey"] });
 
@@ -25,9 +25,9 @@ interface InsiderTransaction {
   ownership: string;
 }
 
-async function fetchInsiderData(symbol: string) {
+async function fetchInsiderData(symbol: string, market: Market) {
   try {
-    const yahooSym = toYahooSymbol(symbol);
+    const yahooSym = toYahooSymbol(symbol, market);
     const data: any = await yahooFinance.quoteSummary(yahooSym, {
       modules: ["insiderHolders", "insiderTransactions", "majorHoldersBreakdown"],
     });
@@ -67,13 +67,17 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const symbol = searchParams.get("symbol");
   const tab = searchParams.get("tab") || "holders"; // holders | deals | bulk
+  const market = getMarket(searchParams.get("market"));
+  const cfg = getMarketConfig(market);
+
+  const marketHolders = getNotableHolders(market);
 
   // If a specific symbol is requested, fetch its insider data
   if (symbol) {
-    const data = await fetchInsiderData(symbol);
+    const data = await fetchInsiderData(symbol, market);
 
-    // Find notable holders for this symbol
-    const notable = NOTABLE_HOLDERS.filter(h =>
+    // Find notable holders for this symbol (within active market)
+    const notable = marketHolders.filter(h =>
       h.holdings.some(holding => holding.symbol === symbol.toUpperCase())
     ).map(h => ({
       name: h.name,
@@ -84,6 +88,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       symbol: symbol.toUpperCase(),
+      market,
       ...data,
       notableHolders: notable,
     });
@@ -91,22 +96,17 @@ export async function GET(request: NextRequest) {
 
   // No symbol: return curated data based on tab
   if (tab === "holders") {
-    // Return all notable holders grouped by type
+    const types = Array.from(new Set(marketHolders.map((h) => h.type)));
     return NextResponse.json({
-      holders: NOTABLE_HOLDERS,
-      types: ["Promoter", "HNI", "Institutional", "Government", "FII", "Celebrity"],
+      market,
+      holders: marketHolders,
+      types,
     });
   }
 
   if (tab === "deals" || tab === "bulk") {
-    // Fetch recent insider transactions from top Nifty 50 stocks
-    const topStocks = [
-      "RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK", "HINDUNILVR",
-      "ITC", "SBIN", "BHARTIARTL", "KOTAKBANK", "LT", "AXISBANK",
-      "BAJFINANCE", "MARUTI", "SUNPHARMA", "TITAN", "WIPRO", "HCLTECH",
-      "ADANIENT", "ADANIPORTS", "TATAMOTORS", "TATASTEEL", "ONGC", "NTPC",
-      "POWERGRID", "COALINDIA", "BPCL", "IOC", "ULTRACEMCO", "GRASIM",
-    ];
+    // Fetch recent insider transactions from top stocks for the active market
+    const topStocks = cfg.insiderUniverse;
 
     const allTransactions: any[] = [];
 
@@ -115,7 +115,7 @@ export async function GET(request: NextRequest) {
       const batch = topStocks.slice(i, i + 5);
       const results = await Promise.allSettled(
         batch.map(async (sym) => {
-          const data = await fetchInsiderData(sym);
+          const data = await fetchInsiderData(sym, market);
           return data.transactions.map(t => ({ ...t, symbol: sym }));
         })
       );
@@ -128,12 +128,15 @@ export async function GET(request: NextRequest) {
     allTransactions.sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
 
     if (tab === "bulk") {
-      // Filter for large deals (>1 crore in value or >100K shares)
-      const bulkDeals = allTransactions.filter(t => t.value > 10000000 || t.shares > 100000);
+      // Filter for large deals: >1cr (INR) / >$1M (USD), or >1 lakh shares
+      const valueThreshold = market === "US" ? 1_000_000 : 10_000_000;
+      const bulkDeals = allTransactions.filter(t => t.value > valueThreshold || t.shares > 100000);
+      const valueDesc = market === "US" ? "$1M value" : "1 crore value";
       return NextResponse.json({
         deals: bulkDeals,
         total: bulkDeals.length,
-        note: "Transactions >1 crore value or >1 lakh shares from top 30 stocks. Source: SEBI insider filings via Yahoo Finance.",
+        note: `Transactions >${valueDesc} or >1 lakh shares from top ${topStocks.length} ${cfg.label} stocks. Source: Yahoo Finance.`,
+        market,
       });
     }
 
@@ -141,7 +144,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       deals: allTransactions.slice(0, 100), // Cap at 100 most recent
       total: allTransactions.length,
-      note: "Recent insider transactions from top 30 Nifty stocks. Source: SEBI insider filings via Yahoo Finance.",
+      note: `Recent insider transactions from top ${topStocks.length} ${cfg.label} stocks. Source: Yahoo Finance.`,
+      market,
     });
   }
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import YahooFinance from "yahoo-finance2";
 import { sma, ema, rsi, bollingerBands, macd, supertrend } from "@/lib/indicators";
-import { toYahooSymbol } from "@/lib/nifty200";
+import { toYahooSymbol, getMarket } from "@/lib/markets";
 
 const yahooFinance = new (YahooFinance as any)({ suppressNotices: ["yahooSurvey"] });
 
@@ -21,14 +21,15 @@ export async function GET(request: NextRequest) {
   const symbol = searchParams.get("symbol");
   const indicators = searchParams.get("indicators")?.split(",").filter(Boolean) || [];
   const tf = searchParams.get("tf") || "1d";
-  const isIndex = searchParams.get("index") === "1"; // for ^BSESN, ^NSEI
+  const isIndex = searchParams.get("index") === "1"; // for ^BSESN, ^NSEI, ^GSPC, etc.
+  const market = getMarket(searchParams.get("market"));
 
   if (!symbol) {
     return NextResponse.json({ error: "symbol required" }, { status: 400 });
   }
 
   const config = TIMEFRAMES[tf] || TIMEFRAMES["1d"];
-  const yahooSymbol = isIndex ? symbol : toYahooSymbol(symbol);
+  const yahooSymbol = isIndex ? symbol : toYahooSymbol(symbol, market);
 
   try {
     const endDate = new Date();

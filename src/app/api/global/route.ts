@@ -631,6 +631,132 @@ function generatePrediction(markets: GlobalMarket[], insights: CorrelationInsigh
   return { score, label, factors };
 }
 
+// Outlook for the US session (S&P 500). Same scoring style as the India model,
+// but reasoning, weights, and inversions reflect the US perspective.
+function generateUSPrediction(markets: GlobalMarket[]): { score: number; label: string; factors: PredictionFactor[] } {
+  const factors: PredictionFactor[] = [];
+  const bySymbol: Record<string, GlobalMarket> = {};
+  for (const m of markets) bySymbol[m.symbol] = m;
+
+  const nikkei = bySymbol["^N225"];
+  const hsi = bySymbol["^HSI"];
+  const shanghai = bySymbol["000001.SS"];
+  const oil = bySymbol["CL=F"] || bySymbol["BZ=F"];
+  const gold = bySymbol["GC=F"];
+  const dxy = bySymbol["DX-Y.NYB"];
+  const vix = bySymbol["^VIX"];
+  const tnx = bySymbol["^TNX"];
+  const ftse = bySymbol["^FTSE"];
+  const dax = bySymbol["^GDAXI"];
+
+  // Factor 1: Asian session — leads US pre-market sentiment.
+  const asian = [nikkei, hsi, shanghai].filter(Boolean) as GlobalMarket[];
+  if (asian.length > 0) {
+    const avg = asian.reduce((s, m) => s + m.changePercent, 0) / asian.length;
+    const weight = Math.min(25, Math.max(-25, avg * 12));
+    factors.push({
+      factor: "Asian Overnight",
+      direction: avg > 0.2 ? "UP" : avg < -0.2 ? "DOWN" : "FLAT",
+      weight: Math.round(weight),
+      reasoning: `${asian.map(m => `${m.name.split(" ")[0]} ${m.changePercent >= 0 ? "+" : ""}${m.changePercent.toFixed(2)}%`).join(", ")}. Asian close sets the tone for US futures.`,
+    });
+  }
+
+  // Factor 2: European session — runs into the US open.
+  const europe = [ftse, dax].filter(Boolean) as GlobalMarket[];
+  if (europe.length > 0) {
+    const avg = europe.reduce((s, m) => s + m.changePercent, 0) / europe.length;
+    const weight = Math.min(25, Math.max(-25, avg * 13));
+    factors.push({
+      factor: "European Session",
+      direction: avg > 0.2 ? "UP" : avg < -0.2 ? "DOWN" : "FLAT",
+      weight: Math.round(weight),
+      reasoning: `${europe.map(m => `${m.name.split(" (")[0]} ${m.changePercent >= 0 ? "+" : ""}${m.changePercent.toFixed(2)}%`).join(", ")}. European indices trade through the first half of the US session; cross-Atlantic correlation ~0.55-0.7.`,
+    });
+  }
+
+  // Factor 3: VIX. Inverse for US — high VIX implies risk-off.
+  if (vix) {
+    let weight = 0;
+    if (vix.price > 25) weight = -20;
+    else if (vix.price > 20) weight = -8;
+    else if (vix.price < 13) weight = 12;
+    else if (vix.price < 16) weight = 6;
+    weight += Math.min(10, Math.max(-10, -vix.changePercent * 0.5));
+    factors.push({
+      factor: "VIX (Fear)",
+      direction: vix.changePercent < -3 ? "UP" : vix.changePercent > 3 ? "DOWN" : "FLAT",
+      weight: Math.round(Math.min(25, Math.max(-25, weight))),
+      reasoning: `VIX ${vix.price.toFixed(1)} (${vix.changePercent >= 0 ? "+" : ""}${vix.changePercent.toFixed(1)}%). ${vix.price > 25 ? "Elevated fear — expect defensive trade." : vix.price < 14 ? "Complacency — risk-on backdrop." : "Normal regime."}`,
+    });
+  }
+
+  // Factor 4: US 10Y yield. Rising yields pressure equities, especially long-duration tech.
+  if (tnx) {
+    const weight = Math.min(20, Math.max(-20, -tnx.changePercent * 6));
+    factors.push({
+      factor: "US 10Y Yield",
+      direction: tnx.changePercent < -2 ? "UP" : tnx.changePercent > 2 ? "DOWN" : "FLAT",
+      weight: Math.round(weight),
+      reasoning: `Yield at ${tnx.price.toFixed(2)}% (${tnx.changePercent >= 0 ? "+" : ""}${tnx.changePercent.toFixed(2)}%). ${tnx.changePercent > 0 ? "Rising yields compress equity multiples." : "Falling yields support multiples, especially growth/tech."}`,
+    });
+  }
+
+  // Factor 5: Dollar index. Strong dollar hurts US multinationals' translated earnings.
+  if (dxy) {
+    const weight = Math.min(12, Math.max(-12, -dxy.changePercent * 6));
+    factors.push({
+      factor: "Dollar Index (DXY)",
+      direction: dxy.changePercent < -0.2 ? "UP" : dxy.changePercent > 0.2 ? "DOWN" : "FLAT",
+      weight: Math.round(weight),
+      reasoning: `DXY ${dxy.price.toFixed(2)} (${dxy.changePercent >= 0 ? "+" : ""}${dxy.changePercent.toFixed(2)}%). ${dxy.changePercent > 0 ? "Stronger dollar pressures S&P 500 earnings (40% of revenue is overseas)." : "Weaker dollar lifts multinational earnings."}`,
+    });
+  }
+
+  // Factor 6: Crude oil. Mildly positive for US (now a net exporter), but extreme spikes hurt consumer.
+  if (oil) {
+    let weight = 0;
+    if (oil.changePercent > 4) weight = -10;
+    else if (oil.changePercent > 2) weight = -3;
+    else if (oil.changePercent < -3) weight = 4;
+    factors.push({
+      factor: "Crude Oil",
+      direction: oil.changePercent > 1 ? "UP" : oil.changePercent < -1 ? "DOWN" : "FLAT",
+      weight,
+      reasoning: `${oil.name} $${oil.price.toFixed(2)} (${oil.changePercent >= 0 ? "+" : ""}${oil.changePercent.toFixed(2)}%). US is net oil exporter; modest moves help energy sector, sharp spikes weigh on consumer demand & inflation expectations.`,
+    });
+  }
+
+  // Factor 7: Gold (safe haven).
+  if (gold) {
+    const weight = gold.changePercent > 1.5 ? -8 : gold.changePercent < -1 ? 4 : 0;
+    if (weight !== 0) {
+      factors.push({
+        factor: "Gold (Safe Haven)",
+        direction: gold.changePercent < -0.5 ? "UP" : gold.changePercent > 1 ? "DOWN" : "FLAT",
+        weight,
+        reasoning: `Gold $${gold.price.toFixed(2)} (${gold.changePercent >= 0 ? "+" : ""}${gold.changePercent.toFixed(2)}%). ${gold.changePercent > 1.5 ? "Sharp rally = risk-off bid." : "Gold weakness = risk appetite intact."}`,
+      });
+    }
+  }
+
+  const totalWeight = factors.reduce((sum, f) => sum + f.weight, 0);
+  const score = Math.min(95, Math.max(5, 50 + totalWeight));
+
+  let label: string;
+  if (score >= 75) label = "Strong Bullish";
+  else if (score >= 60) label = "Moderately Bullish";
+  else if (score >= 55) label = "Slightly Bullish";
+  else if (score >= 45) label = "Neutral / Indecisive";
+  else if (score >= 40) label = "Slightly Bearish";
+  else if (score >= 25) label = "Moderately Bearish";
+  else label = "Strong Bearish";
+
+  factors.sort((a, b) => Math.abs(b.weight) - Math.abs(a.weight));
+
+  return { score, label, factors };
+}
+
 export async function GET() {
   try {
     const markets: GlobalMarket[] = [];
@@ -705,11 +831,13 @@ export async function GET() {
 
     const insights = generateInsights(markets);
     const prediction = generatePrediction(markets, insights);
+    const usPrediction = generateUSPrediction(markets);
 
     return NextResponse.json({
       markets,
       insights,
       prediction,
+      usPrediction,
       timestamp: new Date().toISOString(),
     });
   } catch (error: any) {

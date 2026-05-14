@@ -1,6 +1,6 @@
 import YahooFinance from "yahoo-finance2";
 import { OHLCV } from "./indicators";
-import { toYahooSymbol } from "./nifty200";
+import { toYahooSymbol, Market } from "./markets";
 
 const yahooFinance = new (YahooFinance as any)({ suppressNotices: ["yahooSurvey"] });
 
@@ -19,9 +19,9 @@ export interface StockInfo {
   industry: string;
 }
 
-export async function getStockQuote(symbol: string): Promise<StockInfo | null> {
+export async function getStockQuote(symbol: string, market: Market = "IN"): Promise<StockInfo | null> {
   try {
-    const yahooSym = toYahooSymbol(symbol);
+    const yahooSym = toYahooSymbol(symbol, market);
     const quote: any = await yahooFinance.quote(yahooSym);
     if (!quote) return null;
 
@@ -46,10 +46,11 @@ export async function getStockQuote(symbol: string): Promise<StockInfo | null> {
 
 export async function getHistoricalData(
   symbol: string,
-  days: number = 100
+  days: number = 100,
+  market: Market = "IN"
 ): Promise<OHLCV[]> {
   try {
-    const yahooSym = toYahooSymbol(symbol);
+    const yahooSym = toYahooSymbol(symbol, market);
     const endDate = new Date();
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
@@ -85,14 +86,15 @@ export async function getHistoricalData(
 }
 
 export async function getBatchQuotes(
-  symbols: string[]
+  symbols: string[],
+  market: Market = "IN"
 ): Promise<StockInfo[]> {
   const results: StockInfo[] = [];
   // Process in batches of 10
   const batchSize = 10;
   for (let i = 0; i < symbols.length; i += batchSize) {
     const batch = symbols.slice(i, i + batchSize);
-    const promises = batch.map((s) => getStockQuote(s));
+    const promises = batch.map((s) => getStockQuote(s, market));
     const batchResults = await Promise.all(promises);
     results.push(...batchResults.filter((r): r is StockInfo => r !== null));
   }

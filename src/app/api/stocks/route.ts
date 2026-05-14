@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStockQuote, getHistoricalData } from "@/lib/stockData";
 import { STRATEGIES } from "@/lib/strategies";
+import { getMarket } from "@/lib/markets";
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const symbol = searchParams.get("symbol");
+  const market = getMarket(searchParams.get("market"));
 
   if (!symbol) {
     return NextResponse.json({ error: "symbol parameter required" }, { status: 400 });
@@ -12,8 +14,8 @@ export async function GET(request: NextRequest) {
 
   try {
     const [quote, candles] = await Promise.all([
-      getStockQuote(symbol),
-      getHistoricalData(symbol, 120),
+      getStockQuote(symbol, market),
+      getHistoricalData(symbol, 120, market),
     ]);
 
     if (!quote) {

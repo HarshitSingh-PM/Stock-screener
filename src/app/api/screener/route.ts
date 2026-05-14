@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getHistoricalData, getStockQuote } from "@/lib/stockData";
 import { STRATEGIES } from "@/lib/strategies";
-import { NIFTY_500_SYMBOLS } from "@/lib/nifty200";
+import { getMarket, getMarketConfig } from "@/lib/markets";
 
 export const maxDuration = 60;
 
@@ -11,6 +11,8 @@ export async function GET(request: NextRequest) {
   const signalFilter = searchParams.get("signal"); // BUY, SELL, or ALL
   const limit = parseInt(searchParams.get("limit") || "30");
   const offset = parseInt(searchParams.get("offset") || "0");
+  const market = getMarket(searchParams.get("market"));
+  const cfg = getMarketConfig(market);
 
   if (!strategyId) {
     return NextResponse.json({ error: "strategy parameter required" }, { status: 400 });
@@ -21,7 +23,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unknown strategy" }, { status: 400 });
   }
 
-  const symbols = NIFTY_500_SYMBOLS.slice(offset, offset + limit);
+  const symbols = cfg.universe.slice(offset, offset + limit);
   const results: any[] = [];
 
   // Process stocks in parallel batches
@@ -31,8 +33,8 @@ export async function GET(request: NextRequest) {
     const promises = batch.map(async (symbol) => {
       try {
         const [candles, quote] = await Promise.all([
-          getHistoricalData(symbol, 120),
-          getStockQuote(symbol),
+          getHistoricalData(symbol, 120, market),
+          getStockQuote(symbol, market),
         ]);
 
         if (candles.length < 20 || !quote) return null;
@@ -77,7 +79,8 @@ export async function GET(request: NextRequest) {
       indicators: strategy.indicators,
     },
     results,
-    total: NIFTY_500_SYMBOLS.length,
+    total: cfg.universe.length,
     scanned: symbols.length,
+    market,
   });
 }
