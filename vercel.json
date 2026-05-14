@@ -2,8 +2,12 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "crons": [
     {
-      "path": "/api/bot/run?both=1",
-      "schedule": "0 23 * * 1-5"
+      "path": "/api/bot/run?market=IN",
+      "schedule": "30 10 * * 1-5"
+    },
+    {
+      "path": "/api/bot/run?market=US",
+      "schedule": "0 22 * * 1-5"
     }
   ],
   "functions": {

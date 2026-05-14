@@ -591,6 +591,16 @@ export default function Home() {
     const saved = localStorage.getItem("strategyScreenerMarket") as Market | null;
     if (saved === "US" || saved === "IN") setMarket(saved);
   }, []);
+
+  // Admin gate. URL ?admin=1 reveals destructive Bot controls (Run/Reset).
+  // Public visitors see Bot Performance as a read-only showcase.
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      setIsAdmin(params.get("admin") === "1");
+    } catch { /* ignore */ }
+  }, []);
   const switchMarket = useCallback((next: Market) => {
     if (next === market) return;
     track("market_toggle", { from: market, to: next });
@@ -2300,38 +2310,44 @@ export default function Home() {
         {activeTab === "bot" && (
           <div>
             <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
-              <div>
+              <div className="max-w-3xl">
                 <h2 className="text-xl font-bold flex items-center gap-2">
                   <span>🤖</span> Bot Performance
+                  <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">LIVE · AUTONOMOUS</span>
                 </h2>
-                <p className="text-sm text-gray-500 mt-1">
-                  Autonomous trader. Buys top BUY-signal stocks, sells when strategies turn bearish. Max 5 concurrent positions. Starting capital: {market === "US" ? "$5,000" : "₹10,00,000"}. Cash-only delivery, no intraday.
+                <p className="text-sm text-gray-500 mt-1.5 leading-relaxed">
+                  A real strategy-driven portfolio trading itself every day on the same signals you see in the screener. <strong className="text-gray-300">This is a showcase</strong> — you can&apos;t place trades, you can only watch how the strategy library performs over time. The bot runs automatically after each market closes (<span className="text-gray-400">India: 4:00 PM IST · US: 6:00 PM ET</span>), ranks every {market === "US" ? "S&P 500" : "large/mid-cap NSE"} stock by BUY confluence, and rotates the weakest holding out when a stronger candidate emerges. Max 5 positions, equal-weight from cash. Starting capital: <span className="text-gray-300 font-mono">{market === "US" ? "$5,000" : "₹10,00,000"}</span>.
                 </p>
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={runBotNow}
-                  disabled={botRunning || botLoading}
-                  className="px-4 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-lg text-xs font-semibold text-emerald-400 transition-all disabled:opacity-50 flex items-center gap-1.5"
-                >
-                  {botRunning ? <><Spinner /> Trading...</> : "Run today's trade"}
-                </button>
-                <button
                   onClick={loadBot}
                   disabled={botLoading || botRunning}
                   className="px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/5 rounded-lg text-xs font-semibold text-gray-300 transition-all disabled:opacity-50"
-                  title="Refresh state with live prices"
+                  title="Refresh with live prices"
                 >
                   Refresh
                 </button>
-                <button
-                  onClick={resetBot}
-                  disabled={botResetting || botRunning}
-                  className="px-3 py-2 bg-red-500/5 hover:bg-red-500/15 border border-red-500/15 rounded-lg text-xs font-semibold text-red-400 transition-all disabled:opacity-50"
-                  title="Wipe state and start fresh"
-                >
-                  {botResetting ? <Spinner /> : "Reset"}
-                </button>
+                {isAdmin && (
+                  <>
+                    <button
+                      onClick={runBotNow}
+                      disabled={botRunning || botLoading}
+                      className="px-4 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-lg text-xs font-semibold text-emerald-400 transition-all disabled:opacity-50 flex items-center gap-1.5"
+                      title="Admin: force a trading run now"
+                    >
+                      {botRunning ? <><Spinner /> Trading...</> : "Run now (admin)"}
+                    </button>
+                    <button
+                      onClick={resetBot}
+                      disabled={botResetting || botRunning}
+                      className="px-3 py-2 bg-red-500/5 hover:bg-red-500/15 border border-red-500/15 rounded-lg text-xs font-semibold text-red-400 transition-all disabled:opacity-50"
+                      title="Admin: wipe state and restart"
+                    >
+                      {botResetting ? <Spinner /> : "Reset (admin)"}
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 
@@ -2364,7 +2380,7 @@ export default function Home() {
                     <span className={`inline-block w-2 h-2 rounded-full ${botState.lastRunDate ? "bg-emerald-500" : "bg-gray-500"}`}></span>
                     {botState.lastRunDate
                       ? <>Last trade run: <span className="text-gray-300 font-mono">{botState.lastRunDate}</span></>
-                      : <>Bot hasn&apos;t traded yet. Click &quot;Run today&apos;s trade&quot; to start.</>
+                      : <>Bot hasn&apos;t traded yet — will run automatically on the next market close.</>
                     }
                   </div>
 
@@ -2504,11 +2520,13 @@ export default function Home() {
                     )}
                   </div>
 
-                  {/* Deploy note */}
-                  <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4 text-[11px] text-gray-500 space-y-1">
-                    <div className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold mb-1">Auto-trading on deploy</div>
-                    <div>The bot trades only once per day — runs are idempotent. On Vercel, the cron in <code className="font-mono text-gray-300">vercel.json</code> hits <code className="font-mono text-gray-300">/api/bot/run?both=1</code> daily after market close.</div>
-                    <div>State persists to <code className="font-mono text-gray-300">data/bot-state-{market.toLowerCase()}.json</code>. On serverless deploys without disk persistence, swap the storage layer in <code className="font-mono text-gray-300">src/lib/botStorage.ts</code> for Vercel KV or Upstash (one-file change).</div>
+                  {/* How the bot decides */}
+                  <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4 text-[11px] text-gray-500 space-y-1.5 leading-relaxed">
+                    <div className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold mb-1">How the bot decides</div>
+                    <div><strong className="text-gray-300">Schedule.</strong> India trades fire daily after 4:00 PM IST (10:30 UTC). US trades fire daily after 6:00 PM ET (22:00 UTC). Both run only on weekdays.</div>
+                    <div><strong className="text-gray-300">Ranking.</strong> Every weekday the bot scores all candidates and current holdings by BUY-strategy count (with average BUY strength as the tie-breaker). The top 5 become the target portfolio.</div>
+                    <div><strong className="text-gray-300">Rotation.</strong> Any current holding outside the new top 5 is sold; freed cash funds the new picks equal-weighted. So when a fresh stock has stronger BUY confluence than something held, the weaker holding rotates out automatically.</div>
+                    <div><strong className="text-gray-300">Constraint.</strong> Hard cap: 5 concurrent positions, total capital fixed at start. No leverage, no shorting, no intraday — delivery only.</div>
                   </div>
                 </div>
               );
