@@ -2657,10 +2657,13 @@ export default function Home() {
                   {/* How the bot decides */}
                   <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4 text-[11px] text-gray-500 space-y-1.5 leading-relaxed">
                     <div className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold mb-1">How the bot decides</div>
-                    <div><strong className="text-gray-300">Schedule.</strong> India trades fire daily after 4:00 PM IST (10:30 UTC). US trades fire daily after 6:00 PM ET (22:00 UTC). Both run only on weekdays.</div>
-                    <div><strong className="text-gray-300">Ranking.</strong> Every weekday the bot scores all candidates and current holdings by BUY-strategy count (with average BUY strength as the tie-breaker). The top 5 become the target portfolio.</div>
-                    <div><strong className="text-gray-300">Rotation.</strong> Any current holding outside the new top 5 is sold; freed cash funds the new picks equal-weighted. So when a fresh stock has stronger BUY confluence than something held, the weaker holding rotates out automatically.</div>
-                    <div><strong className="text-gray-300">Constraint.</strong> Hard cap: 5 concurrent positions, total capital fixed at start. No leverage, no shorting, no intraday. Delivery only.</div>
+                    <div><strong className="text-gray-300">Schedule.</strong> India trades fire daily after 4:00 PM IST (10:30 UTC). US trades fire daily after 6:00 PM ET (22:00 UTC). Weekdays only.</div>
+                    <div><strong className="text-gray-300">Stop loss.</strong> Any holding bleeding more than 5% from its average buy price is sold immediately to cap the loss.</div>
+                    <div><strong className="text-gray-300">Take profit.</strong> A holding up 12% or more is sold and rotated into a fresh pick if that pick has at least 2 more BUY strategies firing. Winners with the strongest signal are left to run.</div>
+                    <div><strong className="text-gray-300">Signal rotation.</strong> Every day the bot ranks all holdings and the universe by BUY-strategy count. Top 5 wins; anything that drops out is sold and replaced with whatever just entered.</div>
+                    <div><strong className="text-gray-300">Sizing.</strong> New buys are weighted by conviction. A stock with 12 BUY strategies gets twice the allocation of one with 6.</div>
+                    <div><strong className="text-gray-300">Cash discipline.</strong> Idle cash above 1% of starting capital is auto-deployed into the strongest holding, so capital is never sitting on the sidelines.</div>
+                    <div><strong className="text-gray-300">Hard limits.</strong> Max 5 concurrent positions. Total capital fixed at start. No leverage, no shorting, no intraday — delivery only.</div>
                   </div>
                 </div>
               );

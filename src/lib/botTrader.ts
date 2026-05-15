@@ -1,11 +1,20 @@
 import { STRATEGIES } from "./strategies";
 import { getHistoricalData } from "./stockData";
 import { getMarketConfig, type Market } from "./markets";
-import type { BotState, BotTrade, BotSnapshot } from "./botStorage";
+import type { BotHolding, BotState, BotTrade, BotSnapshot } from "./botStorage";
 
-export const MAX_POSITIONS = 5;  // Cap on concurrent positions ("5 different shares" constraint).
-const BUY_CONFLUENCE_MIN = 3;    // Min BUY-strategy count to qualify any pick.
-const SCAN_BATCH = 5;            // Parallel-fetch batch size to keep Yahoo Finance happy.
+// ─── Trading rules ───────────────────────────────────────────────────────────
+// These constants drive a profit-seeking, risk-managed trader. The bot acts
+// like a disciplined retail trader: cuts losers fast, lets winners run but
+// locks profits when a stronger candidate exists, sizes positions by
+// conviction, and never lets cash sit idle for long.
+export const MAX_POSITIONS = 5;       // Hard cap on concurrent positions.
+const BUY_CONFLUENCE_MIN = 2;         // Min BUY-strategy count to qualify a pick.
+const STOP_LOSS_PCT = -5;             // Exit immediately if a position bleeds past this.
+const TAKE_PROFIT_PCT = 12;           // Lock gains past this IF a stronger signal exists.
+const ROTATION_SCORE_GAP = 2;         // Stronger signal must beat current by this margin.
+const CASH_REDEPLOY_RATIO = 0.01;     // Top up the strongest holding when idle cash > 1% of starting capital.
+const SCAN_BATCH = 5;                 // Parallel fetches per batch (Yahoo Finance rate ceiling).
 
 interface EvaluatedSymbol {
   symbol: string;
@@ -18,6 +27,11 @@ interface EvaluatedSymbol {
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+function round(n: number, d = 2): number {
+  const f = Math.pow(10, d);
+  return Math.round(n * f) / f;
 }
 
 async function evaluateSymbol(symbol: string, market: Market): Promise<EvaluatedSymbol | null> {
@@ -35,10 +49,7 @@ async function evaluateSymbol(symbol: string, market: Market): Promise<Evaluated
     } catch { /* ignore individual strategy errors */ }
   }
   return {
-    symbol,
-    price,
-    buyCount,
-    sellCount,
+    symbol, price, buyCount, sellCount,
     avgBuyStrength: buyCount > 0 ? buyStrength / buyCount : 0,
     avgSellStrength: sellCount > 0 ? sellStrength / sellCount : 0,
   };
@@ -49,16 +60,14 @@ async function evaluateBatch(symbols: string[], market: Market): Promise<Evaluat
   for (let i = 0; i < symbols.length; i += SCAN_BATCH) {
     const batch = symbols.slice(i, i + SCAN_BATCH);
     const results = await Promise.allSettled(batch.map((s) => evaluateSymbol(s, market)));
-    for (const r of results) {
-      if (r.status === "fulfilled" && r.value) out.push(r.value);
-    }
+    for (const r of results) if (r.status === "fulfilled" && r.value) out.push(r.value);
   }
   return out;
 }
 
 export interface BotRunSummary {
   market: Market;
-  ran: boolean;             // false if already ran today
+  ran: boolean;
   reason?: string;
   evaluatedHoldings: number;
   evaluatedCandidates: number;
@@ -67,9 +76,10 @@ export interface BotRunSummary {
   state: BotState;
 }
 
-// Rank candidates by buy confluence. Tiebreakers:
-//   1. higher avgBuyStrength
-//   2. prefer currently-held symbols on exact ties (anti-thrash)
+// Rank candidates by buy confluence with deterministic tiebreakers.
+//   1. higher buyCount
+//   2. higher avgBuyStrength
+//   3. prefer currently-held symbols on exact ties (anti-thrash)
 function rank(evals: EvaluatedSymbol[], heldSymbols: Set<string>): EvaluatedSymbol[] {
   return [...evals]
     .filter((e) => e.buyCount >= BUY_CONFLUENCE_MIN && e.buyCount > e.sellCount && e.price > 0)
@@ -82,18 +92,24 @@ function rank(evals: EvaluatedSymbol[], heldSymbols: Set<string>): EvaluatedSymb
     });
 }
 
-// Executes one trading "day" for one market against the provided state.
-// Caller persists the returned state.
+// Executes one trading day for one market against the provided state.
+// Caller is responsible for persisting the returned state.
 //
-// Decision logic (post-rewrite, May 2026):
-//   1. Score every candidate in the universe + every current holding.
-//   2. Rank by buyCount desc → avgBuyStrength desc → prefer-held on ties.
-//   3. Target portfolio = top MAX_POSITIONS qualifying candidates.
-//   4. Sell any current holding NOT in target (frees cash).
-//   5. Buy any target NOT currently held, equal-weighted from remaining cash.
+// Daily decision flow:
+//   1. Score every universe + held symbol against all 100 strategies.
+//   2. RISK MANAGEMENT — for each holding:
+//      a. Stop-loss: sell unconditionally if P&L <= -5%.
+//      b. Take-profit: sell if P&L >= +12% AND a non-held candidate's BUY
+//         confluence is meaningfully stronger (locks gains, redeploys).
+//   3. SIGNAL ROTATION — rank everything that survived. Target = top 5.
+//      Any current holding outside the target gets sold; any target stock
+//      not currently held gets bought, sized by signal strength.
+//   4. CASH REDEPLOY — if idle cash exceeds 1% of starting capital after
+//      rotation, top up the strongest holding so capital is never wasted.
 //
-// Net effect: when a fresh candidate scores higher than a current holding,
-// the bot rotates — sells the weaker holding, buys the stronger pick.
+// Net effect: bot cuts losers fast, locks winners when smarter trades exist,
+// always holds high-conviction positions sized by signal strength, and keeps
+// nearly 100% of capital deployed.
 export async function runBotDay(state: BotState): Promise<BotRunSummary> {
   const market = state.market;
   const cfg = getMarketConfig(market);
@@ -107,10 +123,9 @@ export async function runBotDay(state: BotState): Promise<BotRunSummary> {
     };
   }
 
-  // ─── Step 1: Score holdings + universe together ───
+  // ─── Step 1: Score holdings + universe together ──────────────────────────
   const heldSymbols = new Set(state.holdings.map((h) => h.symbol));
-  const universe = cfg.botUniverse;
-  const allSymbols = Array.from(new Set([...heldSymbols, ...universe]));
+  const allSymbols = Array.from(new Set([...heldSymbols, ...cfg.botUniverse]));
   const evals = await evaluateBatch(allSymbols, market);
   const evalMap: Record<string, EvaluatedSymbol> = {};
   for (const e of evals) evalMap[e.symbol] = e;
@@ -118,41 +133,16 @@ export async function runBotDay(state: BotState): Promise<BotRunSummary> {
   const heldEvalsCount = state.holdings.filter((h) => evalMap[h.symbol]).length;
   const universeEvalsCount = evals.length - heldEvalsCount;
 
-  // ─── Step 2: Rank and pick target portfolio ───
   const ranked = rank(evals, heldSymbols);
-  const target = ranked.slice(0, MAX_POSITIONS);
-  const targetSet = new Set(target.map((e) => e.symbol));
+  const strongestNonHeld = ranked.find((r) => !heldSymbols.has(r.symbol));
 
   const tradesToday: BotTrade[] = [];
 
-  // ─── Step 3: Sell holdings not in target ───
-  const keepHoldings = [];
-  for (const h of state.holdings) {
-    if (targetSet.has(h.symbol)) {
-      keepHoldings.push(h);
-      continue;
-    }
-    const e = evalMap[h.symbol];
-    // Fall back to avgBuyPrice if we somehow couldn't fetch a price.
-    const exitPrice = e?.price ?? h.avgBuyPrice;
+  const sellHolding = (h: BotHolding, exitPrice: number, reason: string) => {
     const proceeds = h.quantity * exitPrice;
     const realized = (exitPrice - h.avgBuyPrice) * h.quantity;
     state.cash += proceeds;
     state.realizedPnL += realized;
-
-    // Build a human-readable reason that explains the rotation.
-    let reason: string;
-    if (e && (e.buyCount < BUY_CONFLUENCE_MIN || e.sellCount > e.buyCount)) {
-      reason = `Strategies turned bearish (${e.buyCount} BUY / ${e.sellCount} SELL)`;
-    } else if (e) {
-      const replacedBy = target.find((t) => !heldSymbols.has(t.symbol));
-      reason = replacedBy
-        ? `Rotated out — ${replacedBy.symbol} has stronger BUY confluence (${replacedBy.buyCount} vs ${e.buyCount})`
-        : `Ranked below top ${MAX_POSITIONS} (${e.buyCount} BUY strategies, avg strength ${e.avgBuyStrength.toFixed(0)})`;
-    } else {
-      reason = "Could not evaluate — exiting position";
-    }
-
     tradesToday.push({
       date,
       timestamp: new Date().toISOString(),
@@ -164,18 +154,80 @@ export async function runBotDay(state: BotState): Promise<BotRunSummary> {
       realizedPnL: realized,
       reason,
     });
-  }
-  state.holdings = keepHoldings;
+  };
 
-  // ─── Step 4: Buy new picks not currently held ───
+  // ─── Step 2: Risk management — stop-loss + take-profit-with-rotation ─────
+  const afterRiskMgmt: BotHolding[] = [];
+  for (const h of state.holdings) {
+    const e = evalMap[h.symbol];
+    const price = e?.price ?? h.avgBuyPrice;
+    const pnlPct = ((price - h.avgBuyPrice) / h.avgBuyPrice) * 100;
+
+    if (pnlPct <= STOP_LOSS_PCT) {
+      sellHolding(h, price, `Stop loss triggered at ${pnlPct.toFixed(1)}% — cutting the loss`);
+      continue;
+    }
+
+    const myScore = e?.buyCount ?? 0;
+    const candidateScore = strongestNonHeld?.buyCount ?? 0;
+    if (
+      pnlPct >= TAKE_PROFIT_PCT
+      && strongestNonHeld
+      && candidateScore >= myScore + ROTATION_SCORE_GAP
+    ) {
+      sellHolding(
+        h,
+        price,
+        `Take profit at +${pnlPct.toFixed(1)}% — rotating into ${strongestNonHeld.symbol} (stronger signal: ${candidateScore} vs ${myScore} BUY strategies)`,
+      );
+      continue;
+    }
+
+    afterRiskMgmt.push(h);
+  }
+  state.holdings = afterRiskMgmt;
+
+  // ─── Step 3: Signal-based rotation — keep top 5 ──────────────────────────
+  const target = ranked.slice(0, MAX_POSITIONS);
+  const targetSet = new Set(target.map((e) => e.symbol));
+
+  const afterRotation: BotHolding[] = [];
+  for (const h of state.holdings) {
+    if (targetSet.has(h.symbol)) { afterRotation.push(h); continue; }
+    const e = evalMap[h.symbol];
+    const exitPrice = e?.price ?? h.avgBuyPrice;
+    let reason: string;
+    if (!e) {
+      reason = "Could not evaluate — exiting position";
+    } else if (e.buyCount < BUY_CONFLUENCE_MIN || e.sellCount > e.buyCount) {
+      reason = `Strategies turned bearish (${e.buyCount} BUY / ${e.sellCount} SELL) — exiting`;
+    } else {
+      const replacement = target.find((t) => !heldSymbols.has(t.symbol));
+      reason = replacement
+        ? `Rotated out for ${replacement.symbol} (stronger BUY confluence: ${replacement.buyCount} vs ${e.buyCount})`
+        : `Dropped below top ${MAX_POSITIONS} — ${e.buyCount} BUY, avg strength ${e.avgBuyStrength.toFixed(0)}`;
+    }
+    sellHolding(h, exitPrice, reason);
+  }
+  state.holdings = afterRotation;
+
+  // ─── Step 4: Buy new picks, sized by signal strength ─────────────────────
   const newPicks = target.filter((t) => !state.holdings.some((h) => h.symbol === t.symbol));
   if (newPicks.length > 0 && state.cash > 0) {
-    // Equal-weight remaining cash across the picks we're filling.
-    const perSlotBudget = state.cash / newPicks.length;
-    for (const pick of newPicks) {
+    // Conviction-weighted sizing: a stock with 12 BUY strategies gets twice
+    // the allocation of one with 6. Computed against the cash snapshot at
+    // the start of this buying pass so the math is deterministic.
+    const cashAtStart = state.cash;
+    const totalScore = newPicks.reduce((s, p) => s + p.buyCount, 0);
+    const plan = newPicks.map((p) => ({
+      pick: p,
+      budget: totalScore > 0 ? cashAtStart * (p.buyCount / totalScore) : cashAtStart / newPicks.length,
+    }));
+
+    for (const { pick, budget } of plan) {
       if (state.cash <= 0) break;
-      const budget = Math.min(perSlotBudget, state.cash);
-      const qty = Math.floor(budget / pick.price);
+      const actualBudget = Math.min(budget, state.cash);
+      const qty = Math.floor(actualBudget / pick.price);
       if (qty <= 0) continue;
       const cost = qty * pick.price;
       state.cash -= cost;
@@ -193,12 +245,47 @@ export async function runBotDay(state: BotState): Promise<BotRunSummary> {
         quantity: qty,
         price: pick.price,
         total: cost,
-        reason: `${pick.buyCount} strategies signaling BUY (avg strength ${pick.avgBuyStrength.toFixed(0)})`,
+        reason: `${pick.buyCount} strategies signaling BUY (avg strength ${pick.avgBuyStrength.toFixed(0)}) — conviction-weighted entry`,
       });
     }
   }
 
-  // ─── Step 5: Equity snapshot ───
+  // ─── Step 5: Cash redeployment ───────────────────────────────────────────
+  // Cash from rounding compounds over weeks. Top up the strongest holding
+  // whenever idle cash exceeds 1% of starting capital so capital is always
+  // working.
+  const redeployThreshold = state.startingCapital * CASH_REDEPLOY_RATIO;
+  if (state.cash > redeployThreshold && state.holdings.length > 0) {
+    const scoredHoldings = state.holdings
+      .map((h) => ({ h, e: evalMap[h.symbol] }))
+      .filter((x) => x.e && x.e.price > 0)
+      .sort((a, b) => (b.e!.buyCount - a.e!.buyCount) || (b.e!.avgBuyStrength - a.e!.avgBuyStrength));
+
+    const top = scoredHoldings[0];
+    if (top && top.e) {
+      const extraQty = Math.floor(state.cash / top.e.price);
+      if (extraQty > 0) {
+        const cost = extraQty * top.e.price;
+        // Update average buy price across old + new shares.
+        const newQty = top.h.quantity + extraQty;
+        top.h.avgBuyPrice = ((top.h.quantity * top.h.avgBuyPrice) + cost) / newQty;
+        top.h.quantity = newQty;
+        state.cash -= cost;
+        tradesToday.push({
+          date,
+          timestamp: new Date().toISOString(),
+          symbol: top.h.symbol,
+          action: "BUY",
+          quantity: extraQty,
+          price: top.e.price,
+          total: cost,
+          reason: `Cash redeployment — topped up strongest holding (${top.e.buyCount} BUY signals)`,
+        });
+      }
+    }
+  }
+
+  // ─── Step 6: Equity snapshot ─────────────────────────────────────────────
   let holdingsValue = 0;
   for (const h of state.holdings) {
     const price = evalMap[h.symbol]?.price ?? h.avgBuyPrice;
@@ -232,9 +319,4 @@ export async function runBotDay(state: BotState): Promise<BotRunSummary> {
     snapshot,
     state,
   };
-}
-
-function round(n: number, d = 2): number {
-  const f = Math.pow(10, d);
-  return Math.round(n * f) / f;
 }
