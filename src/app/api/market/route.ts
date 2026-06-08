@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import YahooFinance from "yahoo-finance2";
 import { sma, ema, rsi, bollingerBands, pivotPoints, atr } from "@/lib/indicators";
 import { getMarket, getMarketConfig } from "@/lib/markets";
-import { predictNextDay } from "@/lib/marketPredict";
+import { predictMarket } from "@/lib/marketPredict";
 
 const yahooFinance = new (YahooFinance as any)({ suppressNotices: ["yahooSurvey"] });
 
@@ -174,8 +174,8 @@ export async function GET(request: NextRequest) {
         // RSI data
         const rsiData = rsiVals.map((v, i) => v !== null ? { time: ohlc[i].time, value: v } : null).filter(Boolean);
 
-        // Next-day direction prediction (repo-learned multi-factor model).
-        const prediction = predictNextDay(candles);
+        // Multi-day market posture (repo-learned multi-factor model, de-biased).
+        const prediction = predictMarket(candles, 5);
 
         return {
           name,

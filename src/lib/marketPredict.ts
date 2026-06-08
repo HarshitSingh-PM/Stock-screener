@@ -1,13 +1,20 @@
-import { sma, ema, rsi, macd, adx, bollingerBands, atr } from "./indicators";
+import { ema, rsi, macd, adx, bollingerBands, atr, sma } from "./indicators";
 import type { OHLCV } from "./indicators";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Next-day market-direction predictor for an index. Uses the same multi-factor
-// vocabulary learned from the open-source quant repos (trend stack + ADX,
-// multi-horizon momentum, RSI/MACD, mean-reversion z-score/Bollinger, volatility
-// regime), each as a −1..+1 vote, blended into a probability the index closes UP
-// tomorrow. Volatility scales confidence, not direction.
+// Market POSTURE / multi-day outlook for an index. NOT a next-day bet — a
+// sentiment read over a short horizon (~1 week / 5 trading days by default),
+// where the repo-learned factors actually carry signal.
+//
+// Factors (each a −1..+1 vote): trend stack + ADX, multi-day momentum, RSI,
+// MACD, mean-reversion (z-score + Bollinger), with volatility scaling confidence.
+//
+// De-bias: the raw factor probability is blended toward the index's OWN realized
+// up-rate over the horizon (computed from past data only). Equities drift up, so
+// this removes the systematic DOWN-bias the next-day version showed.
 // ─────────────────────────────────────────────────────────────────────────────
+
+export const DEFAULT_HORIZON = 5; // trading days (~1 week)
 
 export interface PredictionFactor {
   name: string;
@@ -18,9 +25,11 @@ export interface PredictionFactor {
 
 export interface MarketPrediction {
   direction: "UP" | "DOWN" | "NEUTRAL";
-  probUp: number;       // 0..100 — probability the index closes higher tomorrow
+  probUp: number;       // 0..100 — probability the index is higher in `horizon` days
   confidence: number;   // 0..100
   score: number;        // −1..+1 blended directional score
+  horizon: number;      // trading-day outlook
+  driftUpRate: number;  // index's realized up-rate over the horizon (the prior)
   factors: PredictionFactor[];
 }
 
@@ -32,8 +41,22 @@ function stdev(arr: number[]): number {
   return Math.sqrt(arr.reduce((s, v) => s + (v - m) ** 2, 0) / (arr.length - 1));
 }
 
-export function predictNextDay(candles: OHLCV[]): MarketPrediction | null {
-  if (candles.length < 60) return null;
+// Realized fraction of horizon-day windows that closed up, over the last `window`
+// days — using ONLY data up to the final bar (no look-ahead).
+function realizedUpRate(closes: number[], horizon: number, window = 120): number {
+  const lastEval = closes.length - 1 - horizon; // last day with a known forward outcome
+  if (lastEval < 1) return 0.5;
+  const from = Math.max(0, lastEval - window);
+  let up = 0, n = 0;
+  for (let j = from; j <= lastEval; j++) {
+    n++;
+    if (closes[j + horizon] > closes[j]) up++;
+  }
+  return n ? up / n : 0.5;
+}
+
+export function predictMarket(candles: OHLCV[], horizon = DEFAULT_HORIZON): MarketPrediction | null {
+  if (candles.length < 70) return null;
   const closes = candles.map(c => c.close);
   const highs = candles.map(c => c.high);
   const lows = candles.map(c => c.low);
@@ -57,26 +80,27 @@ export function predictNextDay(candles: OHLCV[]): MarketPrediction | null {
     factors.push({ name: "Trend", vote, weight: 0.28, detail: `EMA stack ${vote >= 0 ? "bullish" : "bearish"}, ADX ${adxVal.toFixed(0)}` });
   }
 
-  // 2. Momentum — blended 1/5/10-day return.
+  // 2. Momentum — blended returns scaled to the horizon.
   {
-    const mom = 0.5 * ret(1) + 0.3 * ret(5) + 0.2 * ret(10);
-    const vote = clamp(mom * 25, -1, 1);
-    factors.push({ name: "Momentum", vote, weight: 0.22, detail: `5-day ${(ret(5) * 100).toFixed(1)}%, 10-day ${(ret(10) * 100).toFixed(1)}%` });
+    const w1 = horizon, w2 = Math.min(last, horizon * 2), w3 = Math.min(last, horizon * 4);
+    const mom = 0.5 * ret(w1) + 0.3 * ret(w2) + 0.2 * ret(w3);
+    const vote = clamp(mom * 12, -1, 1);
+    factors.push({ name: "Momentum", vote, weight: 0.24, detail: `${w1}d ${(ret(w1) * 100).toFixed(1)}%, ${w3}d ${(ret(w3) * 100).toFixed(1)}%` });
   }
 
-  // 3. RSI — momentum in the middle, mean-reversion at the extremes.
+  // 3. RSI — momentum mid-range, mean-reversion at the extremes.
   {
     const r = rsi(closes, 14)[last];
     let vote = 0, detail = "RSI n/a";
     if (r != null) {
       if (r < 30) { vote = 0.7; detail = `RSI ${r.toFixed(0)} oversold — bounce likely`; }
-      else if (r > 70) { vote = -0.7; detail = `RSI ${r.toFixed(0)} overbought — pullback likely`; }
+      else if (r > 70) { vote = -0.5; detail = `RSI ${r.toFixed(0)} overbought — stretched`; }
       else { vote = clamp((r - 50) / 25, -1, 1); detail = `RSI ${r.toFixed(0)}`; }
     }
-    factors.push({ name: "RSI", vote, weight: 0.15, detail });
+    factors.push({ name: "RSI", vote, weight: 0.14, detail });
   }
 
-  // 4. MACD histogram + its slope.
+  // 4. MACD histogram + slope.
   {
     const m = macd(closes);
     const h = m.histogram[last], hp = m.histogram[last - 1];
@@ -86,7 +110,7 @@ export function predictNextDay(candles: OHLCV[]): MarketPrediction | null {
       vote = clamp(Math.sign(h) * 0.5 + (rising ? 0.3 : -0.3), -1, 1);
       detail = `Histogram ${h >= 0 ? "+" : ""}${h.toFixed(2)}, ${rising ? "rising" : "falling"}`;
     }
-    factors.push({ name: "MACD", vote, weight: 0.13, detail });
+    factors.push({ name: "MACD", vote, weight: 0.12, detail });
   }
 
   // 5. Mean reversion — z-score vs 20-day mean + Bollinger %B.
@@ -99,72 +123,83 @@ export function predictNextDay(candles: OHLCV[]): MarketPrediction | null {
     const u = upper[last], l = lower[last];
     const pctB = (u != null && l != null && u > l) ? (price - l) / (u - l) : 0.5;
     let vote = 0;
-    if (z < -2 && pctB < 0.1) vote = 0.6;        // stretched below — snap back up
-    else if (z > 2 && pctB > 0.9) vote = -0.6;   // stretched above — fade
-    else vote = clamp(-z / 6, -0.3, 0.3);
-    factors.push({ name: "Mean reversion", vote, weight: 0.12, detail: `z-score ${z.toFixed(2)}, %B ${pctB.toFixed(2)}` });
+    if (z < -2 && pctB < 0.1) vote = 0.6;
+    else if (z > 2 && pctB > 0.9) vote = -0.4;
+    else vote = clamp(-z / 7, -0.3, 0.3);
+    factors.push({ name: "Mean reversion", vote, weight: 0.10, detail: `z-score ${z.toFixed(2)}, %B ${pctB.toFixed(2)}` });
   }
 
-  // 6. Volatility regime — modulates confidence (high vol ⇒ less certain).
+  // 6. Position vs 200-DMA — the long-trend regime (mild bullish tilt above it).
+  {
+    const ma200 = sma(closes, 200)[last];
+    let vote = 0, detail = "200-DMA n/a";
+    if (ma200 != null) {
+      const dist = (price - ma200) / ma200;
+      vote = clamp(dist * 6, -0.6, 0.6);
+      detail = `${dist >= 0 ? "+" : ""}${(dist * 100).toFixed(1)}% vs 200-DMA`;
+    }
+    factors.push({ name: "Long trend", vote, weight: 0.12, detail });
+  }
+
+  // Volatility (confidence modifier only).
   const rets: number[] = [];
   for (let i = Math.max(1, last - 20); i <= last; i++) rets.push((closes[i] - closes[i - 1]) / closes[i - 1]);
   const hv = stdev(rets) * Math.sqrt(252);
   const atrPct = (atr(highs, lows, closes, 14)[last] ?? 0) / price;
 
-  // Blend the directional votes.
   const wsum = factors.reduce((s, f) => s + f.weight, 0);
   const score = clamp(factors.reduce((s, f) => s + f.vote * f.weight, 0) / wsum, -1, 1);
 
-  const probUp = Math.round(clamp(50 + 50 * score, 1, 99));
-  const direction: MarketPrediction["direction"] = probUp >= 56 ? "UP" : probUp <= 44 ? "DOWN" : "NEUTRAL";
-  // Confidence: distance from 50/50, dampened when volatility is high.
-  const volDamp = clamp(1 - (hv - 0.15) , 0.45, 1); // hv 15% → 1.0, 70% → 0.45
-  const confidence = Math.round(clamp(Math.abs(score) * 100 * volDamp, 0, 95));
+  // De-bias: blend the factor probability with the index's realized up-rate prior.
+  const driftUpRate = realizedUpRate(closes, horizon);
+  const probRaw = 50 + 50 * score;
+  const probUp = Math.round(clamp(0.62 * probRaw + 0.38 * (driftUpRate * 100), 1, 99));
+
+  const direction: MarketPrediction["direction"] = probUp >= 55 ? "UP" : probUp <= 45 ? "DOWN" : "NEUTRAL";
+  const volDamp = clamp(1 - (hv - 0.15), 0.45, 1);
+  const confidence = Math.round(clamp(Math.abs(probUp - 50) * 2 * volDamp, 0, 95));
 
   factors.push({
     name: "Volatility",
-    vote: 0,
-    weight: 0,
+    vote: 0, weight: 0,
     detail: `Annualized ${(hv * 100).toFixed(0)}%, daily ATR ${(atrPct * 100).toFixed(1)}% — ${hv > 0.3 ? "elevated, lower conviction" : "normal"}`,
   });
 
-  return { direction, probUp, confidence, score, factors };
+  return { direction, probUp, confidence, score, horizon, driftUpRate: Math.round(driftUpRate * 1000) / 10, factors };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Backtest the next-day predictor: walk the candle history, and at each day run
-// predictNextDay on data up to that day, then compare the call to the actual
-// next-day close. Reports directional accuracy (vs the market's own up-rate
-// baseline) and a Brier score on the up-probability.
+// Backtest the posture model: at each day predict the `horizon`-day outlook on
+// past-only data, then compare to the actual close `horizon` days later.
 // ─────────────────────────────────────────────────────────────────────────────
 export interface PredictionBacktest {
-  evaluated: number;        // total next-day outcomes checked
-  directionalCalls: number; // non-neutral calls (UP or DOWN)
-  correct: number;          // directional calls that matched the next day
-  accuracyPct: number;      // correct / directionalCalls
+  horizon: number;
+  evaluated: number;
+  directionalCalls: number;
+  correct: number;
+  accuracyPct: number;
   upCalls: number; upCorrect: number;
   downCalls: number; downCorrect: number;
   neutralCalls: number;
-  marketUpRate: number;     // baseline: % of days the index actually rose
-  edgePct: number;          // accuracy − the "always guess the majority direction" baseline
-  highConfCalls: number; highConfAccuracyPct: number; // calls with confidence ≥ 50
-  brier: number;            // mean (probUp/100 − actualUp)², 0.25 = coin flip, lower better
+  marketUpRate: number;
+  edgePct: number;
+  highConfCalls: number; highConfAccuracyPct: number;
+  brier: number;
 }
 
-export function backtestNextDay(candles: OHLCV[], lookbackDays = 90): PredictionBacktest | null {
+export function backtestMarket(candles: OHLCV[], horizon = DEFAULT_HORIZON, lookbackDays = 90): PredictionBacktest | null {
   const n = candles.length;
-  if (n < 70) return null;
-  const start = Math.max(60, n - 1 - lookbackDays);
+  if (n < 80) return null;
+  const start = Math.max(70, n - horizon - lookbackDays);
 
   let evaluated = 0, directionalCalls = 0, correct = 0;
   let upCalls = 0, upCorrect = 0, downCalls = 0, downCorrect = 0, neutralCalls = 0;
-  let actualUps = 0, brierSum = 0;
-  let highConfCalls = 0, highConfCorrect = 0;
+  let actualUps = 0, brierSum = 0, highConfCalls = 0, highConfCorrect = 0;
 
-  for (let i = start; i < n - 1; i++) {
-    const pred = predictNextDay(candles.slice(0, i + 1));
+  for (let i = start; i < n - horizon; i++) {
+    const pred = predictMarket(candles.slice(0, i + 1), horizon);
     if (!pred) continue;
-    const actualUp = candles[i + 1].close > candles[i].close;
+    const actualUp = candles[i + horizon].close > candles[i].close;
     evaluated++;
     if (actualUp) actualUps++;
     brierSum += (pred.probUp / 100 - (actualUp ? 1 : 0)) ** 2;
@@ -179,11 +214,11 @@ export function backtestNextDay(candles: OHLCV[], lookbackDays = 90): Prediction
   }
 
   const marketUpRate = evaluated ? (actualUps / evaluated) * 100 : 0;
-  const baseline = Math.max(marketUpRate, 100 - marketUpRate); // always-guess-majority
+  const baseline = Math.max(marketUpRate, 100 - marketUpRate);
   const accuracyPct = directionalCalls ? (correct / directionalCalls) * 100 : 0;
 
   return {
-    evaluated, directionalCalls, correct,
+    horizon, evaluated, directionalCalls, correct,
     accuracyPct: Math.round(accuracyPct * 10) / 10,
     upCalls, upCorrect, downCalls, downCorrect, neutralCalls,
     marketUpRate: Math.round(marketUpRate * 10) / 10,

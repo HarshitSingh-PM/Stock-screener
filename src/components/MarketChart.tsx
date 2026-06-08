@@ -25,6 +25,8 @@ interface IndexData {
     probUp: number;
     confidence: number;
     score: number;
+    horizon: number;
+    driftUpRate: number;
     factors: { name: string; vote: number; weight: number; detail: string }[];
   } | null;
 }
@@ -127,16 +129,17 @@ export default function MarketChart({ market = "IN" }: { market?: "IN" | "US" })
         const p = idx.prediction!;
         const up = p.direction === "UP";
         const down = p.direction === "DOWN";
-        const dirLabel = up ? "Likely UP" : down ? "Likely DOWN" : "Range / Unclear";
+        const dirLabel = up ? "Leaning Bullish" : down ? "Leaning Bearish" : "Neutral / Mixed";
         const arrow = up ? "▲" : down ? "▼" : "↔";
+        const hz = p.horizon || 5;
         return (
           <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4">
             <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
               <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                Tomorrow&apos;s Call · {idx.name}
-                <Tip text="A model-based estimate of whether the index closes higher or lower on the next trading day. It blends the same factors the bots use — trend (EMA stack + ADX), multi-horizon momentum, RSI, MACD, mean-reversion (z-score + Bollinger), and volatility. Educational only, not investment advice." />
+                Market Posture · ~1-Week Outlook · {idx.name}
+                <Tip text={`A sentiment read on the index's posture over roughly the next ${hz} trading days — not a next-day bet. It blends the same factors the bots use: trend (EMA stack + ADX), multi-day momentum, RSI, MACD, mean-reversion (z-score + Bollinger) and the 200-DMA regime, then de-biases toward the index's own historical up-rate. Next-day moves are near-random; a multi-day posture is where these factors carry signal. Educational only, not investment advice.`} />
               </h3>
-              <span className="text-[10px] text-gray-600">Not advice · educational</span>
+              <span className="text-[10px] text-gray-600">Sentiment gauge · not advice</span>
             </div>
             <div className="flex items-center gap-4 flex-wrap">
               <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${
@@ -148,14 +151,14 @@ export default function MarketChart({ market = "IN" }: { market?: "IN" | "US" })
               </div>
               <div className="flex-1 min-w-[180px]">
                 <div className="flex justify-between text-[10px] text-gray-500 mb-1">
-                  <span className="text-red-400">Down</span>
-                  <span className="font-mono text-gray-300">{p.probUp}% up · {100 - p.probUp}% down</span>
-                  <span className="text-emerald-400">Up</span>
+                  <span className="text-red-400">Bearish</span>
+                  <span className="font-mono text-gray-300">{p.probUp}% chance higher in ~{hz}d</span>
+                  <span className="text-emerald-400">Bullish</span>
                 </div>
                 <div className="h-2.5 rounded-full bg-red-500/30 overflow-hidden">
                   <div className="h-full" style={{ width: `${p.probUp}%`, background: up ? "#10b981" : down ? "#ef4444" : "#eab308" }} />
                 </div>
-                <div className="text-[10px] text-gray-500 mt-1">Confidence: <span className="font-mono text-gray-300">{p.confidence}%</span></div>
+                <div className="text-[10px] text-gray-500 mt-1">Confidence: <span className="font-mono text-gray-300">{p.confidence}%</span> · base up-rate {p.driftUpRate}%</div>
               </div>
             </div>
             {/* Factor breakdown */}
