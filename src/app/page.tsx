@@ -9,6 +9,7 @@ import { TUTORIAL_INDICATORS, TUTORIAL_CONCEPTS } from "@/lib/tutorials";
 const CandlestickChart = dynamic(() => import("@/components/CandlestickChart"), { ssr: false });
 const MarketChart = dynamic(() => import("@/components/MarketChart"), { ssr: false });
 const BotEquityChart = dynamic(() => import("@/components/BotEquityChart"), { ssr: false });
+const BotDailyPnL = dynamic(() => import("@/components/BotDailyPnL"), { ssr: false });
 
 interface StrategyInfo {
   id: string;
@@ -2582,6 +2583,27 @@ export default function Home() {
                         No history yet. Run a trade to populate the chart.
                       </div>
                     )}
+                  </div>
+
+                  {/* Daily P&L histogram — click a day to see its trades */}
+                  <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                      <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                        Daily Profit &amp; Loss
+                      </h3>
+                      <div className="flex items-center gap-3 text-[10px] text-gray-500">
+                        <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm bg-emerald-500/70"></span> Up day</span>
+                        <span className="flex items-center gap-1"><span className="inline-block w-2 h-2 rounded-sm bg-red-500/70"></span> Down day</span>
+                        <span className="text-gray-600">· tap a bar for that day&apos;s trades</span>
+                      </div>
+                    </div>
+                    <BotDailyPnL
+                      snapshots={botState.snapshots.map((s) => ({ date: s.date, equity: s.equity, tradesCount: s.tradesCount }))}
+                      startingCapital={botState.startingCapital}
+                      trades={botState.trades}
+                      fmtMoney={fmt}
+                      fmtPrice={fmtFull}
+                    />
                   </div>
 
                   {/* Current Holdings */}

@@ -1,6 +1,7 @@
 import { getHistoricalData, getIntradayData } from "./stockData";
 import { getMarketConfig, type Market } from "./markets";
 import { analyze, LONGTERM_PROFILE, INTRADAY_PROFILE, type Thesis } from "./botBrain";
+import { enabledSetFromEdges } from "./strategyEdge";
 import { getFundamentalView } from "./fundamentals";
 import type { OHLCV } from "./indicators";
 import type { BotHolding, BotState, BotTrade, BotSnapshot } from "./botStorage";
@@ -14,6 +15,10 @@ const LT_RISK_PER_TRADE = 0.02;          // risk 2% of equity per position (fixe
 const LT_MAX_POSITION_PCT = 0.35;        // never more than 35% of equity in one name
 const LT_CASH_REDEPLOY_RATIO = 0.02;     // reinvest idle cash above 2% of equity
 const LT_MIN_SCORE = 0.15;               // composite score needed to qualify a long
+// Regime-aware deployment: when few names in the universe are bullish (weak
+// breadth), the bot holds cash instead of forcing capital into a falling tape.
+const LT_FULL_DEPLOY_BREADTH = 0.30;     // breadth (fraction of universe LONG) for full deployment
+const LT_MIN_DEPLOY = 0.20;              // floor on deployment in the weakest regimes
 
 // Intraday bot — re-scans for fresh setups several times a session and redeploys
 // freed-up capital, so it takes multiple round trips in a day.
@@ -91,39 +96,72 @@ async function runLongTermBotDay(state: BotState): Promise<BotRunSummary> {
   const heldSymbols = new Set(state.holdings.map(h => h.symbol));
   const allSymbols = Array.from(new Set([...heldSymbols, ...cfg.botUniverse]));
 
-  // Build theses in batches.
-  const theses = new Map<string, Thesis>();
+  // Fetch candles once, then derive the adaptive enabled-strategy set from recent
+  // forward edge — this prunes strategies that have been losing money lately and
+  // simultaneously delivers the regime tilt (trend strategies drop out in chop).
+  const candleMap = new Map<string, OHLCV[]>();
   for (let i = 0; i < allSymbols.length; i += SCAN_BATCH) {
     const batch = allSymbols.slice(i, i + SCAN_BATCH);
-    const results = await Promise.allSettled(batch.map(async (sym) => {
-      const candles = await getHistoricalData(sym, 300, market);
-      return analyze(sym, candles, LONGTERM_PROFILE);
-    }));
-    for (const r of results) if (r.status === "fulfilled" && r.value) theses.set(r.value.symbol, r.value);
+    const results = await Promise.allSettled(batch.map(async (sym) => ({ sym, candles: await getHistoricalData(sym, 300, market) })));
+    for (const r of results) {
+      if (r.status === "fulfilled" && r.value.candles.length >= LONGTERM_PROFILE.minBars) candleMap.set(r.value.sym, r.value.candles);
+    }
+  }
+  const enabled = enabledSetFromEdges(candleMap);
+
+  // Score every symbol against the surviving strategies.
+  const theses = new Map<string, Thesis>();
+  for (const [sym, candles] of candleMap) {
+    const th = analyze(sym, candles, LONGTERM_PROFILE, enabled);
+    if (th) theses.set(sym, th);
   }
 
+  // Preliminary technical ranking to decide which names to pull fundamentals for.
+  const prelim = [...theses.values()]
+    .filter(t => t.direction === "LONG" && t.score >= LT_MIN_SCORE)
+    .sort((a, b) => (b.score * (0.5 + b.conviction)) - (a.score * (0.5 + a.conviction)));
+  const quality = new Map<string, number>();
+  await Promise.allSettled(prelim.slice(0, 15).map(async (t) => {
+    const fv = await getFundamentalView(t.symbol, market);
+    quality.set(t.symbol, fv.qualityScore);
+  }));
+
+  const decision = longTermDecide(state, theses, quality, date);
+  return {
+    kind: state.kind, market, ran: true,
+    evaluatedHoldings: decision.heldEvalsCount, evaluatedCandidates: decision.universeEvalsCount,
+    trades: decision.tradesToday, snapshot: decision.snapshot, state,
+  };
+}
+
+// Pure long-term decision core, shared by the live engine and the backtester.
+// Given the day's theses + fundamental-quality map, it runs risk management,
+// rotation, risk-sized buys, and cash redeployment, mutating `state`.
+export function longTermDecide(
+  state: BotState,
+  theses: Map<string, Thesis>,
+  quality: Map<string, number>,
+  date: string,
+): { tradesToday: BotTrade[]; snapshot: BotSnapshot; heldEvalsCount: number; universeEvalsCount: number } {
+  const heldSymbols = new Set(state.holdings.map(h => h.symbol));
   const heldEvalsCount = state.holdings.filter(h => theses.has(h.symbol)).length;
   const universeEvalsCount = theses.size - heldEvalsCount;
 
-  // Rank long candidates by composite conviction.
-  const longs = [...theses.values()]
-    .filter(t => t.direction === "LONG" && t.score >= LT_MIN_SCORE)
-    .sort((a, b) => (b.score * (0.5 + b.conviction)) - (a.score * (0.5 + a.conviction)));
-
-  // Fundamental quality tilt for the top ~15 technical candidates (limits API calls).
-  const tiltSet = longs.slice(0, 15).map(t => t.symbol);
-  const quality = new Map<string, number>();
-  await Promise.allSettled(tiltSet.map(async (sym) => {
-    const fv = await getFundamentalView(sym, market);
-    quality.set(sym, fv.qualityScore);
-  }));
   const rankScore = (t: Thesis) => {
     const q = quality.get(t.symbol) ?? 0.5;
-    return t.score * (0.5 + t.conviction) + 0.25 * (q - 0.5) * 2; // +/-0.25 tilt
+    return t.score * (0.5 + t.conviction) + 0.25 * (q - 0.5) * 2; // +/-0.25 fundamental tilt
   };
-  longs.sort((a, b) => rankScore(b) - rankScore(a));
+  const longs = [...theses.values()]
+    .filter(t => t.direction === "LONG" && t.score >= LT_MIN_SCORE)
+    .sort((a, b) => rankScore(b) - rankScore(a));
 
-  const target = longs.slice(0, MAX_POSITIONS);
+  // Regime gate: breadth = share of the evaluated universe that is bullish.
+  // Weak breadth → hold cash and run fewer positions rather than forcing money in.
+  const breadth = theses.size > 0 ? longs.length / theses.size : 0;
+  const deploymentCap = Math.max(LT_MIN_DEPLOY, Math.min(1, breadth / LT_FULL_DEPLOY_BREADTH));
+  const maxPos = Math.max(1, Math.min(MAX_POSITIONS, Math.round(deploymentCap * MAX_POSITIONS)));
+
+  const target = longs.slice(0, maxPos);
   const targetSet = new Set(target.map(t => t.symbol));
   const strongestNonHeld = longs.find(t => !heldSymbols.has(t.symbol));
 
@@ -184,24 +222,31 @@ async function runLongTermBotDay(state: BotState): Promise<BotRunSummary> {
   state.holdings = afterRotation;
 
   // ── Buy new picks, sized by fixed-fractional risk + fair-share budgeting ──
-  let equity = state.cash + state.holdings.reduce((s, h) => {
+  // Total invested is capped at deploymentCap × equity, so in a weak regime the
+  // bot holds cash rather than forcing money into a falling market.
+  const equity = state.cash + state.holdings.reduce((s, h) => {
     const p = theses.get(h.symbol)?.price ?? h.avgBuyPrice; return s + h.quantity * p;
   }, 0);
+  const maxInvested = deploymentCap * equity;
+  let investedNow = equity - state.cash; // current holdings value
   const toBuy = target.filter(t => !state.holdings.some(h => h.symbol === t.symbol));
-  let slotsLeft = Math.min(toBuy.length, MAX_POSITIONS - state.holdings.length);
+  let slotsLeft = Math.min(toBuy.length, maxPos - state.holdings.length);
   for (const t of toBuy) {
-    if (state.holdings.length >= MAX_POSITIONS || slotsLeft <= 0) break;
-    // Fair-share cap: never let one pick spend more than its even slice of the
-    // remaining cash, so all target names get filled instead of the first few
-    // eating everything. Conviction still tilts via the risk cap (looser stops
-    // get less) and the post-buy reinvestment into the strongest name.
-    const fairShareQty = Math.floor((state.cash / slotsLeft) / t.entry);
+    if (state.holdings.length >= maxPos || slotsLeft <= 0) break;
+    const room = Math.max(0, maxInvested - investedNow);
+    const budgetCash = Math.min(state.cash, room);
+    if (budgetCash <= 0) break;
+    // Fair-share cap within the deployment budget: never let one pick eat the
+    // whole budget. Conviction still tilts via the risk cap and the post-buy
+    // reinvestment into the strongest name.
+    const fairShareQty = Math.floor((budgetCash / slotsLeft) / t.entry);
     const riskQty = sizeByRisk(equity, state.cash, t.entry, t.stop, LT_RISK_PER_TRADE, LT_MAX_POSITION_PCT);
     const qty = Math.min(riskQty, fairShareQty);
     slotsLeft--;
     if (qty <= 0) continue;
     const cost = qty * t.entry;
     state.cash -= cost;
+    investedNow += cost;
     state.holdings.push({
       symbol: t.symbol, quantity: qty, avgBuyPrice: t.entry, buyDate: date,
       stop: t.stop, target: t.target, thesisScore: t.score,
@@ -213,15 +258,17 @@ async function runLongTermBotDay(state: BotState): Promise<BotRunSummary> {
     });
   }
 
-  // ── Reinvest idle cash into the strongest holding (compounding) ──
-  if (state.cash > equity * LT_CASH_REDEPLOY_RATIO && state.holdings.length > 0) {
+  // ── Reinvest idle cash into the strongest holding, but only up to the
+  //    deployment cap (so weak regimes keep their cash buffer). ──
+  if (maxInvested - investedNow > equity * LT_CASH_REDEPLOY_RATIO && state.cash > 0 && state.holdings.length > 0) {
     const ranked = state.holdings
       .map(h => ({ h, t: theses.get(h.symbol) }))
       .filter(x => x.t && x.t.price > 0)
       .sort((a, b) => (b.t!.score - a.t!.score));
     const top = ranked[0];
     if (top?.t) {
-      const extra = Math.floor(state.cash / top.t.price);
+      const room = Math.min(state.cash, maxInvested - investedNow);
+      const extra = Math.floor(room / top.t.price);
       if (extra > 0) {
         const cost = extra * top.t.price;
         const newQty = top.h.quantity + extra;
@@ -241,11 +288,7 @@ async function runLongTermBotDay(state: BotState): Promise<BotRunSummary> {
   state.trades.push(...tradesToday);
   state.lastRunDate = date;
 
-  return {
-    kind: state.kind, market, ran: true,
-    evaluatedHoldings: heldEvalsCount, evaluatedCandidates: universeEvalsCount,
-    trades: tradesToday, snapshot, state,
-  };
+  return { tradesToday, snapshot, heldEvalsCount, universeEvalsCount };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -258,7 +301,7 @@ async function runLongTermBotDay(state: BotState): Promise<BotRunSummary> {
 // Anything still open is squared off at the close. Always flat overnight; realized
 // P&L compounds the equity.
 // ─────────────────────────────────────────────────────────────────────────────
-function groupByDay(candles: OHLCV[]): { date: string; idx: number[] }[] {
+export function groupByDay(candles: OHLCV[]): { date: string; idx: number[] }[] {
   const map = new Map<string, number[]>();
   candles.forEach((c, i) => {
     const d = isoDate(c.date);
@@ -268,7 +311,7 @@ function groupByDay(candles: OHLCV[]): { date: string; idx: number[] }[] {
   return [...map.entries()].map(([date, idx]) => ({ date, idx })).sort((a, b) => a.date.localeCompare(b.date));
 }
 
-interface SymBars {
+export interface SymBars {
   symbol: string;
   candles: OHLCV[];
   sessionIdx: number[]; // global indices of this symbol's bars in the target session
@@ -334,6 +377,44 @@ async function runIntradayBotDay(state: BotState): Promise<BotRunSummary> {
     };
   }
 
+  const sim = simulateIntradaySession(symBars, sessionDate, state.cash, state.cash);
+  const tradesToday = sim.trades;
+  state.cash = sim.endCash;          // back to all-cash; profits compounded
+  state.realizedPnL += sim.realized;
+  state.holdings = [];               // flat overnight
+
+  const equityNow = state.cash;
+  const pnl = equityNow - state.startingCapital;
+  const snapshot: BotSnapshot = {
+    date: sessionDate,
+    cash: round(state.cash),
+    holdingsValue: 0,
+    equity: round(equityNow),
+    pnl: round(pnl),
+    pnlPercent: round((pnl / state.startingCapital) * 100, 3),
+    positions: 0,
+    tradesCount: tradesToday.length,
+  };
+  const existing = state.snapshots.findIndex(s => s.date === sessionDate);
+  if (existing >= 0) state.snapshots[existing] = snapshot; else state.snapshots.push(snapshot);
+
+  state.trades.push(...tradesToday);
+  state.lastRunDate = sessionDate;
+
+  return {
+    kind: state.kind, market, ran: true,
+    evaluatedHoldings: 0, evaluatedCandidates: symBars.length,
+    trades: tradesToday, snapshot, state,
+  };
+}
+
+// Pure intraday session simulator, shared by the live engine and the backtester.
+// Walks one session's 15m bars: exits open positions on stop/target, and at
+// decision points re-scans `symBars` to redeploy freed-up capital — multiple
+// round trips. Squares off any remainder at the close. Starts and ends flat.
+export function simulateIntradaySession(
+  symBars: SymBars[], sessionDate: string, startCash: number, startEquity: number,
+): { trades: BotTrade[]; endCash: number; realized: number } {
   const bySymbol = new Map<string, SymBars>(symBars.map(s => [s.symbol, s]));
   const maxLen = symBars.reduce((m, s) => Math.max(m, s.sessionIdx.length), 0);
 
@@ -350,26 +431,24 @@ async function runIntradayBotDay(state: BotState): Promise<BotRunSummary> {
     return th;
   };
 
-  const tradesToday: BotTrade[] = [];
+  const trades: BotTrade[] = [];
   const ts = () => new Date().toISOString();
-  let cash = state.cash;             // start of day, all cash (flat overnight)
-  const startEquity = cash;          // base for fixed-fractional risk sizing
-  let realizedToday = 0;
+  let cash = startCash;
+  let realized = 0;
   const open: OpenPosition[] = [];
 
   const closePosition = (pos: OpenPosition, exitPrice: number, reason: string) => {
     const proceeds = pos.qty * exitPrice;
-    const realized = (exitPrice - pos.entry) * pos.qty;
+    const r = (exitPrice - pos.entry) * pos.qty;
     cash += proceeds;
-    realizedToday += realized;
-    tradesToday.push({
+    realized += r;
+    trades.push({
       date: sessionDate, timestamp: ts(), symbol: pos.symbol, action: "SELL",
-      quantity: pos.qty, price: round(exitPrice), total: round(proceeds), realizedPnL: round(realized),
+      quantity: pos.qty, price: round(exitPrice), total: round(proceeds), realizedPnL: round(r),
       reason,
     });
   };
 
-  // Walk the session bar by bar.
   for (let o = ID_FIRST_DECISION; o < maxLen; o++) {
     // 1. Exits first — check every open position against this bar.
     for (let k = open.length - 1; k >= 0; k--) {
@@ -410,7 +489,7 @@ async function runIntradayBotDay(state: BotState): Promise<BotRunSummary> {
         cash -= cost;
         slotsFree--;
         open.push({ symbol: t.symbol, qty, entry: t.entry, stop: t.stop, target: t.target, rationale: t.rationale });
-        tradesToday.push({
+        trades.push({
           date: sessionDate, timestamp: ts(), symbol: t.symbol, action: "BUY",
           quantity: qty, price: round(t.entry), total: round(cost),
           reason: `Intraday long · ${t.rationale}`,
@@ -426,33 +505,7 @@ async function runIntradayBotDay(state: BotState): Promise<BotRunSummary> {
     closePosition(pos, sb.candles[lastGi].close, "Squared off at session close");
   }
 
-  state.cash = cash;                 // back to all-cash; profits compounded
-  state.realizedPnL += realizedToday;
-  state.holdings = [];               // flat overnight
-
-  const equityNow = state.cash;
-  const pnl = equityNow - state.startingCapital;
-  const snapshot: BotSnapshot = {
-    date: sessionDate,
-    cash: round(state.cash),
-    holdingsValue: 0,
-    equity: round(equityNow),
-    pnl: round(pnl),
-    pnlPercent: round((pnl / state.startingCapital) * 100, 3),
-    positions: 0,
-    tradesCount: tradesToday.length,
-  };
-  const existing = state.snapshots.findIndex(s => s.date === sessionDate);
-  if (existing >= 0) state.snapshots[existing] = snapshot; else state.snapshots.push(snapshot);
-
-  state.trades.push(...tradesToday);
-  state.lastRunDate = sessionDate;
-
-  return {
-    kind: state.kind, market, ran: true,
-    evaluatedHoldings: 0, evaluatedCandidates: symBars.length,
-    trades: tradesToday, snapshot, state,
-  };
+  return { trades, endCash: cash, realized };
 }
 
 // Mark-to-market snapshot for position-holding bots.

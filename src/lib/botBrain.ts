@@ -85,10 +85,13 @@ function stdev(arr: number[]): number {
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
-// Run the 111 screener strategies for confluence.
-function confluence(candles: OHLCV[]) {
+// Run the screener strategies for confluence. An optional `enabled` set lets
+// the bot ignore specific strategy IDs (used by the optimizer to prune
+// low-edge strategies); when omitted, all strategies count.
+function confluence(candles: OHLCV[], enabled?: Set<string>) {
   let buyCount = 0, sellCount = 0, buyStrength = 0;
   for (const s of STRATEGIES) {
+    if (enabled && !enabled.has(s.id)) continue;
     try {
       const r = s.evaluate(candles);
       if (r.signal === "BUY") { buyCount++; buyStrength += r.strength; }
@@ -166,7 +169,7 @@ function volumeScoreOf(candles: OHLCV[]): number {
   return clamp(vols[last] / volMA / 2, 0, 1); // 1.0× avg → 0.5, 2×+ → 1.0
 }
 
-export function analyze(symbol: string, candles: OHLCV[], profile: BrainProfile): Thesis | null {
+export function analyze(symbol: string, candles: OHLCV[], profile: BrainProfile, enabled?: Set<string>): Thesis | null {
   if (candles.length < profile.minBars) return null;
   const closes = candles.map(c => c.close);
   const highs = candles.map(c => c.high);
@@ -175,7 +178,7 @@ export function analyze(symbol: string, candles: OHLCV[], profile: BrainProfile)
   const price = closes[last];
   if (!(price > 0)) return null;
 
-  const conf = confluence(candles);
+  const conf = confluence(candles, enabled);
 
   // Factor signals (−1..+1), weighted per the ai-hedge-fund technicals agent.
   const fTrend = trendFactor(closes, highs, lows);
