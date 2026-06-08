@@ -130,3 +130,66 @@ export function predictNextDay(candles: OHLCV[]): MarketPrediction | null {
 
   return { direction, probUp, confidence, score, factors };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Backtest the next-day predictor: walk the candle history, and at each day run
+// predictNextDay on data up to that day, then compare the call to the actual
+// next-day close. Reports directional accuracy (vs the market's own up-rate
+// baseline) and a Brier score on the up-probability.
+// ─────────────────────────────────────────────────────────────────────────────
+export interface PredictionBacktest {
+  evaluated: number;        // total next-day outcomes checked
+  directionalCalls: number; // non-neutral calls (UP or DOWN)
+  correct: number;          // directional calls that matched the next day
+  accuracyPct: number;      // correct / directionalCalls
+  upCalls: number; upCorrect: number;
+  downCalls: number; downCorrect: number;
+  neutralCalls: number;
+  marketUpRate: number;     // baseline: % of days the index actually rose
+  edgePct: number;          // accuracy − the "always guess the majority direction" baseline
+  highConfCalls: number; highConfAccuracyPct: number; // calls with confidence ≥ 50
+  brier: number;            // mean (probUp/100 − actualUp)², 0.25 = coin flip, lower better
+}
+
+export function backtestNextDay(candles: OHLCV[], lookbackDays = 90): PredictionBacktest | null {
+  const n = candles.length;
+  if (n < 70) return null;
+  const start = Math.max(60, n - 1 - lookbackDays);
+
+  let evaluated = 0, directionalCalls = 0, correct = 0;
+  let upCalls = 0, upCorrect = 0, downCalls = 0, downCorrect = 0, neutralCalls = 0;
+  let actualUps = 0, brierSum = 0;
+  let highConfCalls = 0, highConfCorrect = 0;
+
+  for (let i = start; i < n - 1; i++) {
+    const pred = predictNextDay(candles.slice(0, i + 1));
+    if (!pred) continue;
+    const actualUp = candles[i + 1].close > candles[i].close;
+    evaluated++;
+    if (actualUp) actualUps++;
+    brierSum += (pred.probUp / 100 - (actualUp ? 1 : 0)) ** 2;
+
+    if (pred.direction === "NEUTRAL") { neutralCalls++; continue; }
+    directionalCalls++;
+    const hit = (pred.direction === "UP") === actualUp;
+    if (hit) correct++;
+    if (pred.direction === "UP") { upCalls++; if (actualUp) upCorrect++; }
+    else { downCalls++; if (!actualUp) downCorrect++; }
+    if (pred.confidence >= 50) { highConfCalls++; if (hit) highConfCorrect++; }
+  }
+
+  const marketUpRate = evaluated ? (actualUps / evaluated) * 100 : 0;
+  const baseline = Math.max(marketUpRate, 100 - marketUpRate); // always-guess-majority
+  const accuracyPct = directionalCalls ? (correct / directionalCalls) * 100 : 0;
+
+  return {
+    evaluated, directionalCalls, correct,
+    accuracyPct: Math.round(accuracyPct * 10) / 10,
+    upCalls, upCorrect, downCalls, downCorrect, neutralCalls,
+    marketUpRate: Math.round(marketUpRate * 10) / 10,
+    edgePct: Math.round((accuracyPct - baseline) * 10) / 10,
+    highConfCalls,
+    highConfAccuracyPct: highConfCalls ? Math.round((highConfCorrect / highConfCalls) * 1000) / 10 : 0,
+    brier: Math.round((brierSum / Math.max(1, evaluated)) * 1000) / 1000,
+  };
+}
