@@ -2694,9 +2694,9 @@ export default function Home() {
                     <div><strong className="text-gray-300">Risk-based sizing.</strong> Position size is set by risk, not guesswork: it risks a fixed fraction of equity per trade based on the distance to the stop, then caps exposure per name. Bigger stop ⇒ smaller position.</div>
                     {botKind === "intraday" ? (
                       <>
-                        <div><strong className="text-gray-300">Schedule.</strong> Decides ~1.5 hours into the session, buys the top setups, then exits each on its stop, its target, or at the close. Runs every weekday after the market closes (India ~5:00 PM IST · US ~6:30 PM ET).</div>
+                        <div><strong className="text-gray-300">Multiple trades a day.</strong> Starting about an hour in, it re-scans the universe roughly every 45 minutes and opens fresh setups whenever a position has exited and capital is free — so it takes several round trips across the session, not just one. Runs every weekday after the market closes (India ~5:00 PM IST · US ~6:30 PM ET).</div>
                         <div><strong className="text-gray-300">Same-day only.</strong> Always flat overnight — no positions are carried. Each day starts fully in cash; profits compound into the next day&apos;s buying power.</div>
-                        <div><strong className="text-gray-300">Exits.</strong> ATR-based intraday stop (~1.2× ATR) and target (~2× ATR). Whichever hits first wins; anything still open is squared off at the session close.</div>
+                        <div><strong className="text-gray-300">Exits.</strong> Each trade has an ATR-based intraday stop (~1.2× ATR) and target (~2× ATR). Whichever hits first closes the trade and frees the slot; anything still open is squared off at the session close.</div>
                       </>
                     ) : (
                       <>

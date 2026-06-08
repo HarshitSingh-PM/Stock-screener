@@ -15,11 +15,14 @@ const LT_MAX_POSITION_PCT = 0.35;        // never more than 35% of equity in one
 const LT_CASH_REDEPLOY_RATIO = 0.02;     // reinvest idle cash above 2% of equity
 const LT_MIN_SCORE = 0.15;               // composite score needed to qualify a long
 
-// Intraday bot
+// Intraday bot — re-scans for fresh setups several times a session and redeploys
+// freed-up capital, so it takes multiple round trips in a day.
 const ID_RISK_PER_TRADE = 0.015;         // tighter risk per intraday trade
 const ID_MAX_POSITION_PCT = 0.30;
-const ID_DECISION_BARS = 6;              // decide ~1.5h into the session (6×15m)
 const ID_MIN_SCORE = 0.12;
+const ID_FIRST_DECISION = 4;             // first entry window ~1h into the session (4×15m)
+const ID_DECISION_STEP = 3;              // re-scan for fresh setups ~every 45 min
+const ID_CLOSE_BUFFER = 2;               // stop opening new trades in the last ~30 min
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -248,10 +251,12 @@ async function runLongTermBotDay(state: BotState): Promise<BotRunSummary> {
 // ─────────────────────────────────────────────────────────────────────────────
 // INTRADAY bot
 //
-// Simulates ONE same-day round trip per run on 15-minute bars: decide ~1.5h into
-// the session, buy the highest-conviction intraday setups (risk-sized), then walk
-// the rest of the session bar-by-bar exiting on stop / target / close. Always
-// flat overnight. Realized P&L compounds the equity.
+// Simulates a full trading day on 15-minute bars and takes MULTIPLE round trips:
+// it walks the session bar by bar, exiting open positions on stop/target, and at
+// regular decision points (~every 45 min after the first hour) it re-scans the
+// universe and redeploys any freed-up capital into fresh high-conviction setups.
+// Anything still open is squared off at the close. Always flat overnight; realized
+// P&L compounds the equity.
 // ─────────────────────────────────────────────────────────────────────────────
 function groupByDay(candles: OHLCV[]): { date: string; idx: number[] }[] {
   const map = new Map<string, number[]>();
@@ -263,45 +268,56 @@ function groupByDay(candles: OHLCV[]): { date: string; idx: number[] }[] {
   return [...map.entries()].map(([date, idx]) => ({ date, idx })).sort((a, b) => a.date.localeCompare(b.date));
 }
 
-interface IntradayPlan {
-  thesis: Thesis;
+interface SymBars {
+  symbol: string;
   candles: OHLCV[];
-  decisionGlobalIdx: number;
-  sessionEndGlobalIdx: number;
+  sessionIdx: number[]; // global indices of this symbol's bars in the target session
+}
+
+interface OpenPosition {
+  symbol: string;
+  qty: number;
+  entry: number;
+  stop: number;
+  target: number;
+  rationale: string;
 }
 
 async function runIntradayBotDay(state: BotState): Promise<BotRunSummary> {
   const market = state.market;
   const cfg = getMarketConfig(market);
 
-  // Build a same-day plan for each universe symbol.
-  const plans: IntradayPlan[] = [];
-  let sessionDate = "";
+  // Fetch intraday candles for the whole universe, grouped into trading days.
+  const fetched: { symbol: string; candles: OHLCV[]; days: { date: string; idx: number[] }[] }[] = [];
   const symbols = cfg.botUniverse;
   for (let i = 0; i < symbols.length; i += SCAN_BATCH) {
     const batch = symbols.slice(i, i + SCAN_BATCH);
     const results = await Promise.allSettled(batch.map(async (sym) => {
       const candles = await getIntradayData(sym, market, "15m", 7);
-      if (candles.length < INTRADAY_PROFILE.minBars + ID_DECISION_BARS) return null;
+      if (candles.length < INTRADAY_PROFILE.minBars + ID_FIRST_DECISION) return null;
       const days = groupByDay(candles);
       if (days.length < 2) return null;
-      const session = days[days.length - 1];
-      if (session.idx.length < ID_DECISION_BARS + 3) return null; // incomplete session
-      const decisionGlobalIdx = session.idx[ID_DECISION_BARS];
-      const sessionEndGlobalIdx = session.idx[session.idx.length - 1];
-      const thesis = analyze(sym, candles.slice(0, decisionGlobalIdx + 1), INTRADAY_PROFILE);
-      if (!thesis) return null;
-      return { thesis, candles, decisionGlobalIdx, sessionEndGlobalIdx, sessionDate: session.date } as IntradayPlan & { sessionDate: string };
+      return { symbol: sym, candles, days };
     }));
-    for (const r of results) {
-      if (r.status === "fulfilled" && r.value) {
-        plans.push(r.value);
-        sessionDate = (r.value as any).sessionDate;
-      }
-    }
+    for (const r of results) if (r.status === "fulfilled" && r.value) fetched.push(r.value);
   }
 
-  if (plans.length === 0) {
+  // Target session = the most recent date seen across the universe.
+  let sessionDate = "";
+  for (const f of fetched) {
+    const last = f.days[f.days.length - 1].date;
+    if (last > sessionDate) sessionDate = last;
+  }
+
+  // Keep symbols that have a usable number of bars in that session.
+  const symBars: SymBars[] = [];
+  for (const f of fetched) {
+    const session = f.days.find(d => d.date === sessionDate);
+    if (!session || session.idx.length < ID_FIRST_DECISION + 2) continue;
+    symBars.push({ symbol: f.symbol, candles: f.candles, sessionIdx: session.idx });
+  }
+
+  if (symBars.length === 0 || !sessionDate) {
     return {
       kind: state.kind, market, ran: false, reason: "no intraday data available",
       evaluatedHoldings: 0, evaluatedCandidates: 0,
@@ -318,53 +334,96 @@ async function runIntradayBotDay(state: BotState): Promise<BotRunSummary> {
     };
   }
 
-  // Rank long setups by conviction, take the top 5.
-  const longs = plans
-    .filter(p => p.thesis.direction === "LONG" && p.thesis.score >= ID_MIN_SCORE)
-    .sort((a, b) => (b.thesis.score * (0.5 + b.thesis.conviction)) - (a.thesis.score * (0.5 + a.thesis.conviction)))
-    .slice(0, MAX_POSITIONS);
+  const bySymbol = new Map<string, SymBars>(symBars.map(s => [s.symbol, s]));
+  const maxLen = symBars.reduce((m, s) => Math.max(m, s.sessionIdx.length), 0);
+
+  // Thesis cache keyed by symbol@offset (computed lazily at decision points).
+  const thesisCache = new Map<string, Thesis | null>();
+  const analyzeAt = (sb: SymBars, offset: number): Thesis | null => {
+    if (offset >= sb.sessionIdx.length) return null;
+    const key = `${sb.symbol}@${offset}`;
+    const hit = thesisCache.get(key);
+    if (hit !== undefined) return hit;
+    const gi = sb.sessionIdx[offset];
+    const th = analyze(sb.symbol, sb.candles.slice(0, gi + 1), INTRADAY_PROFILE);
+    thesisCache.set(key, th);
+    return th;
+  };
 
   const tradesToday: BotTrade[] = [];
   const ts = () => new Date().toISOString();
-  let cash = state.cash;          // start of day, all cash (flat overnight)
-  const equity = cash;           // intraday equity == cash at open
+  let cash = state.cash;             // start of day, all cash (flat overnight)
+  const startEquity = cash;          // base for fixed-fractional risk sizing
   let realizedToday = 0;
+  const open: OpenPosition[] = [];
 
-  let idSlotsLeft = longs.length;
-  for (const p of longs) {
-    const t = p.thesis;
-    const fairShareQty = Math.floor((cash / Math.max(1, idSlotsLeft)) / t.entry);
-    const riskQty = sizeByRisk(equity, cash, t.entry, t.stop, ID_RISK_PER_TRADE, ID_MAX_POSITION_PCT);
-    const qty = Math.min(riskQty, fairShareQty);
-    idSlotsLeft--;
-    if (qty <= 0) continue;
-    const cost = qty * t.entry;
-    cash -= cost;
-
-    // Walk the rest of the session to find the exit.
-    let exitPrice = p.candles[p.sessionEndGlobalIdx].close;
-    let exitReason = "Squared off at session close";
-    for (let i = p.decisionGlobalIdx + 1; i <= p.sessionEndGlobalIdx; i++) {
-      const bar = p.candles[i];
-      if (bar.low <= t.stop) { exitPrice = t.stop; exitReason = `Intraday stop hit (−${(((t.entry - t.stop) / t.entry) * 100).toFixed(1)}%)`; break; }
-      if (bar.high >= t.target) { exitPrice = t.target; exitReason = `Intraday target hit (+${(((t.target - t.entry) / t.entry) * 100).toFixed(1)}%)`; break; }
-    }
-
-    const proceeds = qty * exitPrice;
-    const realized = (exitPrice - t.entry) * qty;
+  const closePosition = (pos: OpenPosition, exitPrice: number, reason: string) => {
+    const proceeds = pos.qty * exitPrice;
+    const realized = (exitPrice - pos.entry) * pos.qty;
     cash += proceeds;
     realizedToday += realized;
+    tradesToday.push({
+      date: sessionDate, timestamp: ts(), symbol: pos.symbol, action: "SELL",
+      quantity: pos.qty, price: round(exitPrice), total: round(proceeds), realizedPnL: round(realized),
+      reason,
+    });
+  };
 
-    tradesToday.push({
-      date: sessionDate, timestamp: ts(), symbol: t.symbol, action: "BUY",
-      quantity: qty, price: round(t.entry), total: round(cost),
-      reason: `Intraday long · ${t.rationale}`,
-    });
-    tradesToday.push({
-      date: sessionDate, timestamp: ts(), symbol: t.symbol, action: "SELL",
-      quantity: qty, price: round(exitPrice), total: round(proceeds), realizedPnL: round(realized),
-      reason: exitReason,
-    });
+  // Walk the session bar by bar.
+  for (let o = ID_FIRST_DECISION; o < maxLen; o++) {
+    // 1. Exits first — check every open position against this bar.
+    for (let k = open.length - 1; k >= 0; k--) {
+      const pos = open[k];
+      const sb = bySymbol.get(pos.symbol)!;
+      if (o >= sb.sessionIdx.length) continue; // no bar at this offset; squared off later
+      const bar = sb.candles[sb.sessionIdx[o]];
+      if (bar.low <= pos.stop) {
+        closePosition(pos, pos.stop, `Intraday stop hit (−${(((pos.entry - pos.stop) / pos.entry) * 100).toFixed(1)}%)`);
+        open.splice(k, 1);
+      } else if (bar.high >= pos.target) {
+        closePosition(pos, pos.target, `Intraday target hit (+${(((pos.target - pos.entry) / pos.entry) * 100).toFixed(1)}%)`);
+        open.splice(k, 1);
+      }
+    }
+
+    // 2. Entries at decision points, while slots and cash remain, but not too
+    //    close to the bell (no time for a trade to work).
+    const isDecision = (o - ID_FIRST_DECISION) % ID_DECISION_STEP === 0 && o <= maxLen - 1 - ID_CLOSE_BUFFER;
+    let slotsFree = MAX_POSITIONS - open.length;
+    if (isDecision && slotsFree > 0 && cash > 0) {
+      const held = new Set(open.map(p => p.symbol));
+      const cands: Thesis[] = [];
+      for (const sb of symBars) {
+        if (held.has(sb.symbol) || o >= sb.sessionIdx.length) continue;
+        const th = analyzeAt(sb, o);
+        if (th && th.direction === "LONG" && th.score >= ID_MIN_SCORE) cands.push(th);
+      }
+      cands.sort((a, b) => (b.score * (0.5 + b.conviction)) - (a.score * (0.5 + a.conviction)));
+      const picks = cands.slice(0, slotsFree);
+      for (const t of picks) {
+        if (slotsFree <= 0 || cash <= 0) break;
+        const fairShareQty = Math.floor((cash / Math.max(1, slotsFree)) / t.entry);
+        const riskQty = sizeByRisk(startEquity, cash, t.entry, t.stop, ID_RISK_PER_TRADE, ID_MAX_POSITION_PCT);
+        const qty = Math.min(riskQty, fairShareQty);
+        if (qty <= 0) continue;
+        const cost = qty * t.entry;
+        cash -= cost;
+        slotsFree--;
+        open.push({ symbol: t.symbol, qty, entry: t.entry, stop: t.stop, target: t.target, rationale: t.rationale });
+        tradesToday.push({
+          date: sessionDate, timestamp: ts(), symbol: t.symbol, action: "BUY",
+          quantity: qty, price: round(t.entry), total: round(cost),
+          reason: `Intraday long · ${t.rationale}`,
+        });
+      }
+    }
+  }
+
+  // 3. Square off anything still open at its last session bar's close.
+  for (const pos of open) {
+    const sb = bySymbol.get(pos.symbol)!;
+    const lastGi = sb.sessionIdx[sb.sessionIdx.length - 1];
+    closePosition(pos, sb.candles[lastGi].close, "Squared off at session close");
   }
 
   state.cash = cash;                 // back to all-cash; profits compounded
@@ -391,7 +450,7 @@ async function runIntradayBotDay(state: BotState): Promise<BotRunSummary> {
 
   return {
     kind: state.kind, market, ran: true,
-    evaluatedHoldings: 0, evaluatedCandidates: plans.length,
+    evaluatedHoldings: 0, evaluatedCandidates: symBars.length,
     trades: tradesToday, snapshot, state,
   };
 }
