@@ -1,14 +1,14 @@
 # JuicedTrade
 
-> JuicedTrade is a free stock screener for Indian (NSE) and US (S&P 500) markets. It evaluates 100 trading strategies, adapted from bestselling trading literature and open-source technical signal concepts, against every stock daily. It also runs an autonomous paper-trading bot and screens ETFs grouped by theme.
+> JuicedTrade is a free stock screener for Indian (NSE) and US (S&P 500) markets. It evaluates 110 trading strategies, adapted from classic trading literature and open-source quant research, against every stock daily. It also runs two autonomous paper-trading bots (an intraday trader and a long-term investor) and screens ETFs grouped by theme.
 
 ## What JuicedTrade does
 
-- **Strategy screener.** Every stock in the active market evaluated against 100 named strategies; filter by category or buy/sell signal.
+- **Strategy screener.** Every stock in the active market evaluated against 110 named strategies; filter by category or buy/sell signal.
 - **Multi-strategy scan.** Surfaces stocks where 2+ strategies agree on a BUY signal, ranked by confluence and strength.
 - **Markets covered.** India (all 2,100+ NSE-listed equities) and United States (all 500 S&P 500 stocks). Switch with the header toggle.
 - **ETF screener.** ~33 NSE ETFs and ~52 US ETFs grouped by theme (Broad Market, Sector, Thematic, Bonds, Commodities, International, Real Estate, Dividend, Volatility, Smart Beta) with a buy, hold, or sell call per ETF derived from trend, momentum, MACD, and strategy confluence.
-- **Bot performance.** Autonomous paper-trading bot with ₹10,00,000 (India) or $5,000 (US) starting capital. Holds at most 5 positions, ranks every candidate by BUY confluence each day, rotates the weakest holding when a stronger candidate appears, trades once per trading day. Renders an equity curve with buy/sell markers.
+- **Bot performance.** Two autonomous paper-trading bots per market, each with ₹10,00,000 (India) or $5,000 (US) starting capital and a multi-factor decision engine (trend, momentum, mean-reversion, volatility, plus a fundamental quality tilt for the long-term bot) with risk-based position sizing. The **Long-Term Investor** holds positions across days with a trailing stop and rotates into stronger names; the **Intraday Trader** takes same-day round trips and is flat overnight. Both hold at most 5 positions and reinvest profits (compounding). Each renders an equity curve with buy/sell markers.
 - **Market overview.** Sensex/Nifty (India) or S&P 500/Dow/Nasdaq (US) with key levels, pivot points, fibonacci, ATR-based targets.
 - **Global market cues.** 20+ world markets plus a quantitative prediction (0-100 score) for both India and US sessions, with weighted factor reasoning.
 - **Signals dashboard.** 15+ buy/sell indicators, sentiment gauge, market events.
@@ -16,7 +16,7 @@
 
 ## Strategy categories
 
-The 100 strategies span 11 categories: Swing, Intraday, Advanced, Positional, Scalping, Options, Price Action, Value Investing, Candlestick, Trend Following, and Index Investing.
+The 110 strategies span 11 categories: Swing, Intraday, Advanced, Positional, Scalping, Options, Price Action, Value Investing, Candlestick, Trend Following, and Index Investing. They are drawn from classic trading literature, OpenBB signal concepts, and open-source quant/ML research (e.g. Donchian breakout, multi-factor momentum, z-score mean reversion, Hurst stat-arb).
 
 ## Pricing
 

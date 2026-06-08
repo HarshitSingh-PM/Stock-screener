@@ -1100,7 +1100,7 @@ export default function Home() {
                 </div>
                 <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight leading-[1.05] mb-5">
                   <span className="bg-gradient-to-br from-white via-amber-100 to-amber-400 bg-clip-text text-transparent">
-                    100 trading strategies.
+                    {STRATEGIES.length} trading strategies.
                   </span>
                   <br />
                   <span className="bg-gradient-to-br from-amber-300 via-orange-400 to-red-500 bg-clip-text text-transparent">
@@ -1108,7 +1108,7 @@ export default function Home() {
                   </span>
                 </h1>
                 <p className="text-base sm:text-lg text-gray-400 max-w-2xl mx-auto leading-relaxed mb-8">
-                  <strong className="text-gray-200">JuicedTrade Stock Screener</strong> runs 100 trading strategies, adapted from bestselling trading literature, across every NSE-listed Indian stock and the entire S&amp;P 500. Every trading day. Get buy and sell signals, run backtests, screen ETFs by theme, and watch an autonomous bot trade those signals in real time.
+                  <strong className="text-gray-200">JuicedTrade Stock Screener</strong> runs {STRATEGIES.length} trading strategies, adapted from classic trading literature and open-source quant research, across every NSE-listed Indian stock and the entire S&amp;P 500. Every trading day. Get buy and sell signals, run backtests, screen ETFs by theme, and watch two autonomous bots — an intraday trader and a long-term investor — trade those signals in real time.
                 </p>
                 <div className="flex flex-wrap items-center justify-center gap-3 mb-10">
                   <button
@@ -1141,7 +1141,7 @@ export default function Home() {
                   Strategies adapted from bestselling trading literature
                 </h2>
                 <p className="text-sm text-gray-400 max-w-2xl mx-auto leading-relaxed">
-                  Swing · Intraday · Advanced · Positional · Scalping · Options · Price Action · Candlestick Patterns · Value Investing · Trend Following · Index Investing. <strong className="text-gray-200">100 strategies across 11 categories</strong>, every stock evaluated daily.
+                  Swing · Intraday · Advanced · Positional · Scalping · Options · Price Action · Candlestick Patterns · Value Investing · Trend Following · Index Investing. <strong className="text-gray-200">{STRATEGIES.length} strategies across 11 categories</strong>, every stock evaluated daily.
                 </p>
               </div>
             </section>
@@ -1160,14 +1160,14 @@ export default function Home() {
                 {[
                   {
                     icon: "📊",
-                    title: "100-Strategy Screener",
-                    body: "Every stock evaluated against 100 named strategies daily. Filter by source, category, or signal. See exactly which strategies agree.",
+                    title: `${STRATEGIES.length}-Strategy Screener`,
+                    body: `Every stock evaluated against ${STRATEGIES.length} named strategies daily. Filter by source, category, or signal. See exactly which strategies agree.`,
                     cta: "strategies" as const,
                   },
                   {
                     icon: "🤖",
-                    title: "Autonomous Trading Bot",
-                    body: "Paper-trading bot trades the signals every day with ₹10L (IN) or $5K (US). Max 5 positions. Live equity curve with buy/sell markers.",
+                    title: "Two Autonomous Bots",
+                    body: "An intraday trader and a long-term investor each trade the signals daily with ₹10L (IN) or $5K (US). Max 5 positions, risk-sized, profits compounded. Live equity curves.",
                     cta: "bot" as const,
                   },
                   {
@@ -1209,7 +1209,7 @@ export default function Home() {
                   {
                     icon: "🔎",
                     title: "Stock Lookup",
-                    body: "Type any symbol to see all 100 strategy signals at once, full 52-week stats, and an interactive candlestick chart.",
+                    body: `Type any symbol to see all ${STRATEGIES.length} strategy signals at once, full 52-week stats, and an interactive candlestick chart.`,
                     cta: "search" as const,
                   },
                 ].map((f) => (
@@ -1277,7 +1277,7 @@ export default function Home() {
                   Why JuicedTrade
                 </h2>
                 <p className="text-gray-500 max-w-2xl mx-auto">
-                  Other tools make you compose one condition or read one chart at a time. JuicedTrade evaluates 100 strategies in parallel across every stock in both markets, every day, and shows you exactly which ones agree.
+                  Other tools make you compose one condition or read one chart at a time. JuicedTrade evaluates {STRATEGIES.length} strategies in parallel across every stock in both markets, every day, and shows you exactly which ones agree.
                 </p>
               </div>
               <div className="overflow-x-auto rounded-2xl border border-white/5">
@@ -1296,7 +1296,7 @@ export default function Home() {
                       { f: "Pre-built named strategies", j: `${STRATEGIES.length} included`, c: "User-built", s: "User-built", t: "Pine Script" },
                       { f: "Multi-strategy confluence", j: "Yes, ranked", c: "Single condition", s: "—", t: "—" },
                       { f: "NSE + S&P 500 in one toggle", j: "Yes", c: "NSE only", s: "NSE only", t: "Yes (paid)" },
-                      { f: "Autonomous paper bot", j: "Built-in", c: "—", s: "—", t: "—" },
+                      { f: "Autonomous paper bots", j: "Intraday + long-term", c: "—", s: "—", t: "—" },
                       { f: "ETF screener with signals", j: "Yes (themed)", c: "—", s: "—", t: "Lists only" },
                       { f: "1-click backtest", j: "Yes", c: "Limited", s: "—", t: "Yes (paid)" },
                       { f: "Price", j: "Free (beta)", c: "Freemium", s: "Freemium", t: "Freemium → $15-60/mo" },
@@ -1330,7 +1330,7 @@ export default function Home() {
                   {[
                     {
                       q: "What is JuicedTrade?",
-                      a: "JuicedTrade is a free stock screener for Indian (NSE) and US (S&P 500) markets. It evaluates every stock against 100 trading strategies adapted from bestselling trading literature and open-source technical signal concepts, and produces daily buy, sell, and neutral signals.",
+                      a: `JuicedTrade is a free stock screener for Indian (NSE) and US (S&P 500) markets. It evaluates every stock against ${STRATEGIES.length} trading strategies adapted from classic trading literature and open-source quant research, and produces daily buy, sell, and neutral signals.`,
                     },
                     {
                       q: "Is it really free?",
@@ -1338,7 +1338,7 @@ export default function Home() {
                     },
                     {
                       q: "Does JuicedTrade place real trades?",
-                      a: "No. JuicedTrade does not connect to any brokerage and cannot place real orders. The built-in trading bot is a paper-trading simulator, purely to demonstrate strategy performance over time.",
+                      a: "No. JuicedTrade does not connect to any brokerage and cannot place real orders. The built-in bots — an intraday trader and a long-term investor — are paper-trading simulators, purely to demonstrate strategy performance over time.",
                     },
                     {
                       q: "Which markets are covered?",
@@ -1346,7 +1346,7 @@ export default function Home() {
                     },
                     {
                       q: "How is it different from Chartink, Screener.in, or TradingView?",
-                      a: "Three things: (1) JuicedTrade evaluates 100 named strategies in parallel and shows which ones agree, so you don't have to compose conditions; (2) covers NSE and S&P 500 in one tool with one toggle; (3) ships an autonomous paper-trading bot that acts on the same strategies.",
+                      a: `Three things: (1) JuicedTrade evaluates ${STRATEGIES.length} named strategies in parallel and shows which ones agree, so you don't have to compose conditions; (2) covers NSE and S&P 500 in one tool with one toggle; (3) ships two autonomous paper-trading bots (intraday and long-term) that act on the same strategies.`,
                     },
                     {
                       q: "Where does the data come from?",
@@ -1374,7 +1374,7 @@ export default function Home() {
             {/* FINAL CTA */}
             <section className="max-w-3xl mx-auto px-4 sm:px-6 py-16 text-center">
               <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-3">
-                Ready to see what 100 strategies say about your watchlist?
+                Ready to see what {STRATEGIES.length} strategies say about your watchlist?
               </h2>
               <p className="text-gray-500 mb-8">
                 No account. No credit card. Just open the screener and pick a market.

@@ -54,7 +54,7 @@ function decideRecommendation(
     else if (lastMacd < lastSignal && lastMacd < 0) { macdScore = -1; rationale.push("MACD below signal, below zero"); }
   }
 
-  // Strategy confluence: weight by buy/sell ratio of the 100-strategy library.
+  // Strategy confluence: weight by buy/sell ratio of the full strategy library.
   const buyRatio = total > 0 ? buyCount / total : 0;
   const sellRatio = total > 0 ? sellCount / total : 0;
   let confluenceScore = 0;

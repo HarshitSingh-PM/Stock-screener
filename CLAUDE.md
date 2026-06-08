@@ -3,7 +3,7 @@
 # StrategyScreener - Indian Market Stock Screener
 
 ## Project Overview
-A Next.js (v16) stock screener for Indian markets (Nifty 500) that implements 100 trading strategies from 6 classic books + OpenBB-inspired signal concepts. Users can screen stocks by individual strategies, run multi-strategy scans, view interactive candlestick charts with technical indicators, analyze Sensex/Nifty 50 market overview with key levels, and monitor real-time buy/sell signals with market events.
+A Next.js (v16) stock screener for NSE + S&P 500 markets that implements 110 trading strategies from classic trading literature, OpenBB signal concepts, and open-source quant/ML research. Users can screen stocks by individual strategies, run multi-strategy scans, view interactive candlestick charts with technical indicators, analyze Sensex/Nifty 50 market overview with key levels, and monitor real-time buy/sell signals with market events.
 
 ## Tech Stack
 - **Framework**: Next.js 16.2.3 (App Router, TypeScript, Tailwind CSS)
@@ -13,7 +13,11 @@ A Next.js (v16) stock screener for Indian markets (Nifty 500) that implements 10
 
 ## Key Architecture
 - `src/lib/indicators.ts` - Technical indicator calculations (SMA, EMA, RSI, MACD, Bollinger, Supertrend, ATR, Williams %R, Volume Oscillator, Pivot Points, OBV, ADL, Stochastic, ADX, CCI, Aroon, MFI, Force Index, ROC)
-- `src/lib/strategies.ts` - All 100 strategy evaluate functions. Each strategy has `book` field. Categories: Swing, Intraday, Advanced, Positional, Scalping, Options, Price Action, Value Investing, Candlestick, Trend Following, Index Investing
+- `src/lib/strategies.ts` - All 110 strategy evaluate functions. Each strategy has `book` field ("Classic Trading Library", "OpenBB Signals", or "Quant & ML Models"). Categories: Swing, Intraday, Advanced, Positional, Scalping, Options, Price Action, Value Investing, Candlestick, Trend Following, Index Investing
+- `src/lib/botBrain.ts` - Composite multi-factor scoring engine (trend/momentum/mean-reversion/volatility + 110-strategy confluence) → per-stock thesis (conviction, win-prob, key levels, entry/stop/target). Profiles: LONGTERM_PROFILE, INTRADAY_PROFILE
+- `src/lib/fundamentals.ts` - Graceful Yahoo quoteSummary fetch + Buffett/Lynch/Graham/Burry investor checklists; quality tilt for the long-term bot only
+- `src/lib/botTrader.ts` - Two engines: runLongTermBotDay (holds across days, trailing stop, rotation, risk sizing) + runIntradayBotDay (same-day round trips on 15m bars, flat overnight). runBotDay dispatches by state.kind
+- `src/lib/botStorage.ts` - Bot state keyed by kind (intraday|longterm): data/bot-state-{market}-{kind}.json
 - `src/lib/nifty200.ts` - Exports `NIFTY_500_SYMBOLS` (name is legacy, contains ~500 symbols)
 - `src/lib/stockData.ts` - Yahoo Finance wrapper (`new YahooFinance()` pattern)
 - `src/app/api/chart/route.ts` - Chart data with timeframe support (1m, 5m, 15m, 1h, 1d, 1wk, 1mo). Accepts `?index=1` for index symbols like ^BSESN
@@ -21,20 +25,21 @@ A Next.js (v16) stock screener for Indian markets (Nifty 500) that implements 10
 - `src/app/api/scan/route.ts` - Multi-strategy scan, returns all buy/sell strategies per stock
 - `src/app/api/screener/route.ts` - Single strategy screener
 - `src/app/api/global/route.ts` - Global market cues: 20+ world markets (US, Europe, Asia, commodities, FX, VIX), correlation insights, India prediction score
-- `src/app/api/portfolio/route.ts` - Portfolio analysis: per-stock targets, support/resistance, pivot points, fibonacci, MAs, supertrend, 100-strategy signals, recommendation
+- `src/app/api/portfolio/route.ts` - Portfolio analysis: per-stock targets, support/resistance, pivot points, fibonacci, MAs, supertrend, 110-strategy signals, recommendation
+- `src/app/api/bot/{run,state,reset}/route.ts` - Bot endpoints; all accept `?market=IN|US&kind=longterm|intraday` (plus `both=1`, `kinds=all`)
 - `src/app/api/signals/route.ts` - Market signals dashboard: 15+ buy/sell indicators, sentiment gauge, market events
-- `src/app/api/stocks/route.ts` - Individual stock lookup with all 100 strategy signals
+- `src/app/api/stocks/route.ts` - Individual stock lookup with all 110 strategy signals
 - `src/components/CandlestickChart.tsx` - Reusable chart with timeframe tabs, indicator toggles, tooltips. Uses lightweight-charts v5 API (`chart.addSeries()`, `chart.addPane()`, `createSeriesMarkers()`)
 - `src/components/MarketChart.tsx` - Market overview using CandlestickChart + key levels panels
 
-## Sources Integrated (100 strategies total)
-1. **51 Trading Strategies** by Aseem Singhal (51 strategies)
-2. **The Intelligent Investor** by Benjamin Graham (5 strategies)
-3. **Technical Analysis of Financial Markets** by John Murphy (10 strategies)
-4. **Japanese Candlestick Charting Techniques** by Steve Nison (9 strategies)
-5. **The Little Book of Common Sense Investing** by John Bogle (3 strategies)
-6. **Market Wizards** by Jack Schwager (5 strategies)
-7. **OpenBB Signal Concepts** - Inspired by OpenBB platform (17 strategies: OBV, ADL, ADX, CCI, Aroon, MFI, Force Index, Golden/Death Cross, Institutional Accumulation, Relative Strength, Fear/Greed, Gap & Go, Stochastic, Multi-Indicator Confluence, Volatility Squeeze, RSI-MACD Divergence, Market Regime Detector)
+## Sources Integrated (110 strategies total)
+NOTE: public-facing pages use generic attribution ("classic trading literature", "OpenBB signal concepts", "open-source quant research") to avoid copyright issues. Book `book` field values are only "Classic Trading Library", "OpenBB Signals", "Quant & ML Models". The list below is the internal provenance.
+1. Classic trading literature (83 strategies) — swing/positional/scalping/options/price-action/candlestick/value/trend concepts. `book: "Classic Trading Library"`
+2. **OpenBB Signal Concepts** (17 strategies: OBV, ADL, ADX, CCI, Aroon, MFI, Force Index, Golden/Death Cross, Institutional Accumulation, Relative Strength, Fear/Greed, Gap & Go, Stochastic, Multi-Indicator Confluence, Volatility Squeeze, RSI-MACD Divergence, Market Regime Detector). `book: "OpenBB Signals"`
+3. **Quant & ML Models** (10 strategies, ported from open-source repos ai-hedge-fund / AutoHedge / Stock-Prediction-Models): Donchian breakout, MA momentum cross, signal-rolling reversion, ABCD pattern, noise-band oscillator, multi-factor momentum, z-score reversion, volatility regime, Hurst stat-arb, EMA trend stack + ADX. `book: "Quant & ML Models"`
+
+## Bots (two per market)
+Two autonomous paper-trading bots run per market (IN/US): a **Long-Term Investor** (holds across days, trailing ATR stop, top-5 rotation, fixed-fractional risk sizing with fair-share budgeting, fundamental quality tilt, reinvests profits) and an **Intraday Trader** (simulates one same-day round trip on 15m bars, exits on stop/target/close, flat overnight, compounds). State files: `data/bot-state-{market}-{kind}.json`. Server system cron has 4 jobs (longterm + intraday × IN/US). UI bot tab has a Long-Term/Intraday toggle.
 
 ## Important Notes
 - lightweight-charts v5 breaking changes: use `chart.addSeries(CandlestickSeries, opts)` not `chart.addCandlestickSeries(opts)`. Use `chart.addPane()` for sub-charts. Use `createSeriesMarkers()` not `series.setMarkers()`. Cast times to `UTCTimestamp`.
@@ -48,6 +53,6 @@ A Next.js (v16) stock screener for Indian markets (Nifty 500) that implements 10
 2. **Global** - World markets dashboard: S&P 500, Nasdaq, Dow, Nikkei, Hang Seng, FTSE, DAX, crude oil, gold, USD/INR, VIX, US 10Y yields. India prediction gauge (0-100) with weighted factor analysis. Correlation insights explaining how each global move impacts Indian equities.
 3. **Signals** - Market signals dashboard with sentiment gauge (0-100), 15+ buy/sell indicators (trend/momentum/volume/volatility/breadth), and market events (gaps, crosses, extremes, volume anomalies)
 4. **Portfolio** - Add holdings with buy price & quantity (localStorage). Shows P&L, targets (3 ATR-based), stop loss, dynamic support/resistance, pivot points, fibonacci retracement, moving averages (EMA 9/21, SMA 20/50/100/200), supertrend, top 5 buy/sell signals, recommendation (Strong Buy/Buy/Hold/Sell/Strong Sell), per-stock chart
-5. **Strategies** - Browse 100 strategies by book/category, run individual scans with chart expansion
+5. **Strategies** - Browse 110 strategies by book/category, run individual scans with chart expansion
 6. **Multi-Scan** - Scan stocks for multi-strategy buy confluence, sort by price/change/strength/buy count, share list
-7. **Lookup** - Search any stock to see all 100 strategy signals with chart
+7. **Lookup** - Search any stock to see all 110 strategy signals with chart

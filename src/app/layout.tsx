@@ -19,9 +19,9 @@ const geistMono = Geist_Mono({
 
 const SITE_URL = "https://juicedtrade.com";
 const SITE_NAME = "JuicedTrade";
-const SITE_TAGLINE = "JuicedTrade Stock Screener · 100 Strategies for NSE & S&P 500";
+const SITE_TAGLINE = "JuicedTrade Stock Screener · 110 Strategies for NSE & S&P 500";
 const SITE_DESCRIPTION =
-  "JuicedTrade is a free stock screener for Indian (NSE) and US (S&P 500) markets. Run 100 trading strategies from 6 classic books across 2,100+ NSE stocks, scan ETFs by theme, get daily buy/sell signals, and watch an autonomous paper-trading bot make decisions every day.";
+  "JuicedTrade is a free stock screener for Indian (NSE) and US (S&P 500) markets. Run 110 trading strategies across 2,100+ NSE stocks and the S&P 500, scan ETFs by theme, get daily buy/sell signals, and watch two autonomous paper-trading bots — an intraday trader and a long-term investor — make decisions every day.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -113,10 +113,10 @@ const jsonLdSoftware = {
     "availability": "https://schema.org/InStock",
   },
   "featureList": [
-    "100 trading strategies from 6 classic books",
+    "110 trading strategies from classic trading literature and open-source quant research",
     "Scan all 2,100+ NSE-listed stocks and 500 S&P 500 stocks",
     "Daily buy / sell / neutral signals across every strategy",
-    "Autonomous paper-trading bot",
+    "Two autonomous paper-trading bots: an intraday trader and a long-term investor",
     "ETF screener grouped by theme with buy/hold/sell recommendation",
     "Backtesting on 1-year history across an index plus 5 cross-validation stocks",
     "Market overview with pivots, Fibonacci, key supports & resistances",
@@ -148,7 +148,7 @@ const jsonLdFaq = {
       "name": "What is JuicedTrade?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "JuicedTrade is a free stock screener that evaluates 2,100+ NSE-listed Indian stocks and all 500 S&P 500 US stocks against 100 trading strategies adapted from bestselling trading literature and open-source signal concepts. It gives daily buy/sell/neutral signals, an ETF screener, an autonomous paper-trading bot, market overview dashboards, and backtesting.",
+        "text": "JuicedTrade is a free stock screener that evaluates 2,100+ NSE-listed Indian stocks and all 500 S&P 500 US stocks against 110 trading strategies adapted from classic trading literature and open-source quant research. It gives daily buy/sell/neutral signals, an ETF screener, two autonomous paper-trading bots (an intraday trader and a long-term investor), market overview dashboards, and backtesting.",
       },
     },
     {
@@ -172,7 +172,7 @@ const jsonLdFaq = {
       "name": "Does JuicedTrade place real trades?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "No. JuicedTrade does not connect to any brokerage account and cannot place real orders. The built-in trading bot is a paper-trading simulator that starts with ₹10,00,000 (India) or $5,000 (US), buys top BUY-signal stocks, and sells when strategies turn bearish, purely to demonstrate strategy performance over time.",
+        "text": "No. JuicedTrade does not connect to any brokerage account and cannot place real orders. The built-in bots — an intraday trader and a long-term investor — are paper-trading simulators that each start with ₹10,00,000 (India) or $5,000 (US), buy high-conviction signals, and manage risk with stops and rotation, purely to demonstrate strategy performance over time.",
       },
     },
     {
@@ -180,7 +180,7 @@ const jsonLdFaq = {
       "name": "How many trading strategies does JuicedTrade use?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "JuicedTrade evaluates every stock against 100 strategies covering swing trading, intraday, positional, scalping, options proxies, price action, candlestick patterns, value investing, trend following, and index investing. The strategies are adapted from bestselling trading literature plus open-source technical signal concepts.",
+        "text": "JuicedTrade evaluates every stock against 110 strategies covering swing trading, intraday, positional, scalping, options proxies, price action, candlestick patterns, value investing, trend following, index investing, and quant/ML models. The strategies are adapted from classic trading literature plus open-source quant research and signal concepts.",
       },
     },
     {
@@ -188,7 +188,7 @@ const jsonLdFaq = {
       "name": "How is JuicedTrade different from TradingView, Screener.in, or Chartink?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "TradingView is a charting platform, Screener.in is a fundamental screener, and Chartink runs single-condition technical scans. JuicedTrade is different in three ways: (1) it evaluates 100 named strategies in parallel and shows which ones agree, instead of forcing you to compose a single condition; (2) it covers both NSE and S&P 500 in one tool with one toggle; (3) it ships an autonomous paper-trading bot that acts on the same strategy library, so you can see what consistent strategy-following would have produced.",
+        "text": "TradingView is a charting platform, Screener.in is a fundamental screener, and Chartink runs single-condition technical scans. JuicedTrade is different in three ways: (1) it evaluates 110 named strategies in parallel and shows which ones agree, instead of forcing you to compose a single condition; (2) it covers both NSE and S&P 500 in one tool with one toggle; (3) it ships two autonomous paper-trading bots (an intraday trader and a long-term investor) that act on the same strategy library, so you can see what consistent strategy-following would have produced.",
       },
     },
     {
@@ -212,7 +212,7 @@ const jsonLdFaq = {
       "name": "What is the JuicedTrade trading bot?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "The Bot Performance tab runs an autonomous paper-trading bot per market. It holds at most 5 concurrent positions, sizes them equal-weight from remaining cash, buys top BUY-confluence stocks (≥3 strategies agreeing), sells positions when ≥3 strategies turn bearish, and trades once per day. State persists across days and the equity curve is plotted with buy/sell markers.",
+        "text": "The Bot Performance tab runs two autonomous paper-trading bots per market: a Long-Term Investor that holds positions across days with a trailing stop and rotates into stronger names, and an Intraday Trader that takes same-day round trips and stays flat overnight. Both use a multi-factor decision engine (trend, momentum, mean-reversion, volatility, plus a fundamental quality tilt for the long-term bot), size positions by risk, hold at most 5 names, and reinvest profits. Each plots an equity curve with buy/sell markers.",
       },
     },
   ],
