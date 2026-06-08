@@ -50,9 +50,57 @@ export const IN_ETFS: ETF[] = [
 
   // Bonds / Debt
   { symbol: "LIQUIDBEES", name: "Nippon India Liquid ETF", theme: "Bonds & Debt", note: "Overnight liquidity" },
-  { symbol: "BHARATBOND", name: "BHARAT Bond ETF", theme: "Bonds & Debt", note: "Govt-backed PSU bonds" },
   { symbol: "GSEC10IETF", name: "ICICI Prudential GSec 10Y ETF", theme: "Bonds & Debt", note: "10Y G-Sec" },
   { symbol: "LIQUIDETF", name: "DSP Liquid ETF", theme: "Bonds & Debt" },
+  { symbol: "EBBETF0433", name: "Bharat Bond ETF April 2033", theme: "Bonds & Debt", note: "Target-maturity PSU bonds" },
+  { symbol: "EBBETF0431", name: "Bharat Bond ETF April 2031", theme: "Bonds & Debt", note: "Target-maturity PSU bonds" },
+  { symbol: "LTGILTBEES", name: "Nippon India Nifty 8-13Y G-Sec ETF", theme: "Bonds & Debt", note: "Long-dated G-Sec" },
+  { symbol: "GSEC5IETF", name: "Nippon India Nifty 5Y Benchmark G-Sec ETF", theme: "Bonds & Debt", note: "5Y G-Sec" },
+  { symbol: "SDL26BEES", name: "Nippon India Nifty SDL 2026 Maturity ETF", theme: "Bonds & Debt", note: "State dev loans" },
+
+  // ─── Expanded NSE coverage ───
+  // Broad market
+  { symbol: "SETFNIFBK", name: "SBI Nifty Bank ETF", theme: "Sector", note: "Nifty Bank" },
+  { symbol: "MIDCAPIETF", name: "ICICI Prudential Nifty Midcap 150 ETF", theme: "Broad Market", note: "Mid-cap 150" },
+  { symbol: "MID150BEES", name: "Nippon India Nifty Midcap 150 ETF", theme: "Broad Market", note: "Mid-cap 150" },
+  { symbol: "MOM50", name: "Motilal Oswal Nifty Midcap 100 ETF", theme: "Broad Market", note: "Midcap 100" },
+  { symbol: "NIF100BEES", name: "Nippon India Nifty 100 ETF", theme: "Broad Market", note: "Nifty 100" },
+  { symbol: "LICNETFN50", name: "LIC MF Nifty 50 ETF", theme: "Broad Market", note: "Nifty 50" },
+  { symbol: "UTINIFTETF", name: "UTI Nifty 50 ETF", theme: "Broad Market", note: "Nifty 50" },
+  { symbol: "HDFCNIFTY", name: "HDFC Nifty 50 ETF", theme: "Broad Market", note: "Nifty 50" },
+  { symbol: "ICICINIFTY", name: "ICICI Prudential Nifty 50 ETF", theme: "Broad Market", note: "Nifty 50" },
+  { symbol: "MON50EQUAL", name: "Motilal Oswal Nifty 50 Equal Weight ETF", theme: "Broad Market", note: "Equal weight" },
+  { symbol: "AXISNIFTY", name: "Axis Nifty 50 ETF", theme: "Broad Market", note: "Nifty 50" },
+  { symbol: "TNIDETF", name: "Tata Nifty India Digital ETF", theme: "Thematic", note: "Digital economy" },
+
+  // Sector
+  { symbol: "HDFCPVTBAN", name: "HDFC Nifty Private Bank ETF", theme: "Sector", note: "Private banks" },
+  { symbol: "FINIETF", name: "ICICI Prudential Nifty Financial Services ETF", theme: "Sector", note: "Financial services" },
+  { symbol: "HEALTHIETF", name: "ICICI Prudential Nifty Healthcare ETF", theme: "Sector", note: "Healthcare" },
+  { symbol: "HEALTHADD", name: "Aditya Birla SL Nifty Healthcare ETF", theme: "Sector", note: "Healthcare" },
+  { symbol: "METALIETF", name: "ICICI Prudential Nifty Metal ETF", theme: "Sector", note: "Metals" },
+  { symbol: "MOREALTY", name: "Motilal Oswal Nifty Realty ETF", theme: "Sector", note: "Realty" },
+  { symbol: "AXISTECETF", name: "Axis Nifty IT ETF", theme: "Sector", note: "IT" },
+  { symbol: "ITIETF", name: "ICICI Prudential Nifty IT ETF", theme: "Sector", note: "IT" },
+  { symbol: "AUTOIETF", name: "ICICI Prudential Nifty Auto ETF", theme: "Sector", note: "Auto" },
+  { symbol: "MAKEINDIA", name: "Kotak Nifty India Manufacturing ETF", theme: "Thematic", note: "Manufacturing" },
+  { symbol: "PSUBANK", name: "Kotak Nifty PSU Bank ETF", theme: "Sector", note: "PSU banks" },
+  { symbol: "COMMOIETF", name: "ICICI Prudential Nifty Commodities ETF", theme: "Thematic", note: "Commodities basket" },
+  { symbol: "CPSEETF", name: "CPSE ETF", theme: "Thematic", note: "Central PSU basket" },
+  { symbol: "BHARAT22", name: "Bharat 22 ETF", theme: "Thematic", note: "Govt disinvestment basket" },
+  { symbol: "MODEFENCE", name: "Motilal Oswal Nifty India Defence ETF", theme: "Thematic", note: "Defence" },
+  { symbol: "TATSILV", name: "Tata Silver ETF", theme: "Commodities", note: "Silver" },
+
+  // Smart beta / strategy
+  { symbol: "MOMOMENTUM", name: "Motilal Oswal Nifty 200 Momentum 30 ETF", theme: "Smart Beta", note: "Momentum" },
+  { symbol: "MOVALUE", name: "Motilal Oswal Nifty 500 Value 50 ETF", theme: "Smart Beta", note: "Value" },
+  { symbol: "ALPL30IETF", name: "ICICI Prudential Nifty Alpha Low-Vol 30 ETF", theme: "Smart Beta", note: "Alpha + low vol" },
+  { symbol: "EQUAL50ADD", name: "Aditya Birla SL Nifty 50 Equal Weight ETF", theme: "Smart Beta", note: "Equal weight" },
+  { symbol: "MOLOWVOL", name: "Motilal Oswal Nifty 200 Momentum 30 / Low Vol", theme: "Smart Beta", note: "Factor" },
+
+  // International
+  { symbol: "MAHKTECH", name: "Mirae Asset Hang Seng TECH ETF", theme: "International", note: "China/HK tech" },
+  { symbol: "NASDAQIETF", name: "ICICI Prudential Nasdaq 100 ETF", theme: "International", note: "Nasdaq 100" },
 ];
 
 // US ETFs (Yahoo tickers, no suffix).

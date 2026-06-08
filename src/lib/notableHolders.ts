@@ -1151,6 +1151,34 @@ export const NOTABLE_HOLDERS: NotableHolder[] = [
       { symbol: "AAPL", note: "Disclosed equity" },
     ],
   },
+
+  // ─── Recently added (India HNIs) ───
+  {
+    name: "Rekha Jhunjhunwala",
+    type: "HNI",
+    market: "IN",
+    description: "Manages the late Rakesh Jhunjhunwala's portfolio — among India's largest and most-tracked individual investors.",
+    holdings: [
+      { symbol: "TITAN", note: "Flagship long-term holding" },
+      { symbol: "TATAMOTORS", note: "Large disclosed stake" },
+      { symbol: "STARHEALTH", note: "Anchor investor" },
+      { symbol: "METROBRAND", note: "Disclosed holding" },
+      { symbol: "NAZARA", note: "Disclosed holding" },
+      { symbol: "FEDERALBNK", note: "Disclosed holding" },
+    ],
+  },
+  {
+    name: "Mukul Mahavir Agrawal",
+    type: "HNI",
+    market: "IN",
+    description: "Prominent Indian HNI investor known for high-conviction mid- and small-cap bets.",
+    holdings: [
+      { symbol: "BSE", note: "Disclosed holding" },
+      { symbol: "RADICO", note: "Disclosed holding" },
+      { symbol: "NEWGEN", note: "Disclosed holding" },
+      { symbol: "INTELLECT", note: "Disclosed holding" },
+    ],
+  },
 ];
 
 // Type colors for UI

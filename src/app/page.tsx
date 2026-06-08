@@ -230,6 +230,36 @@ interface ETFData {
   byTheme: Record<string, ETFResult[]>;
 }
 
+interface ThematicStock {
+  symbol: string;
+  price: number;
+  changePct: number;
+  score: number;
+  direction: string;
+  recommendation: "STRONG_BUY" | "BUY" | "HOLD" | "SELL" | "STRONG_SELL";
+  buyCount: number;
+  sellCount: number;
+  probabilityScore: number;
+}
+interface ThematicTheme {
+  key: string;
+  label: string;
+  icon: string;
+  blurb: string;
+  avgScore: number;
+  sentiment: "STRONG_BUY" | "BUY" | "HOLD" | "SELL" | "STRONG_SELL";
+  buyish: number;
+  sellish: number;
+  count: number;
+  stocks: ThematicStock[];
+}
+interface ThematicData {
+  market: string;
+  themes: ThematicTheme[];
+  scannedSymbols: number;
+  totalSymbols: number;
+}
+
 interface BotHoldingLive {
   symbol: string;
   quantity: number;
@@ -534,7 +564,7 @@ function Spinner() {
 }
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<"home" | "market" | "global" | "signals" | "portfolio" | "bot" | "etfs" | "strategies" | "scan" | "search" | "learn">("home");
+  const [activeTab, setActiveTab] = useState<"home" | "market" | "global" | "signals" | "portfolio" | "bot" | "etfs" | "themes" | "strategies" | "scan" | "search" | "learn">("home");
   const [strategiesSubTab, setStrategiesSubTab] = useState<"screener" | "insider">("screener");
   const [selectedStrategy, setSelectedStrategy] = useState<StrategyInfo | null>(null);
   const [signalFilter, setSignalFilter] = useState("ALL");
@@ -623,6 +653,7 @@ export default function Home() {
     setSearchQuery("");
     setEtfData(null);
     setExpandedEtf(null);
+    setThematicData(null);
     setInsiderTypeFilter("All");
     setInsiderSearch("");
     setExpandedHolder(null);
@@ -691,6 +722,9 @@ export default function Home() {
   // ETFs
   const [etfData, setEtfData] = useState<ETFData | null>(null);
   const [etfLoading, setEtfLoading] = useState(false);
+  const [thematicData, setThematicData] = useState<ThematicData | null>(null);
+  const [thematicLoading, setThematicLoading] = useState(false);
+  const [expandedTheme, setExpandedTheme] = useState<string | null>(null);
   const [etfThemeFilter, setEtfThemeFilter] = useState<string>("All");
   const [etfRecFilter, setEtfRecFilter] = useState<"All" | "BUY" | "HOLD" | "SELL">("All");
   const [expandedEtf, setExpandedEtf] = useState<string | null>(null);
@@ -921,6 +955,16 @@ export default function Home() {
     setEtfLoading(false);
   }, [market]);
 
+  const loadThematic = useCallback(async () => {
+    track("thematic_scan", { market });
+    setThematicLoading(true);
+    try {
+      const res = await fetch(`/api/thematic?market=${market}`);
+      if (res.ok) setThematicData(await res.json());
+    } catch { /* ignore */ }
+    setThematicLoading(false);
+  }, [market]);
+
   const searchStock = useCallback(async (symbol: string) => {
     if (!symbol.trim()) return;
     setSearchLoading(true);
@@ -971,13 +1015,13 @@ export default function Home() {
 
           {/* Desktop tab bar (lg+) */}
           <nav className="hidden lg:flex items-center gap-1 bg-white/5 rounded-lg p-0.5 overflow-x-auto flex-1 justify-center" aria-label="Primary">
-            {(["home", "market", "global", "signals", "portfolio", "bot", "etfs", "strategies", "scan", "search", "learn"] as const).map((tab) => (
+            {(["home", "market", "global", "signals", "portfolio", "bot", "etfs", "themes", "strategies", "scan", "search", "learn"] as const).map((tab) => (
               <button
                 key={tab}
-                onClick={() => { setActiveTab(tab); if (tab === "signals" && !signalsData) loadSignals(); if (tab === "global" && !globalData) loadGlobal(); if (tab === "portfolio" && portfolio.length > 0 && portfolioData.length === 0) refreshPortfolio(); if (tab === "etfs" && !etfData) loadEtfs(); if (tab === "bot" && !botState) loadBot(); }}
+                onClick={() => { setActiveTab(tab); if (tab === "signals" && !signalsData) loadSignals(); if (tab === "global" && !globalData) loadGlobal(); if (tab === "portfolio" && portfolio.length > 0 && portfolioData.length === 0) refreshPortfolio(); if (tab === "etfs" && !etfData) loadEtfs(); if (tab === "themes" && !thematicData) loadThematic(); if (tab === "bot" && !botState) loadBot(); }}
                 className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all whitespace-nowrap ${activeTab === tab ? "bg-white/10 text-white" : "text-gray-400 hover:text-white"}`}
               >
-                {tab === "home" ? "Home" : tab === "market" ? "Market" : tab === "global" ? "Global" : tab === "signals" ? "Signals" : tab === "portfolio" ? `Portfolio${portfolio.length > 0 ? ` (${portfolio.length})` : ""}` : tab === "bot" ? "Bot" : tab === "etfs" ? "ETFs" : tab === "strategies" ? "Strategies" : tab === "scan" ? "Scan" : tab === "search" ? "Lookup" : "Learn"}
+                {tab === "home" ? "Home" : tab === "market" ? "Market" : tab === "global" ? "Global" : tab === "signals" ? "Signals" : tab === "portfolio" ? `Portfolio${portfolio.length > 0 ? ` (${portfolio.length})` : ""}` : tab === "bot" ? "Bot" : tab === "etfs" ? "ETFs" : tab === "themes" ? "Themes" : tab === "strategies" ? "Strategies" : tab === "scan" ? "Scan" : tab === "search" ? "Lookup" : "Learn"}
               </button>
             ))}
           </nav>
@@ -1039,7 +1083,7 @@ export default function Home() {
           <div className="lg:hidden border-t border-white/5 bg-[var(--header-bg)]">
             <nav className="max-w-7xl mx-auto px-4 sm:px-6 py-3" aria-label="Mobile primary">
               <div className="grid grid-cols-2 gap-1.5">
-                {(["home", "market", "global", "signals", "portfolio", "bot", "etfs", "strategies", "scan", "search", "learn"] as const).map((tab) => (
+                {(["home", "market", "global", "signals", "portfolio", "bot", "etfs", "themes", "strategies", "scan", "search", "learn"] as const).map((tab) => (
                   <button
                     key={tab}
                     onClick={() => {
@@ -1049,11 +1093,12 @@ export default function Home() {
                       if (tab === "global" && !globalData) loadGlobal();
                       if (tab === "portfolio" && portfolio.length > 0 && portfolioData.length === 0) refreshPortfolio();
                       if (tab === "etfs" && !etfData) loadEtfs();
+                      if (tab === "themes" && !thematicData) loadThematic();
                       if (tab === "bot" && !botState) loadBot();
                     }}
                     className={`px-3 py-2.5 rounded-lg text-sm font-medium text-left transition-all ${activeTab === tab ? "bg-white/10 text-white" : "bg-white/[0.02] text-gray-300 hover:bg-white/[0.05]"}`}
                   >
-                    {tab === "home" ? "Home" : tab === "market" ? "Market" : tab === "global" ? "Global" : tab === "signals" ? "Signals" : tab === "portfolio" ? `Portfolio${portfolio.length > 0 ? ` (${portfolio.length})` : ""}` : tab === "bot" ? "Bot" : tab === "etfs" ? "ETFs" : tab === "strategies" ? "Strategies" : tab === "scan" ? "Scan" : tab === "search" ? "Lookup" : "Learn"}
+                    {tab === "home" ? "Home" : tab === "market" ? "Market" : tab === "global" ? "Global" : tab === "signals" ? "Signals" : tab === "portfolio" ? `Portfolio${portfolio.length > 0 ? ` (${portfolio.length})` : ""}` : tab === "bot" ? "Bot" : tab === "etfs" ? "ETFs" : tab === "themes" ? "Themes" : tab === "strategies" ? "Strategies" : tab === "scan" ? "Scan" : tab === "search" ? "Lookup" : "Learn"}
                   </button>
                 ))}
               </div>
@@ -3021,6 +3066,112 @@ export default function Home() {
         )}
 
         {/* ─── ETFs TAB ─── */}
+        {activeTab === "themes" && (() => {
+          const recBadge = (rec: string) => {
+            const map: Record<string, string> = {
+              STRONG_BUY: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+              BUY: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+              HOLD: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+              SELL: "bg-red-500/10 text-red-400 border-red-500/20",
+              STRONG_SELL: "bg-red-500/20 text-red-300 border-red-500/30",
+            };
+            return map[rec] || map.HOLD;
+          };
+          const recLabel = (rec: string) => rec.replace("_", " ");
+          return (
+            <div>
+              <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
+                <div className="max-w-3xl">
+                  <h2 className="text-xl font-bold flex items-center gap-2"><span>🧭</span> Thematic Investment</h2>
+                  <p className="text-sm text-gray-500 mt-1.5 leading-relaxed">
+                    Stocks grouped by the structural trend they ride — AI, data centers, energy, defence, robotics and more. Each name is scored by the same multi-factor brain the bots use, so you can see which themes are heating up and which stocks lead them. {market === "US" ? "US (S&P 500 + leaders)." : "India (NSE)."}
+                  </p>
+                </div>
+                <button
+                  onClick={loadThematic}
+                  disabled={thematicLoading}
+                  className="px-4 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-lg text-xs font-semibold text-emerald-400 transition-all disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {thematicLoading ? <><Spinner /> Scanning...</> : (thematicData ? "Re-scan themes" : "Scan themes")}
+                </button>
+              </div>
+
+              {thematicLoading && !thematicData && (
+                <div className="space-y-3">{[...Array(6)].map((_, i) => <div key={i} className="skeleton h-20 w-full rounded-xl" />)}</div>
+              )}
+
+              {!thematicLoading && !thematicData && (
+                <div className="text-center py-16 text-gray-500">
+                  <p className="mb-3">Scan {market === "US" ? "US" : "Indian"} stocks grouped by theme.</p>
+                  <button onClick={loadThematic} className="px-5 py-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-lg text-sm font-semibold text-emerald-400">Scan themes</button>
+                </div>
+              )}
+
+              {thematicData && (
+                <div className="space-y-3">
+                  <div className="text-[11px] text-gray-500 mb-1">Scanned {thematicData.scannedSymbols}/{thematicData.totalSymbols} stocks · themes ranked by average signal strength.</div>
+                  {thematicData.themes.map((th) => {
+                    const open = expandedTheme === th.key;
+                    return (
+                      <div key={th.key} className="bg-white/[0.02] border border-white/5 rounded-xl overflow-hidden">
+                        <button
+                          onClick={() => setExpandedTheme(open ? null : th.key)}
+                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/[0.02] transition-colors text-left"
+                        >
+                          <span className="text-2xl flex-shrink-0">{th.icon}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-sm">{th.label}</span>
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${recBadge(th.sentiment)}`}>{recLabel(th.sentiment)}</span>
+                              <span className="text-[10px] text-gray-500">{th.buyish} bullish · {th.sellish} bearish · {th.count} stocks</span>
+                            </div>
+                            <div className="text-[11px] text-gray-500 mt-0.5 truncate">{th.blurb}</div>
+                          </div>
+                          {/* sentiment bar */}
+                          <div className="hidden sm:block w-24 flex-shrink-0">
+                            <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                              <div className="h-full" style={{ width: `${Math.round(Math.max(0, Math.min(1, (th.avgScore + 1) / 2)) * 100)}%`, background: th.avgScore >= 0 ? "#10b981" : "#ef4444" }} />
+                            </div>
+                          </div>
+                          <svg className={`w-4 h-4 text-gray-500 flex-shrink-0 transition-transform ${open ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                        </button>
+                        {open && (
+                          <div className="overflow-x-auto border-t border-white/5">
+                            <table className="w-full text-sm min-w-[560px]">
+                              <thead className="text-[10px] text-gray-500 uppercase tracking-wider bg-white/[0.02]">
+                                <tr>
+                                  <th className="text-left px-4 py-2">Symbol</th>
+                                  <th className="text-right px-4 py-2">Price</th>
+                                  <th className="text-right px-4 py-2">Change</th>
+                                  <th className="text-center px-4 py-2">Call</th>
+                                  <th className="text-right px-4 py-2">Signals</th>
+                                  <th className="text-right px-4 py-2">Up-prob</th>
+                                </tr>
+                              </thead>
+                              <tbody className="font-mono">
+                                {th.stocks.map((s) => (
+                                  <tr key={s.symbol} className="border-t border-white/5">
+                                    <td className="px-4 py-2 font-semibold text-blue-400">{s.symbol}</td>
+                                    <td className="text-right px-4 py-2 text-white">{currencySymbol}{fmtPrice(s.price)}</td>
+                                    <td className={`text-right px-4 py-2 ${s.changePct >= 0 ? "text-emerald-400" : "text-red-400"}`}>{s.changePct >= 0 ? "+" : ""}{s.changePct.toFixed(2)}%</td>
+                                    <td className="text-center px-4 py-2"><span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${recBadge(s.recommendation)}`}>{recLabel(s.recommendation)}</span></td>
+                                    <td className="text-right px-4 py-2 text-[11px]"><span className="text-emerald-400">{s.buyCount}</span> / <span className="text-red-400">{s.sellCount}</span></td>
+                                    <td className="text-right px-4 py-2 text-gray-300">{s.probabilityScore}%</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         {activeTab === "etfs" && (() => {
           const recBadge = (rec: ETFResult["recommendation"]) => {
             const map = {

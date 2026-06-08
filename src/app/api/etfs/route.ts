@@ -5,7 +5,8 @@ import { sma, rsi, macd } from "@/lib/indicators";
 import { getMarket } from "@/lib/markets";
 import { getETFs } from "@/lib/etfs";
 
-export const maxDuration = 60;
+export const maxDuration = 180;
+export const dynamic = "force-dynamic";
 
 type Recommendation = "STRONG_BUY" | "BUY" | "HOLD" | "SELL" | "STRONG_SELL";
 
