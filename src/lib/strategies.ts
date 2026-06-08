@@ -1434,6 +1434,65 @@ function twoLeggedPullback(candles: OHLCV[]): StrategyResult {
 }
 
 // ─── All 51 strategies ───
+// ─── Helpers for ported quant/ML models (ai-hedge-fund, AutoHedge, Stock-Prediction-Models) ───
+
+function stdev(arr: number[]): number {
+  if (arr.length < 2) return 0;
+  const mean = arr.reduce((s, v) => s + v, 0) / arr.length;
+  const variance = arr.reduce((s, v) => s + (v - mean) ** 2, 0) / (arr.length - 1);
+  return Math.sqrt(variance);
+}
+
+function percentile(arr: number[], p: number): number {
+  if (arr.length === 0) return 0;
+  const sorted = [...arr].sort((a, b) => a - b);
+  const idx = (p / 100) * (sorted.length - 1);
+  const lo = Math.floor(idx), hi = Math.ceil(idx);
+  if (lo === hi) return sorted[lo];
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+}
+
+function pctReturns(closes: number[]): number[] {
+  const r: number[] = [];
+  for (let i = 1; i < closes.length; i++) r.push((closes[i] - closes[i - 1]) / closes[i - 1]);
+  return r;
+}
+
+function skewness(arr: number[]): number {
+  const n = arr.length;
+  if (n < 3) return 0;
+  const mean = arr.reduce((s, v) => s + v, 0) / n;
+  const sd = stdev(arr);
+  if (sd === 0) return 0;
+  const m3 = arr.reduce((s, v) => s + ((v - mean) / sd) ** 3, 0) / n;
+  return m3;
+}
+
+// Hurst exponent via rescaled-range over a set of lags. <0.5 mean-reverting,
+// ~0.5 random walk, >0.5 trending. (ai-hedge-fund stat-arb strategy.)
+function hurstExponent(closes: number[], maxLag = 20): number {
+  if (closes.length < maxLag + 2) return 0.5;
+  const lags: number[] = [];
+  const tau: number[] = [];
+  for (let lag = 2; lag < maxLag; lag++) {
+    const diffs: number[] = [];
+    for (let i = lag; i < closes.length; i++) diffs.push(closes[i] - closes[i - lag]);
+    const sd = stdev(diffs);
+    if (sd <= 0) continue;
+    lags.push(Math.log(lag));
+    tau.push(Math.log(sd));
+  }
+  if (lags.length < 2) return 0.5;
+  // slope of log(tau) vs log(lag) is the Hurst exponent
+  const n = lags.length;
+  const sx = lags.reduce((a, b) => a + b, 0);
+  const sy = tau.reduce((a, b) => a + b, 0);
+  const sxy = lags.reduce((a, b, i) => a + b * tau[i], 0);
+  const sxx = lags.reduce((a, b) => a + b * b, 0);
+  const slope = (n * sxy - sx * sy) / (n * sxx - sx * sx);
+  return isFinite(slope) ? Math.max(0, Math.min(1, slope)) : 0.5;
+}
+
 export const STRATEGIES: Strategy[] = [
   // CHAPTER 1 - SWING STRATEGIES
   {
@@ -3610,6 +3669,329 @@ export const STRATEGIES: Strategy[] = [
         return { signal: "BUY", strength: 55, details: `Range-bound regime (ADX=${adxVal.toFixed(0)}): Price between 20/50 SMA. Mean reversion buy near support.` };
       }
       return { signal: "NEUTRAL", strength: 0, details: `Regime: ${trending ? "Trending" : "Range-bound"} (ADX=${adxVal.toFixed(0)}). ${bullishAlignment ? "Bullish" : bearishAlignment ? "Bearish" : "Mixed"} alignment.` };
+    },
+  },
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Ported quant & ML trading models (open-source research repos)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  {
+    id: "qm-donchian-breakout",
+    name: "Donchian Channel Breakout",
+    chapter: "QM1",
+    category: "Trend Following",
+    description: "Turtle-style 20-day channel breakout. Buy a fresh 20-day high, sell a fresh 20-day low. Classic trend-capture.",
+    indicators: ["Donchian (20)"],
+    book: "Quant & ML Models",
+    evaluate: (candles: OHLCV[]): StrategyResult => {
+      if (candles.length < 25) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
+      const highs = candles.map(c => c.high);
+      const lows = candles.map(c => c.low);
+      const closes = candles.map(c => c.close);
+      const last = closes.length - 1;
+      // Channel over the PREVIOUS 20 bars (exclude today) to avoid look-ahead.
+      const prevHighs = highs.slice(last - 20, last);
+      const prevLows = lows.slice(last - 20, last);
+      const chHigh = Math.max(...prevHighs);
+      const chLow = Math.min(...prevLows);
+      const price = closes[last];
+      const range = chHigh - chLow;
+      if (range <= 0) return { signal: "NEUTRAL", strength: 0, details: "Flat channel" };
+      if (price > chHigh) {
+        const margin = ((price - chHigh) / range) * 100;
+        return { signal: "BUY", strength: Math.min(90, Math.round(60 + margin * 4)), details: `Breakout above 20-day high (${chHigh.toFixed(2)}). Turtle entry — trend igniting.` };
+      }
+      if (price < chLow) {
+        const margin = ((chLow - price) / range) * 100;
+        return { signal: "SELL", strength: Math.min(90, Math.round(60 + margin * 4)), details: `Breakdown below 20-day low (${chLow.toFixed(2)}). Turtle exit/short.` };
+      }
+      const posInRange = ((price - chLow) / range) * 100;
+      return { signal: "NEUTRAL", strength: 0, details: `Inside channel (${posInRange.toFixed(0)}% of range). No breakout.` };
+    },
+  },
+
+  {
+    id: "qm-ma-momentum-cross",
+    name: "MA Momentum Crossover",
+    chapter: "QM2",
+    category: "Trend Following",
+    description: "Fast/slow SMA (10/30) crossover with rising-slope confirmation. Golden cross buy, death cross sell.",
+    indicators: ["SMA (10,30)"],
+    book: "Quant & ML Models",
+    evaluate: (candles: OHLCV[]): StrategyResult => {
+      if (candles.length < 35) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
+      const closes = candles.map(c => c.close);
+      const last = closes.length - 1;
+      const fast = sma(closes, 10);
+      const slow = sma(closes, 30);
+      if (fast[last] == null || slow[last] == null || fast[last - 1] == null || slow[last - 1] == null) {
+        return { signal: "NEUTRAL", strength: 0, details: "Insufficient data" };
+      }
+      const f = fast[last]!, s = slow[last]!, fp = fast[last - 1]!, sp = slow[last - 1]!;
+      const goldenNow = f > s, goldenPrev = fp > sp;
+      const sep = Math.abs((f - s) / s) * 100;
+      if (goldenNow && !goldenPrev) {
+        return { signal: "BUY", strength: 70, details: `Golden cross: 10-SMA crossed above 30-SMA. Fresh uptrend.` };
+      }
+      if (!goldenNow && goldenPrev) {
+        return { signal: "SELL", strength: 70, details: `Death cross: 10-SMA crossed below 30-SMA. Trend rolling over.` };
+      }
+      if (goldenNow && f > fp && sep > 1) {
+        return { signal: "BUY", strength: Math.min(65, Math.round(45 + sep * 3)), details: `Uptrend intact — fast MA above slow MA and rising (${sep.toFixed(1)}% apart).` };
+      }
+      if (!goldenNow && f < fp && sep > 1) {
+        return { signal: "SELL", strength: Math.min(65, Math.round(45 + sep * 3)), details: `Downtrend intact — fast MA below slow MA and falling.` };
+      }
+      return { signal: "NEUTRAL", strength: 0, details: `MAs converging (${sep.toFixed(1)}% apart). No clear momentum.` };
+    },
+  },
+
+  {
+    id: "qm-signal-rolling",
+    name: "Signal Rolling Mean Reversion",
+    chapter: "QM3",
+    category: "Swing",
+    description: "Counts consecutive directional closes; after 4 straight down-closes expect a bounce (buy), after 4 straight up-closes expect a pullback (sell).",
+    indicators: ["Price streaks"],
+    book: "Quant & ML Models",
+    evaluate: (candles: OHLCV[]): StrategyResult => {
+      if (candles.length < 10) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
+      const closes = candles.map(c => c.close);
+      const last = closes.length - 1;
+      const DELAY = 4;
+      let downStreak = 0, upStreak = 0;
+      for (let i = last; i > 0 && closes[i] < closes[i - 1]; i--) downStreak++;
+      for (let i = last; i > 0 && closes[i] > closes[i - 1]; i--) upStreak++;
+      if (downStreak >= DELAY) {
+        return { signal: "BUY", strength: Math.min(80, 50 + downStreak * 6), details: `${downStreak} consecutive down-closes — oversold, mean-reversion bounce expected.` };
+      }
+      if (upStreak >= DELAY) {
+        return { signal: "SELL", strength: Math.min(80, 50 + upStreak * 6), details: `${upStreak} consecutive up-closes — overextended, pullback expected.` };
+      }
+      return { signal: "NEUTRAL", strength: 0, details: `Streak: ${downStreak ? `${downStreak} down` : upStreak ? `${upStreak} up` : "none"}. No reversion setup.` };
+    },
+  },
+
+  {
+    id: "qm-abcd-pattern",
+    name: "ABCD Swing Pattern",
+    chapter: "QM4",
+    category: "Price Action",
+    description: "Detects A-B-C-D zig-zag on a smoothed price (B>A leg up, C pullback between A&B, D breakout above B). Buy on the C support leg.",
+    indicators: ["SMA (7)", "Swing pivots"],
+    book: "Quant & ML Models",
+    evaluate: (candles: OHLCV[]): StrategyResult => {
+      if (candles.length < 30) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
+      const closes = candles.map(c => c.close);
+      const maArr = sma(closes, 7).map(v => v ?? NaN);
+      const last = closes.length - 1;
+      // Find recent swing pivots on the smoothed series.
+      const pivots: { idx: number; val: number; type: "H" | "L" }[] = [];
+      for (let i = last - 1; i >= 7 && pivots.length < 8; i--) {
+        const v = maArr[i];
+        if (isNaN(v) || isNaN(maArr[i - 1]) || isNaN(maArr[i + 1])) continue;
+        if (v > maArr[i - 1] && v > maArr[i + 1]) pivots.push({ idx: i, val: v, type: "H" });
+        else if (v < maArr[i - 1] && v < maArr[i + 1]) pivots.push({ idx: i, val: v, type: "L" });
+      }
+      pivots.reverse(); // chronological
+      // Look for the latest A(L) B(H) C(L) sequence with price now breaking toward D.
+      for (let i = pivots.length - 1; i >= 2; i--) {
+        const C = pivots[i], B = pivots[i - 1], A = pivots[i - 2];
+        if (A.type === "L" && B.type === "H" && C.type === "L" && B.val > A.val && C.val < B.val && C.val > A.val) {
+          const price = closes[last];
+          if (price > B.val) {
+            return { signal: "BUY", strength: 75, details: `ABCD breakout: price cleared B (${B.val.toFixed(2)}) after C pullback. D-leg underway.` };
+          }
+          if (price > C.val && price < B.val) {
+            return { signal: "BUY", strength: 60, details: `ABCD setup: holding above C support (${C.val.toFixed(2)}), targeting B (${B.val.toFixed(2)}).` };
+          }
+          break;
+        }
+      }
+      return { signal: "NEUTRAL", strength: 0, details: "No clean ABCD pattern in recent swings." };
+    },
+  },
+
+  {
+    id: "qm-noise-band",
+    name: "Noise-Band Oscillator",
+    chapter: "QM5",
+    category: "Swing",
+    description: "Smooths price, takes the residual 'noise', and bands it by percentile. Buy deep-oversold noise, sell extreme-overbought noise.",
+    indicators: ["Smoothed residual"],
+    book: "Quant & ML Models",
+    evaluate: (candles: OHLCV[]): StrategyResult => {
+      if (candles.length < 40) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
+      const closes = candles.map(c => c.close);
+      // Iterative 3-point smoother (repeat passes), then noise = price - smoothed.
+      const smoothed = [...closes];
+      for (let pass = 0; pass < 20; pass++) {
+        for (let i = 2; i < smoothed.length; i++) smoothed[i - 1] = (smoothed[i - 2] + smoothed[i]) / 2;
+      }
+      const noise = closes.map((c, i) => c - smoothed[i]);
+      const overbought = percentile(noise, 95);
+      const oversold = percentile(noise, 10);
+      const cur = noise[noise.length - 1];
+      if (cur <= oversold) {
+        return { signal: "BUY", strength: 70, details: `Noise at oversold band (${cur.toFixed(2)} ≤ P10 ${oversold.toFixed(2)}). Reversion long.` };
+      }
+      if (cur >= overbought) {
+        return { signal: "SELL", strength: 70, details: `Noise at overbought band (${cur.toFixed(2)} ≥ P95 ${overbought.toFixed(2)}). Reversion short.` };
+      }
+      return { signal: "NEUTRAL", strength: 0, details: `Noise ${cur.toFixed(2)} within normal band. No extreme.` };
+    },
+  },
+
+  {
+    id: "qm-multifactor-momentum",
+    name: "Multi-Factor Momentum",
+    chapter: "QM6",
+    category: "Trend Following",
+    description: "Weighted blend of 1/3/6-month returns confirmed by above-average volume. The ai-hedge-fund momentum factor.",
+    indicators: ["Returns (21,63,126)", "Volume"],
+    book: "Quant & ML Models",
+    evaluate: (candles: OHLCV[]): StrategyResult => {
+      if (candles.length < 130) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
+      const closes = candles.map(c => c.close);
+      const vols = candles.map(c => c.volume);
+      const last = closes.length - 1;
+      const ret = (n: number) => (closes[last] - closes[last - n]) / closes[last - n];
+      const mom = 0.4 * ret(21) + 0.3 * ret(63) + 0.3 * ret(126);
+      const volMA = sma(vols, 21)[last];
+      const volConfirm = volMA != null && vols[last] > volMA;
+      if (mom > 0.05 && volConfirm) {
+        return { signal: "BUY", strength: Math.min(90, Math.round(50 + mom * 200)), details: `Strong positive momentum (${(mom * 100).toFixed(1)}%) on above-avg volume. Trend buy.` };
+      }
+      if (mom < -0.05 && volConfirm) {
+        return { signal: "SELL", strength: Math.min(90, Math.round(50 + Math.abs(mom) * 200)), details: `Strong negative momentum (${(mom * 100).toFixed(1)}%) on volume. Trend sell.` };
+      }
+      return { signal: "NEUTRAL", strength: 0, details: `Momentum ${(mom * 100).toFixed(1)}%${volConfirm ? "" : " (volume not confirming)"}. Below threshold.` };
+    },
+  },
+
+  {
+    id: "qm-zscore-reversion",
+    name: "Z-Score Mean Reversion",
+    chapter: "QM7",
+    category: "Swing",
+    description: "Distance from the 50-day mean in standard deviations, confirmed by Bollinger %B. Buy z < -2 at band floor, sell z > +2 at band ceiling.",
+    indicators: ["Z-Score (50)", "Bollinger %B"],
+    book: "Quant & ML Models",
+    evaluate: (candles: OHLCV[]): StrategyResult => {
+      if (candles.length < 55) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
+      const closes = candles.map(c => c.close);
+      const last = closes.length - 1;
+      const window = closes.slice(last - 49, last + 1);
+      const mean = window.reduce((s, v) => s + v, 0) / window.length;
+      const sd = stdev(window);
+      if (sd <= 0) return { signal: "NEUTRAL", strength: 0, details: "No variance" };
+      const z = (closes[last] - mean) / sd;
+      const { upper, lower } = bollingerBands(closes, 20, 2);
+      const u = upper[last], l = lower[last];
+      const pctB = (u != null && l != null && u > l) ? (closes[last] - l) / (u - l) : 0.5;
+      if (z < -2 && pctB < 0.2) {
+        return { signal: "BUY", strength: Math.min(88, Math.round(50 + Math.abs(z) * 15)), details: `Z-score ${z.toFixed(2)} (2σ+ below mean) at lower band (%B ${pctB.toFixed(2)}). Mean-reversion long.` };
+      }
+      if (z > 2 && pctB > 0.8) {
+        return { signal: "SELL", strength: Math.min(88, Math.round(50 + z * 15)), details: `Z-score ${z.toFixed(2)} (2σ+ above mean) at upper band (%B ${pctB.toFixed(2)}). Mean-reversion short.` };
+      }
+      return { signal: "NEUTRAL", strength: 0, details: `Z-score ${z.toFixed(2)}, %B ${pctB.toFixed(2)}. Within normal range.` };
+    },
+  },
+
+  {
+    id: "qm-volatility-regime",
+    name: "Volatility Regime Filter",
+    chapter: "QM8",
+    category: "Advanced",
+    description: "Classifies the volatility regime (realized vol vs its own 63-day average). Favors longs in low/expanding-from-low vol, warns in high vol.",
+    indicators: ["Realized vol (21)", "Vol regime (63)"],
+    book: "Quant & ML Models",
+    evaluate: (candles: OHLCV[]): StrategyResult => {
+      if (candles.length < 90) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
+      const closes = candles.map(c => c.close);
+      const last = closes.length - 1;
+      const rets = pctReturns(closes);
+      const hv = (end: number) => stdev(rets.slice(end - 21, end)) * Math.sqrt(252);
+      const curHV = hv(rets.length);
+      // average HV over the last 63 windows
+      const hvSeries: number[] = [];
+      for (let i = rets.length; i > rets.length - 63 && i > 21; i--) hvSeries.push(hv(i));
+      const avgHV = hvSeries.reduce((s, v) => s + v, 0) / hvSeries.length;
+      if (avgHV <= 0) return { signal: "NEUTRAL", strength: 0, details: "No volatility data" };
+      const regime = curHV / avgHV;
+      const sma50 = sma(closes, 50)[last];
+      const uptrend = sma50 != null && closes[last] > sma50;
+      if (regime < 0.8 && uptrend) {
+        return { signal: "BUY", strength: 65, details: `Low-volatility uptrend (regime ${regime.toFixed(2)}). Calm advance — favorable risk/reward.` };
+      }
+      if (regime > 1.3) {
+        return { signal: "SELL", strength: 60, details: `High-volatility regime (${regime.toFixed(2)}). Elevated risk — reduce exposure.` };
+      }
+      return { signal: "NEUTRAL", strength: 0, details: `Volatility regime ${regime.toFixed(2)} (HV ${(curHV * 100).toFixed(0)}%). Neutral.` };
+    },
+  },
+
+  {
+    id: "qm-hurst-statarb",
+    name: "Hurst Stat-Arb",
+    chapter: "QM9",
+    category: "Advanced",
+    description: "Hurst exponent + return skew. In a mean-reverting regime (H<0.45), fade extremes: buy negative-skew dips, sell positive-skew spikes.",
+    indicators: ["Hurst exponent", "Skew (63)"],
+    book: "Quant & ML Models",
+    evaluate: (candles: OHLCV[]): StrategyResult => {
+      if (candles.length < 80) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
+      const closes = candles.map(c => c.close);
+      const last = closes.length - 1;
+      const h = hurstExponent(closes.slice(-80), 20);
+      const rets = pctReturns(closes).slice(-63);
+      const sk = skewness(rets);
+      const recentRet = (closes[last] - closes[last - 5]) / closes[last - 5];
+      if (h < 0.45) {
+        if (recentRet < -0.03) {
+          return { signal: "BUY", strength: Math.min(80, Math.round(55 + (0.45 - h) * 100)), details: `Mean-reverting regime (Hurst ${h.toFixed(2)}) after a ${(recentRet * 100).toFixed(1)}% dip. Fade the move.` };
+        }
+        if (recentRet > 0.03) {
+          return { signal: "SELL", strength: Math.min(80, Math.round(55 + (0.45 - h) * 100)), details: `Mean-reverting regime (Hurst ${h.toFixed(2)}) after a +${(recentRet * 100).toFixed(1)}% spike. Fade the move.` };
+        }
+      }
+      return { signal: "NEUTRAL", strength: 0, details: `Hurst ${h.toFixed(2)} (${h > 0.55 ? "trending" : h < 0.45 ? "mean-reverting" : "random"}), skew ${sk.toFixed(2)}. No edge.` };
+    },
+  },
+
+  {
+    id: "qm-ema-trend-stack",
+    name: "EMA Trend Stack + ADX",
+    chapter: "QM10",
+    category: "Trend Following",
+    description: "Stacked EMAs (8>21>55) confirmed by ADX trend strength. The ai-hedge-fund trend-following factor.",
+    indicators: ["EMA (8,21,55)", "ADX (14)"],
+    book: "Quant & ML Models",
+    evaluate: (candles: OHLCV[]): StrategyResult => {
+      if (candles.length < 60) return { signal: "NEUTRAL", strength: 0, details: "Not enough data" };
+      const highs = candles.map(c => c.high);
+      const lows = candles.map(c => c.low);
+      const closes = candles.map(c => c.close);
+      const last = closes.length - 1;
+      const e8 = ema(closes, 8)[last];
+      const e21 = ema(closes, 21)[last];
+      const e55 = ema(closes, 55)[last];
+      const { adx: adxVals } = adx(highs, lows, closes, 14);
+      const adxVal = adxVals[last];
+      if (e8 == null || e21 == null || e55 == null || adxVal == null) {
+        return { signal: "NEUTRAL", strength: 0, details: "Insufficient data" };
+      }
+      const bullStack = e8 > e21 && e21 > e55;
+      const bearStack = e8 < e21 && e21 < e55;
+      if (bullStack && adxVal > 20) {
+        return { signal: "BUY", strength: Math.min(90, Math.round(50 + adxVal)), details: `EMAs stacked bullish (8>21>55) with ADX ${adxVal.toFixed(0)}. Strong uptrend.` };
+      }
+      if (bearStack && adxVal > 20) {
+        return { signal: "SELL", strength: Math.min(90, Math.round(50 + adxVal)), details: `EMAs stacked bearish (8<21<55) with ADX ${adxVal.toFixed(0)}. Strong downtrend.` };
+      }
+      return { signal: "NEUTRAL", strength: 0, details: `EMAs ${bullStack ? "bullish" : bearStack ? "bearish" : "mixed"}, ADX ${adxVal.toFixed(0)}${adxVal <= 20 ? " (weak trend)" : ""}.` };
     },
   },
 ];

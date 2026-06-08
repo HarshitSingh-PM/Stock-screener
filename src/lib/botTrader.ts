@@ -1,71 +1,52 @@
-import { STRATEGIES } from "./strategies";
-import { getHistoricalData } from "./stockData";
+import { getHistoricalData, getIntradayData } from "./stockData";
 import { getMarketConfig, type Market } from "./markets";
+import { analyze, LONGTERM_PROFILE, INTRADAY_PROFILE, type Thesis } from "./botBrain";
+import { getFundamentalView } from "./fundamentals";
+import type { OHLCV } from "./indicators";
 import type { BotHolding, BotState, BotTrade, BotSnapshot } from "./botStorage";
 
-// ─── Trading rules ───────────────────────────────────────────────────────────
-// These constants drive a profit-seeking, risk-managed trader. The bot acts
-// like a disciplined retail trader: cuts losers fast, lets winners run but
-// locks profits when a stronger candidate exists, sizes positions by
-// conviction, and never lets cash sit idle for long.
-export const MAX_POSITIONS = 5;       // Hard cap on concurrent positions.
-const BUY_CONFLUENCE_MIN = 2;         // Min BUY-strategy count to qualify a pick.
-const STOP_LOSS_PCT = -5;             // Exit immediately if a position bleeds past this.
-const TAKE_PROFIT_PCT = 12;           // Lock gains past this IF a stronger signal exists.
-const ROTATION_SCORE_GAP = 2;         // Stronger signal must beat current by this margin.
-const CASH_REDEPLOY_RATIO = 0.01;     // Top up the strongest holding when idle cash > 1% of starting capital.
-const SCAN_BATCH = 5;                 // Parallel fetches per batch (Yahoo Finance rate ceiling).
+// ─── Shared trading parameters ───────────────────────────────────────────────
+export const MAX_POSITIONS = 5;          // both bots hold at most 5 names
+const SCAN_BATCH = 5;                     // parallel Yahoo fetches per batch
 
-interface EvaluatedSymbol {
-  symbol: string;
-  price: number;
-  buyCount: number;
-  sellCount: number;
-  avgBuyStrength: number;
-  avgSellStrength: number;
-}
+// Long-term (positional) bot
+const LT_RISK_PER_TRADE = 0.02;          // risk 2% of equity per position (fixed-fractional)
+const LT_MAX_POSITION_PCT = 0.35;        // never more than 35% of equity in one name
+const LT_CASH_REDEPLOY_RATIO = 0.02;     // reinvest idle cash above 2% of equity
+const LT_MIN_SCORE = 0.15;               // composite score needed to qualify a long
+
+// Intraday bot
+const ID_RISK_PER_TRADE = 0.015;         // tighter risk per intraday trade
+const ID_MAX_POSITION_PCT = 0.30;
+const ID_DECISION_BARS = 6;              // decide ~1.5h into the session (6×15m)
+const ID_MIN_SCORE = 0.12;
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
-
 function round(n: number, d = 2): number {
   const f = Math.pow(10, d);
   return Math.round(n * f) / f;
 }
+const isoDate = (d: Date) => d.toISOString().slice(0, 10);
 
-async function evaluateSymbol(symbol: string, market: Market): Promise<EvaluatedSymbol | null> {
-  const candles = await getHistoricalData(symbol, 200, market);
-  if (candles.length < 50) return null;
-  const price = candles[candles.length - 1].close;
-
-  let buyCount = 0, sellCount = 0;
-  let buyStrength = 0, sellStrength = 0;
-  for (const s of STRATEGIES) {
-    try {
-      const r = s.evaluate(candles);
-      if (r.signal === "BUY") { buyCount++; buyStrength += r.strength; }
-      else if (r.signal === "SELL") { sellCount++; sellStrength += r.strength; }
-    } catch { /* ignore individual strategy errors */ }
-  }
-  return {
-    symbol, price, buyCount, sellCount,
-    avgBuyStrength: buyCount > 0 ? buyStrength / buyCount : 0,
-    avgSellStrength: sellCount > 0 ? sellStrength / sellCount : 0,
-  };
-}
-
-async function evaluateBatch(symbols: string[], market: Market): Promise<EvaluatedSymbol[]> {
-  const out: EvaluatedSymbol[] = [];
-  for (let i = 0; i < symbols.length; i += SCAN_BATCH) {
-    const batch = symbols.slice(i, i + SCAN_BATCH);
-    const results = await Promise.allSettled(batch.map((s) => evaluateSymbol(s, market)));
-    for (const r of results) if (r.status === "fulfilled" && r.value) out.push(r.value);
-  }
-  return out;
+// Fixed-fractional position sizing (AutoHedge min-of-caps + ai-hedge-fund risk
+// limits): risk a fixed % of equity per trade based on the stop distance, then
+// clamp to the max-exposure cap and to available cash.
+function sizeByRisk(
+  equity: number, cash: number, entry: number, stop: number,
+  riskPerTrade: number, maxPositionPct: number
+): number {
+  const stopDist = entry - stop;
+  if (stopDist <= 0 || entry <= 0) return 0;
+  const byRisk = (equity * riskPerTrade) / stopDist;
+  const byExposure = (equity * maxPositionPct) / entry;
+  const byCash = cash / entry;
+  return Math.max(0, Math.floor(Math.min(byRisk, byExposure, byCash)));
 }
 
 export interface BotRunSummary {
+  kind: BotState["kind"];
   market: Market;
   ran: boolean;
   reason?: string;
@@ -76,221 +57,351 @@ export interface BotRunSummary {
   state: BotState;
 }
 
-// Rank candidates by buy confluence with deterministic tiebreakers.
-//   1. higher buyCount
-//   2. higher avgBuyStrength
-//   3. prefer currently-held symbols on exact ties (anti-thrash)
-function rank(evals: EvaluatedSymbol[], heldSymbols: Set<string>): EvaluatedSymbol[] {
-  return [...evals]
-    .filter((e) => e.buyCount >= BUY_CONFLUENCE_MIN && e.buyCount > e.sellCount && e.price > 0)
-    .sort((a, b) => {
-      if (b.buyCount !== a.buyCount) return b.buyCount - a.buyCount;
-      if (b.avgBuyStrength !== a.avgBuyStrength) return b.avgBuyStrength - a.avgBuyStrength;
-      const aHeld = heldSymbols.has(a.symbol) ? 1 : 0;
-      const bHeld = heldSymbols.has(b.symbol) ? 1 : 0;
-      return bHeld - aHeld;
-    });
+// Dispatch to the correct engine based on the bot kind.
+export async function runBotDay(state: BotState): Promise<BotRunSummary> {
+  return state.kind === "intraday" ? runIntradayBotDay(state) : runLongTermBotDay(state);
 }
 
-// Executes one trading day for one market against the provided state.
-// Caller is responsible for persisting the returned state.
+// ─────────────────────────────────────────────────────────────────────────────
+// LONG-TERM (positional) bot
 //
-// Daily decision flow:
-//   1. Score every universe + held symbol against all 100 strategies.
-//   2. RISK MANAGEMENT — for each holding:
-//      a. Stop-loss: sell unconditionally if P&L <= -5%.
-//      b. Take-profit: sell if P&L >= +12% AND a non-held candidate's BUY
-//         confluence is meaningfully stronger (locks gains, redeploys).
-//   3. SIGNAL ROTATION — rank everything that survived. Target = top 5.
-//      Any current holding outside the target gets sold; any target stock
-//      not currently held gets bought, sized by signal strength.
-//   4. CASH REDEPLOY — if idle cash exceeds 1% of starting capital after
-//      rotation, top up the strongest holding so capital is never wasted.
-//
-// Net effect: bot cuts losers fast, locks winners when smarter trades exist,
-// always holds high-conviction positions sized by signal strength, and keeps
-// nearly 100% of capital deployed.
-export async function runBotDay(state: BotState): Promise<BotRunSummary> {
+// Holds across days. Each run:
+//   1. Build a composite thesis for every held + universe name (daily candles).
+//   2. Add a fundamental quality tilt (investor checklists) to the top picks.
+//   3. Risk-manage holdings: trailing stop, target+rotation, broken thesis.
+//   4. Rotate to keep the 5 highest-conviction longs.
+//   5. Size new buys by fixed-fractional risk; reinvest idle cash (compounding).
+// ─────────────────────────────────────────────────────────────────────────────
+async function runLongTermBotDay(state: BotState): Promise<BotRunSummary> {
   const market = state.market;
   const cfg = getMarketConfig(market);
   const date = today();
 
   if (state.lastRunDate === date) {
     return {
-      market, ran: false, reason: "already ran today",
+      kind: state.kind, market, ran: false, reason: "already ran today",
       evaluatedHoldings: 0, evaluatedCandidates: 0,
       trades: [], snapshot: state.snapshots[state.snapshots.length - 1] ?? null, state,
     };
   }
 
-  // ─── Step 1: Score holdings + universe together ──────────────────────────
-  const heldSymbols = new Set(state.holdings.map((h) => h.symbol));
+  const heldSymbols = new Set(state.holdings.map(h => h.symbol));
   const allSymbols = Array.from(new Set([...heldSymbols, ...cfg.botUniverse]));
-  const evals = await evaluateBatch(allSymbols, market);
-  const evalMap: Record<string, EvaluatedSymbol> = {};
-  for (const e of evals) evalMap[e.symbol] = e;
 
-  const heldEvalsCount = state.holdings.filter((h) => evalMap[h.symbol]).length;
-  const universeEvalsCount = evals.length - heldEvalsCount;
+  // Build theses in batches.
+  const theses = new Map<string, Thesis>();
+  for (let i = 0; i < allSymbols.length; i += SCAN_BATCH) {
+    const batch = allSymbols.slice(i, i + SCAN_BATCH);
+    const results = await Promise.allSettled(batch.map(async (sym) => {
+      const candles = await getHistoricalData(sym, 300, market);
+      return analyze(sym, candles, LONGTERM_PROFILE);
+    }));
+    for (const r of results) if (r.status === "fulfilled" && r.value) theses.set(r.value.symbol, r.value);
+  }
 
-  const ranked = rank(evals, heldSymbols);
-  const strongestNonHeld = ranked.find((r) => !heldSymbols.has(r.symbol));
+  const heldEvalsCount = state.holdings.filter(h => theses.has(h.symbol)).length;
+  const universeEvalsCount = theses.size - heldEvalsCount;
+
+  // Rank long candidates by composite conviction.
+  const longs = [...theses.values()]
+    .filter(t => t.direction === "LONG" && t.score >= LT_MIN_SCORE)
+    .sort((a, b) => (b.score * (0.5 + b.conviction)) - (a.score * (0.5 + a.conviction)));
+
+  // Fundamental quality tilt for the top ~15 technical candidates (limits API calls).
+  const tiltSet = longs.slice(0, 15).map(t => t.symbol);
+  const quality = new Map<string, number>();
+  await Promise.allSettled(tiltSet.map(async (sym) => {
+    const fv = await getFundamentalView(sym, market);
+    quality.set(sym, fv.qualityScore);
+  }));
+  const rankScore = (t: Thesis) => {
+    const q = quality.get(t.symbol) ?? 0.5;
+    return t.score * (0.5 + t.conviction) + 0.25 * (q - 0.5) * 2; // +/-0.25 tilt
+  };
+  longs.sort((a, b) => rankScore(b) - rankScore(a));
+
+  const target = longs.slice(0, MAX_POSITIONS);
+  const targetSet = new Set(target.map(t => t.symbol));
+  const strongestNonHeld = longs.find(t => !heldSymbols.has(t.symbol));
 
   const tradesToday: BotTrade[] = [];
-
-  const sellHolding = (h: BotHolding, exitPrice: number, reason: string) => {
-    const proceeds = h.quantity * exitPrice;
-    const realized = (exitPrice - h.avgBuyPrice) * h.quantity;
+  const sellHolding = (h: BotHolding, price: number, reason: string) => {
+    const proceeds = h.quantity * price;
+    const realized = (price - h.avgBuyPrice) * h.quantity;
     state.cash += proceeds;
     state.realizedPnL += realized;
     tradesToday.push({
-      date,
-      timestamp: new Date().toISOString(),
-      symbol: h.symbol,
-      action: "SELL",
-      quantity: h.quantity,
-      price: exitPrice,
-      total: proceeds,
-      realizedPnL: realized,
-      reason,
+      date, timestamp: new Date().toISOString(), symbol: h.symbol, action: "SELL",
+      quantity: h.quantity, price, total: proceeds, realizedPnL: realized, reason,
     });
   };
 
-  // ─── Step 2: Risk management — stop-loss + take-profit-with-rotation ─────
-  const afterRiskMgmt: BotHolding[] = [];
+  // ── Risk management on existing holdings ──
+  const survivors: BotHolding[] = [];
   for (const h of state.holdings) {
-    const e = evalMap[h.symbol];
-    const price = e?.price ?? h.avgBuyPrice;
+    const t = theses.get(h.symbol);
+    const price = t?.price ?? h.avgBuyPrice;
     const pnlPct = ((price - h.avgBuyPrice) / h.avgBuyPrice) * 100;
 
-    if (pnlPct <= STOP_LOSS_PCT) {
-      sellHolding(h, price, `Stop loss triggered at ${pnlPct.toFixed(1)}% — cutting the loss`);
+    // 1. Trailing stop — raise the stop as the position works; never lower it.
+    if (t) h.stop = Math.max(h.stop ?? t.stop, t.stop);
+
+    // 2. Stop hit → cut the loss / lock the trail.
+    if (h.stop != null && price <= h.stop) {
+      sellHolding(h, price, `Stop hit at ${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(1)}% — protecting capital`);
       continue;
     }
-
-    const myScore = e?.buyCount ?? 0;
-    const candidateScore = strongestNonHeld?.buyCount ?? 0;
-    if (
-      pnlPct >= TAKE_PROFIT_PCT
-      && strongestNonHeld
-      && candidateScore >= myScore + ROTATION_SCORE_GAP
-    ) {
-      sellHolding(
-        h,
-        price,
-        `Take profit at +${pnlPct.toFixed(1)}% — rotating into ${strongestNonHeld.symbol} (stronger signal: ${candidateScore} vs ${myScore} BUY strategies)`,
-      );
+    // 3. Thesis broken → exit.
+    if (t && t.direction !== "LONG") {
+      sellHolding(h, price, `Thesis turned ${t.direction.toLowerCase()} (${t.buyCount} BUY/${t.sellCount} SELL) — exiting`);
       continue;
     }
-
-    afterRiskMgmt.push(h);
+    // 4. Target reached AND a stronger candidate exists → lock profit & rotate.
+    if (h.target != null && price >= h.target && strongestNonHeld && strongestNonHeld.score > (t?.score ?? 0) + 0.1) {
+      sellHolding(h, price, `Target +${pnlPct.toFixed(1)}% reached — rotating into ${strongestNonHeld.symbol} (stronger signal)`);
+      continue;
+    }
+    survivors.push(h);
   }
-  state.holdings = afterRiskMgmt;
+  state.holdings = survivors;
 
-  // ─── Step 3: Signal-based rotation — keep top 5 ──────────────────────────
-  const target = ranked.slice(0, MAX_POSITIONS);
-  const targetSet = new Set(target.map((e) => e.symbol));
-
+  // ── Rotation: drop holdings outside the top-5 target if a replacement exists ──
   const afterRotation: BotHolding[] = [];
   for (const h of state.holdings) {
     if (targetSet.has(h.symbol)) { afterRotation.push(h); continue; }
-    const e = evalMap[h.symbol];
-    const exitPrice = e?.price ?? h.avgBuyPrice;
-    let reason: string;
-    if (!e) {
-      reason = "Could not evaluate — exiting position";
-    } else if (e.buyCount < BUY_CONFLUENCE_MIN || e.sellCount > e.buyCount) {
-      reason = `Strategies turned bearish (${e.buyCount} BUY / ${e.sellCount} SELL) — exiting`;
+    const t = theses.get(h.symbol);
+    const price = t?.price ?? h.avgBuyPrice;
+    const replacement = target.find(x => !heldSymbols.has(x.symbol) && !state.holdings.some(o => o.symbol === x.symbol));
+    if (replacement) {
+      sellHolding(h, price, `Rotated out for ${replacement.symbol} (stronger conviction)`);
     } else {
-      const replacement = target.find((t) => !heldSymbols.has(t.symbol));
-      reason = replacement
-        ? `Rotated out for ${replacement.symbol} (stronger BUY confluence: ${replacement.buyCount} vs ${e.buyCount})`
-        : `Dropped below top ${MAX_POSITIONS} — ${e.buyCount} BUY, avg strength ${e.avgBuyStrength.toFixed(0)}`;
+      afterRotation.push(h); // keep — nothing better to rotate into
     }
-    sellHolding(h, exitPrice, reason);
   }
   state.holdings = afterRotation;
 
-  // ─── Step 4: Buy new picks, sized by signal strength ─────────────────────
-  const newPicks = target.filter((t) => !state.holdings.some((h) => h.symbol === t.symbol));
-  if (newPicks.length > 0 && state.cash > 0) {
-    // Conviction-weighted sizing: a stock with 12 BUY strategies gets twice
-    // the allocation of one with 6. Computed against the cash snapshot at
-    // the start of this buying pass so the math is deterministic.
-    const cashAtStart = state.cash;
-    const totalScore = newPicks.reduce((s, p) => s + p.buyCount, 0);
-    const plan = newPicks.map((p) => ({
-      pick: p,
-      budget: totalScore > 0 ? cashAtStart * (p.buyCount / totalScore) : cashAtStart / newPicks.length,
-    }));
-
-    for (const { pick, budget } of plan) {
-      if (state.cash <= 0) break;
-      const actualBudget = Math.min(budget, state.cash);
-      const qty = Math.floor(actualBudget / pick.price);
-      if (qty <= 0) continue;
-      const cost = qty * pick.price;
-      state.cash -= cost;
-      state.holdings.push({
-        symbol: pick.symbol,
-        quantity: qty,
-        avgBuyPrice: pick.price,
-        buyDate: date,
-      });
-      tradesToday.push({
-        date,
-        timestamp: new Date().toISOString(),
-        symbol: pick.symbol,
-        action: "BUY",
-        quantity: qty,
-        price: pick.price,
-        total: cost,
-        reason: `${pick.buyCount} strategies signaling BUY (avg strength ${pick.avgBuyStrength.toFixed(0)}) — conviction-weighted entry`,
-      });
-    }
+  // ── Buy new picks, sized by fixed-fractional risk + fair-share budgeting ──
+  let equity = state.cash + state.holdings.reduce((s, h) => {
+    const p = theses.get(h.symbol)?.price ?? h.avgBuyPrice; return s + h.quantity * p;
+  }, 0);
+  const toBuy = target.filter(t => !state.holdings.some(h => h.symbol === t.symbol));
+  let slotsLeft = Math.min(toBuy.length, MAX_POSITIONS - state.holdings.length);
+  for (const t of toBuy) {
+    if (state.holdings.length >= MAX_POSITIONS || slotsLeft <= 0) break;
+    // Fair-share cap: never let one pick spend more than its even slice of the
+    // remaining cash, so all target names get filled instead of the first few
+    // eating everything. Conviction still tilts via the risk cap (looser stops
+    // get less) and the post-buy reinvestment into the strongest name.
+    const fairShareQty = Math.floor((state.cash / slotsLeft) / t.entry);
+    const riskQty = sizeByRisk(equity, state.cash, t.entry, t.stop, LT_RISK_PER_TRADE, LT_MAX_POSITION_PCT);
+    const qty = Math.min(riskQty, fairShareQty);
+    slotsLeft--;
+    if (qty <= 0) continue;
+    const cost = qty * t.entry;
+    state.cash -= cost;
+    state.holdings.push({
+      symbol: t.symbol, quantity: qty, avgBuyPrice: t.entry, buyDate: date,
+      stop: t.stop, target: t.target, thesisScore: t.score,
+    });
+    tradesToday.push({
+      date, timestamp: new Date().toISOString(), symbol: t.symbol, action: "BUY",
+      quantity: qty, price: t.entry, total: cost,
+      reason: `${t.buyCount} BUY strategies · ${t.rationale}`,
+    });
   }
 
-  // ─── Step 5: Cash redeployment ───────────────────────────────────────────
-  // Cash from rounding compounds over weeks. Top up the strongest holding
-  // whenever idle cash exceeds 1% of starting capital so capital is always
-  // working.
-  const redeployThreshold = state.startingCapital * CASH_REDEPLOY_RATIO;
-  if (state.cash > redeployThreshold && state.holdings.length > 0) {
-    const scoredHoldings = state.holdings
-      .map((h) => ({ h, e: evalMap[h.symbol] }))
-      .filter((x) => x.e && x.e.price > 0)
-      .sort((a, b) => (b.e!.buyCount - a.e!.buyCount) || (b.e!.avgBuyStrength - a.e!.avgBuyStrength));
-
-    const top = scoredHoldings[0];
-    if (top && top.e) {
-      const extraQty = Math.floor(state.cash / top.e.price);
-      if (extraQty > 0) {
-        const cost = extraQty * top.e.price;
-        // Update average buy price across old + new shares.
-        const newQty = top.h.quantity + extraQty;
-        top.h.avgBuyPrice = ((top.h.quantity * top.h.avgBuyPrice) + cost) / newQty;
+  // ── Reinvest idle cash into the strongest holding (compounding) ──
+  if (state.cash > equity * LT_CASH_REDEPLOY_RATIO && state.holdings.length > 0) {
+    const ranked = state.holdings
+      .map(h => ({ h, t: theses.get(h.symbol) }))
+      .filter(x => x.t && x.t.price > 0)
+      .sort((a, b) => (b.t!.score - a.t!.score));
+    const top = ranked[0];
+    if (top?.t) {
+      const extra = Math.floor(state.cash / top.t.price);
+      if (extra > 0) {
+        const cost = extra * top.t.price;
+        const newQty = top.h.quantity + extra;
+        top.h.avgBuyPrice = (top.h.quantity * top.h.avgBuyPrice + cost) / newQty;
         top.h.quantity = newQty;
         state.cash -= cost;
         tradesToday.push({
-          date,
-          timestamp: new Date().toISOString(),
-          symbol: top.h.symbol,
-          action: "BUY",
-          quantity: extraQty,
-          price: top.e.price,
-          total: cost,
-          reason: `Cash redeployment — topped up strongest holding (${top.e.buyCount} BUY signals)`,
+          date, timestamp: new Date().toISOString(), symbol: top.h.symbol, action: "BUY",
+          quantity: extra, price: top.t.price, total: cost,
+          reason: `Reinvesting profits into strongest holding (score ${top.t.score.toFixed(2)})`,
         });
       }
     }
   }
 
-  // ─── Step 6: Equity snapshot ─────────────────────────────────────────────
-  let holdingsValue = 0;
-  for (const h of state.holdings) {
-    const price = evalMap[h.symbol]?.price ?? h.avgBuyPrice;
-    holdingsValue += h.quantity * price;
+  const snapshot = snapshotState(state, date, (sym) => theses.get(sym)?.price, tradesToday.length);
+  state.trades.push(...tradesToday);
+  state.lastRunDate = date;
+
+  return {
+    kind: state.kind, market, ran: true,
+    evaluatedHoldings: heldEvalsCount, evaluatedCandidates: universeEvalsCount,
+    trades: tradesToday, snapshot, state,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INTRADAY bot
+//
+// Simulates ONE same-day round trip per run on 15-minute bars: decide ~1.5h into
+// the session, buy the highest-conviction intraday setups (risk-sized), then walk
+// the rest of the session bar-by-bar exiting on stop / target / close. Always
+// flat overnight. Realized P&L compounds the equity.
+// ─────────────────────────────────────────────────────────────────────────────
+function groupByDay(candles: OHLCV[]): { date: string; idx: number[] }[] {
+  const map = new Map<string, number[]>();
+  candles.forEach((c, i) => {
+    const d = isoDate(c.date);
+    if (!map.has(d)) map.set(d, []);
+    map.get(d)!.push(i);
+  });
+  return [...map.entries()].map(([date, idx]) => ({ date, idx })).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+interface IntradayPlan {
+  thesis: Thesis;
+  candles: OHLCV[];
+  decisionGlobalIdx: number;
+  sessionEndGlobalIdx: number;
+}
+
+async function runIntradayBotDay(state: BotState): Promise<BotRunSummary> {
+  const market = state.market;
+  const cfg = getMarketConfig(market);
+
+  // Build a same-day plan for each universe symbol.
+  const plans: IntradayPlan[] = [];
+  let sessionDate = "";
+  const symbols = cfg.botUniverse;
+  for (let i = 0; i < symbols.length; i += SCAN_BATCH) {
+    const batch = symbols.slice(i, i + SCAN_BATCH);
+    const results = await Promise.allSettled(batch.map(async (sym) => {
+      const candles = await getIntradayData(sym, market, "15m", 7);
+      if (candles.length < INTRADAY_PROFILE.minBars + ID_DECISION_BARS) return null;
+      const days = groupByDay(candles);
+      if (days.length < 2) return null;
+      const session = days[days.length - 1];
+      if (session.idx.length < ID_DECISION_BARS + 3) return null; // incomplete session
+      const decisionGlobalIdx = session.idx[ID_DECISION_BARS];
+      const sessionEndGlobalIdx = session.idx[session.idx.length - 1];
+      const thesis = analyze(sym, candles.slice(0, decisionGlobalIdx + 1), INTRADAY_PROFILE);
+      if (!thesis) return null;
+      return { thesis, candles, decisionGlobalIdx, sessionEndGlobalIdx, sessionDate: session.date } as IntradayPlan & { sessionDate: string };
+    }));
+    for (const r of results) {
+      if (r.status === "fulfilled" && r.value) {
+        plans.push(r.value);
+        sessionDate = (r.value as any).sessionDate;
+      }
+    }
   }
+
+  if (plans.length === 0) {
+    return {
+      kind: state.kind, market, ran: false, reason: "no intraday data available",
+      evaluatedHoldings: 0, evaluatedCandidates: 0,
+      trades: [], snapshot: state.snapshots[state.snapshots.length - 1] ?? null, state,
+    };
+  }
+
+  // Idempotent on the simulated session date.
+  if (state.lastRunDate === sessionDate) {
+    return {
+      kind: state.kind, market, ran: false, reason: "already traded this session",
+      evaluatedHoldings: 0, evaluatedCandidates: 0,
+      trades: [], snapshot: state.snapshots[state.snapshots.length - 1] ?? null, state,
+    };
+  }
+
+  // Rank long setups by conviction, take the top 5.
+  const longs = plans
+    .filter(p => p.thesis.direction === "LONG" && p.thesis.score >= ID_MIN_SCORE)
+    .sort((a, b) => (b.thesis.score * (0.5 + b.thesis.conviction)) - (a.thesis.score * (0.5 + a.thesis.conviction)))
+    .slice(0, MAX_POSITIONS);
+
+  const tradesToday: BotTrade[] = [];
+  const ts = () => new Date().toISOString();
+  let cash = state.cash;          // start of day, all cash (flat overnight)
+  const equity = cash;           // intraday equity == cash at open
+  let realizedToday = 0;
+
+  let idSlotsLeft = longs.length;
+  for (const p of longs) {
+    const t = p.thesis;
+    const fairShareQty = Math.floor((cash / Math.max(1, idSlotsLeft)) / t.entry);
+    const riskQty = sizeByRisk(equity, cash, t.entry, t.stop, ID_RISK_PER_TRADE, ID_MAX_POSITION_PCT);
+    const qty = Math.min(riskQty, fairShareQty);
+    idSlotsLeft--;
+    if (qty <= 0) continue;
+    const cost = qty * t.entry;
+    cash -= cost;
+
+    // Walk the rest of the session to find the exit.
+    let exitPrice = p.candles[p.sessionEndGlobalIdx].close;
+    let exitReason = "Squared off at session close";
+    for (let i = p.decisionGlobalIdx + 1; i <= p.sessionEndGlobalIdx; i++) {
+      const bar = p.candles[i];
+      if (bar.low <= t.stop) { exitPrice = t.stop; exitReason = `Intraday stop hit (−${(((t.entry - t.stop) / t.entry) * 100).toFixed(1)}%)`; break; }
+      if (bar.high >= t.target) { exitPrice = t.target; exitReason = `Intraday target hit (+${(((t.target - t.entry) / t.entry) * 100).toFixed(1)}%)`; break; }
+    }
+
+    const proceeds = qty * exitPrice;
+    const realized = (exitPrice - t.entry) * qty;
+    cash += proceeds;
+    realizedToday += realized;
+
+    tradesToday.push({
+      date: sessionDate, timestamp: ts(), symbol: t.symbol, action: "BUY",
+      quantity: qty, price: round(t.entry), total: round(cost),
+      reason: `Intraday long · ${t.rationale}`,
+    });
+    tradesToday.push({
+      date: sessionDate, timestamp: ts(), symbol: t.symbol, action: "SELL",
+      quantity: qty, price: round(exitPrice), total: round(proceeds), realizedPnL: round(realized),
+      reason: exitReason,
+    });
+  }
+
+  state.cash = cash;                 // back to all-cash; profits compounded
+  state.realizedPnL += realizedToday;
+  state.holdings = [];               // flat overnight
+
+  const equityNow = state.cash;
+  const pnl = equityNow - state.startingCapital;
+  const snapshot: BotSnapshot = {
+    date: sessionDate,
+    cash: round(state.cash),
+    holdingsValue: 0,
+    equity: round(equityNow),
+    pnl: round(pnl),
+    pnlPercent: round((pnl / state.startingCapital) * 100, 3),
+    positions: 0,
+    tradesCount: tradesToday.length,
+  };
+  const existing = state.snapshots.findIndex(s => s.date === sessionDate);
+  if (existing >= 0) state.snapshots[existing] = snapshot; else state.snapshots.push(snapshot);
+
+  state.trades.push(...tradesToday);
+  state.lastRunDate = sessionDate;
+
+  return {
+    kind: state.kind, market, ran: true,
+    evaluatedHoldings: 0, evaluatedCandidates: plans.length,
+    trades: tradesToday, snapshot, state,
+  };
+}
+
+// Mark-to-market snapshot for position-holding bots.
+function snapshotState(
+  state: BotState, date: string, priceOf: (sym: string) => number | undefined, tradesCount: number
+): BotSnapshot {
+  let holdingsValue = 0;
+  for (const h of state.holdings) holdingsValue += h.quantity * (priceOf(h.symbol) ?? h.avgBuyPrice);
   const equity = state.cash + holdingsValue;
   const pnl = equity - state.startingCapital;
   const snapshot: BotSnapshot = {
@@ -301,22 +412,9 @@ export async function runBotDay(state: BotState): Promise<BotRunSummary> {
     pnl: round(pnl),
     pnlPercent: round((pnl / state.startingCapital) * 100, 3),
     positions: state.holdings.length,
-    tradesCount: tradesToday.length,
+    tradesCount,
   };
-  const existingIdx = state.snapshots.findIndex((s) => s.date === date);
-  if (existingIdx >= 0) state.snapshots[existingIdx] = snapshot;
-  else state.snapshots.push(snapshot);
-
-  state.trades.push(...tradesToday);
-  state.lastRunDate = date;
-
-  return {
-    market,
-    ran: true,
-    evaluatedHoldings: heldEvalsCount,
-    evaluatedCandidates: universeEvalsCount,
-    trades: tradesToday,
-    snapshot,
-    state,
-  };
+  const existing = state.snapshots.findIndex(s => s.date === date);
+  if (existing >= 0) state.snapshots[existing] = snapshot; else state.snapshots.push(snapshot);
+  return snapshot;
 }

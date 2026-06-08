@@ -696,6 +696,7 @@ export default function Home() {
 
   // Bot
   const [botState, setBotState] = useState<BotStateView | null>(null);
+  const [botKind, setBotKind] = useState<"longterm" | "intraday">("longterm");
   const [botLoading, setBotLoading] = useState(false);
   const [botRunning, setBotRunning] = useState(false);
   const [botResetting, setBotResetting] = useState(false);
@@ -877,31 +878,37 @@ export default function Home() {
   const loadBot = useCallback(async () => {
     setBotLoading(true);
     try {
-      const res = await fetch(`/api/bot/state?market=${market}`);
+      const res = await fetch(`/api/bot/state?market=${market}&kind=${botKind}`);
       if (res.ok) setBotState(await res.json());
     } catch { /* ignore */ }
     setBotLoading(false);
-  }, [market]);
+  }, [market, botKind]);
 
   const runBotNow = useCallback(async () => {
-    track("bot_run_manual", { market });
+    track("bot_run_manual", { market, kind: botKind });
     setBotRunning(true);
     try {
-      await fetch(`/api/bot/run?market=${market}`, { method: "POST" });
+      await fetch(`/api/bot/run?market=${market}&kind=${botKind}`, { method: "POST" });
       await loadBot();
     } catch { /* ignore */ }
     setBotRunning(false);
-  }, [market, loadBot]);
+  }, [market, botKind, loadBot]);
 
   const resetBot = useCallback(async () => {
-    if (!confirm(`Reset bot back to starting capital for ${market === "US" ? "US" : "India"}? This wipes all holdings and trade history.`)) return;
+    if (!confirm(`Reset the ${botKind === "intraday" ? "Intraday" : "Long-Term"} bot back to starting capital for ${market === "US" ? "US" : "India"}? This wipes all holdings and trade history.`)) return;
     setBotResetting(true);
     try {
-      await fetch(`/api/bot/reset?market=${market}`, { method: "POST" });
+      await fetch(`/api/bot/reset?market=${market}&kind=${botKind}`, { method: "POST" });
       await loadBot();
     } catch { /* ignore */ }
     setBotResetting(false);
-  }, [market, loadBot]);
+  }, [market, botKind, loadBot]);
+
+  // Reload bot state whenever the selected bot (or market) changes while viewing it.
+  useEffect(() => {
+    if (activeTab === "bot") loadBot();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [botKind]);
 
   const loadEtfs = useCallback(async () => {
     track("etf_scan", { market });
@@ -2450,7 +2457,10 @@ export default function Home() {
                   <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">LIVE · AUTONOMOUS</span>
                 </h2>
                 <p className="text-sm text-gray-500 mt-1.5 leading-relaxed">
-                  A strategy-driven portfolio that trades itself every day, using the same signals you see in the screener. <strong className="text-gray-300">This is a showcase.</strong> You cannot place trades here; you can only watch how the strategy library performs over time. The bot runs automatically after each market closes (<span className="text-gray-400">India: 4:00 PM IST · US: 6:00 PM ET</span>), ranks every {market === "US" ? "S&P 500" : "large- and mid-cap NSE"} stock by BUY confluence, and rotates the weakest holding out when a stronger candidate appears. Max 5 positions, equal-weighted from available cash. Starting capital: <span className="text-gray-300 font-mono">{market === "US" ? "$5,000" : "₹10,00,000"}</span>.
+                  Two autonomous traders run on the same signals you see in the screener, now upgraded with a multi-factor decision engine (trend, momentum, mean-reversion, volatility and fundamental quality) plus disciplined risk-based position sizing. <strong className="text-gray-300">This is a showcase.</strong> You cannot place trades here; you only watch how the strategy library performs. {botKind === "intraday"
+                    ? <>The <strong className="text-gray-300">Intraday Trader</strong> buys high-conviction setups during the session and squares off the same day — flat overnight, no positions carried.</>
+                    : <>The <strong className="text-gray-300">Long-Term Investor</strong> holds positions across days, rides trends with a trailing stop, and rotates into stronger names over time.</>
+                  } Max 5 positions. Starting capital: <span className="text-gray-300 font-mono">{market === "US" ? "$5,000" : "₹10,00,000"}</span>, with profits reinvested (compounding).
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -2483,6 +2493,23 @@ export default function Home() {
                   </>
                 )}
               </div>
+            </div>
+
+            {/* Bot selector: Long-Term Investor vs Intraday Trader */}
+            <div className="flex items-center gap-1 bg-white/5 rounded-lg p-0.5 mb-6 w-fit">
+              {([
+                { key: "longterm" as const, label: "📈 Long-Term Investor", sub: "Holds & compounds" },
+                { key: "intraday" as const, label: "⚡ Intraday Trader", sub: "Same-day, flat overnight" },
+              ]).map((b) => (
+                <button
+                  key={b.key}
+                  onClick={() => { if (botKind !== b.key) { setBotState(null); setBotKind(b.key); } }}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${botKind === b.key ? "bg-white/10 text-white" : "text-gray-400 hover:text-white"}`}
+                  title={b.sub}
+                >
+                  {b.label}
+                </button>
+              ))}
             </div>
 
             {botLoading && !botState && (
@@ -2565,7 +2592,11 @@ export default function Home() {
                       </h3>
                     </div>
                     {botState.holdings.length === 0 ? (
-                      <div className="px-4 py-8 text-center text-sm text-gray-500">No open positions.</div>
+                      <div className="px-4 py-8 text-center text-sm text-gray-500">
+                        {botKind === "intraday"
+                          ? "Flat overnight — the intraday trader holds no positions between sessions. See its round trips in the trade history below."
+                          : "No open positions."}
+                      </div>
                     ) : (
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm min-w-[720px]">
@@ -2656,14 +2687,26 @@ export default function Home() {
 
                   {/* How the bot decides */}
                   <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4 text-[11px] text-gray-500 space-y-1.5 leading-relaxed">
-                    <div className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold mb-1">How the bot decides</div>
-                    <div><strong className="text-gray-300">Schedule.</strong> India trades fire daily after 4:00 PM IST (10:30 UTC). US trades fire daily after 6:00 PM ET (22:00 UTC). Weekdays only.</div>
-                    <div><strong className="text-gray-300">Stop loss.</strong> Any holding bleeding more than 5% from its average buy price is sold immediately to cap the loss.</div>
-                    <div><strong className="text-gray-300">Take profit.</strong> A holding up 12% or more is sold and rotated into a fresh pick if that pick has at least 2 more BUY strategies firing. Winners with the strongest signal are left to run.</div>
-                    <div><strong className="text-gray-300">Signal rotation.</strong> Every day the bot ranks all holdings and the universe by BUY-strategy count. Top 5 wins; anything that drops out is sold and replaced with whatever just entered.</div>
-                    <div><strong className="text-gray-300">Sizing.</strong> New buys are weighted by conviction. A stock with 12 BUY strategies gets twice the allocation of one with 6.</div>
-                    <div><strong className="text-gray-300">Cash discipline.</strong> Idle cash above 1% of starting capital is auto-deployed into the strongest holding, so capital is never sitting on the sidelines.</div>
-                    <div><strong className="text-gray-300">Hard limits.</strong> Max 5 concurrent positions. Total capital fixed at start. No leverage, no shorting, no intraday — delivery only.</div>
+                    <div className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold mb-1">
+                      How the {botKind === "intraday" ? "Intraday Trader" : "Long-Term Investor"} decides
+                    </div>
+                    <div><strong className="text-gray-300">Composite brain.</strong> Every stock is scored on a single −1…+1 verdict that fuses a multi-factor model (trend / momentum / mean-reversion / volatility, ported from open-source quant research) with the live 111-strategy confluence{botKind === "intraday" ? "" : " and a fundamental quality tilt (Buffett / Lynch / Graham / Burry-style checks)"}. Each pick carries a full thesis: direction, conviction, win-probability, key levels, entry, stop and target.</div>
+                    <div><strong className="text-gray-300">Risk-based sizing.</strong> Position size is set by risk, not guesswork: it risks a fixed fraction of equity per trade based on the distance to the stop, then caps exposure per name. Bigger stop ⇒ smaller position.</div>
+                    {botKind === "intraday" ? (
+                      <>
+                        <div><strong className="text-gray-300">Schedule.</strong> Decides ~1.5 hours into the session, buys the top setups, then exits each on its stop, its target, or at the close. Runs every weekday after the market closes (India ~5:00 PM IST · US ~6:30 PM ET).</div>
+                        <div><strong className="text-gray-300">Same-day only.</strong> Always flat overnight — no positions are carried. Each day starts fully in cash; profits compound into the next day&apos;s buying power.</div>
+                        <div><strong className="text-gray-300">Exits.</strong> ATR-based intraday stop (~1.2× ATR) and target (~2× ATR). Whichever hits first wins; anything still open is squared off at the session close.</div>
+                      </>
+                    ) : (
+                      <>
+                        <div><strong className="text-gray-300">Schedule.</strong> Trades daily after each market closes (India 4:00 PM IST · US 6:00 PM ET). Weekdays only.</div>
+                        <div><strong className="text-gray-300">Trailing stop.</strong> Each holding carries an ATR-based stop that ratchets up as the trade works — it cuts losers fast and lets winners run.</div>
+                        <div><strong className="text-gray-300">Rotation.</strong> The 5 highest-conviction longs are held. A holding is sold when its thesis turns bearish, its target is hit with a stronger candidate waiting, or it drops out of the top 5.</div>
+                        <div><strong className="text-gray-300">Reinvests profits.</strong> Idle cash above 2% of equity is redeployed into the strongest holding, so capital and gains keep compounding.</div>
+                      </>
+                    )}
+                    <div><strong className="text-gray-300">Hard limits.</strong> Max 5 concurrent positions. Capital fixed at start. No leverage, no shorting{botKind === "intraday" ? "" : ", delivery only"}.</div>
                   </div>
                 </div>
               );

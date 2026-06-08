@@ -85,6 +85,48 @@ export async function getHistoricalData(
   }
 }
 
+// Intraday OHLCV bars for the intraday bot. Yahoo intraday intervals (1m/5m/15m/1h)
+// only cover a limited trailing window, so `days` is clamped accordingly.
+export async function getIntradayData(
+  symbol: string,
+  market: Market = "IN",
+  interval: "5m" | "15m" | "1h" = "15m",
+  days: number = 5
+): Promise<OHLCV[]> {
+  try {
+    const yahooSym = toYahooSymbol(symbol, market);
+    const endDate = new Date();
+    const startDate = new Date();
+    // 1m data is only ~7d; 5m/15m ~60d. Keep a safe trailing window.
+    const clamp = interval === "5m" ? Math.min(days, 30) : Math.min(days, 50);
+    startDate.setDate(startDate.getDate() - clamp);
+
+    const result: any = await yahooFinance.chart(yahooSym, {
+      period1: startDate,
+      period2: endDate,
+      interval,
+    });
+
+    if (!result?.quotes) return [];
+
+    return result.quotes
+      .filter(
+        (q: any) =>
+          q.open != null && q.high != null && q.low != null && q.close != null
+      )
+      .map((q: any) => ({
+        date: new Date(q.date),
+        open: q.open,
+        high: q.high,
+        low: q.low,
+        close: q.close,
+        volume: q.volume ?? 0,
+      }));
+  } catch {
+    return [];
+  }
+}
+
 export async function getBatchQuotes(
   symbols: string[],
   market: Market = "IN"

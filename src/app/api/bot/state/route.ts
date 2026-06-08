@@ -1,19 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getMarket, getMarketConfig } from "@/lib/markets";
-import { loadBotState } from "@/lib/botStorage";
+import { loadBotState, type BotKind } from "@/lib/botStorage";
 import { getHistoricalData } from "@/lib/stockData";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// GET /api/bot/state?market=IN|US
-// Returns current bot state for the market plus live mark-to-market values.
+// GET /api/bot/state?market=IN|US&kind=longterm|intraday
+// Returns the bot's state plus live mark-to-market values for any open holdings.
 export async function GET(request: NextRequest) {
-  const market = getMarket(request.nextUrl.searchParams.get("market"));
+  const sp = request.nextUrl.searchParams;
+  const market = getMarket(sp.get("market"));
+  const kind: BotKind = sp.get("kind") === "intraday" ? "intraday" : "longterm";
   const cfg = getMarketConfig(market);
-  const state = await loadBotState(market, cfg.botStartingCapital);
+  const state = await loadBotState(market, kind, cfg.botStartingCapital);
 
-  // Mark-to-market each holding using the most recent close.
+  // Mark-to-market each holding (intraday is flat overnight, so usually none).
   const liveHoldings = await Promise.all(
     state.holdings.map(async (h) => {
       const candles = await getHistoricalData(h.symbol, 30, market);
@@ -22,14 +24,7 @@ export async function GET(request: NextRequest) {
       const cost = h.quantity * h.avgBuyPrice;
       const unrealizedPnL = currentValue - cost;
       const unrealizedPnLPercent = cost > 0 ? (unrealizedPnL / cost) * 100 : 0;
-      return {
-        ...h,
-        currentPrice,
-        currentValue,
-        cost,
-        unrealizedPnL,
-        unrealizedPnLPercent,
-      };
+      return { ...h, currentPrice, currentValue, cost, unrealizedPnL, unrealizedPnLPercent };
     })
   );
 
@@ -40,6 +35,7 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     market,
+    kind,
     startingCapital: state.startingCapital,
     cash: state.cash,
     holdingsValue,

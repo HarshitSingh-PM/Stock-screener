@@ -1,14 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "crons": [
-    {
-      "path": "/api/bot/run?market=IN",
-      "schedule": "30 10 * * 1-5"
-    },
-    {
-      "path": "/api/bot/run?market=US",
-      "schedule": "0 22 * * 1-5"
-    }
+    { "path": "/api/bot/run?market=IN&kind=longterm", "schedule": "30 10 * * 1-5" },
+    { "path": "/api/bot/run?market=IN&kind=intraday", "schedule": "0 11 * * 1-5" },
+    { "path": "/api/bot/run?market=US&kind=longterm", "schedule": "0 22 * * 1-5" },
+    { "path": "/api/bot/run?market=US&kind=intraday", "schedule": "30 22 * * 1-5" }
   ],
   "functions": {
     "src/app/api/bot/run/route.ts": { "maxDuration": 300 },
