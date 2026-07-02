@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
 
 import { BACKTEST_CACHE } from "@/lib/backtestCache";
+import { STRATEGY_CATALOG } from "@/lib/strategyCatalog";
 import { TUTORIAL_INDICATORS, TUTORIAL_CONCEPTS } from "@/lib/tutorials";
 
 const CandlestickChart = dynamic(() => import("@/components/CandlestickChart"), { ssr: false });
@@ -42,6 +43,45 @@ interface ScanStrategySignal {
   book: string;
   strength: number;
   details: string;
+}
+
+interface PickStrategyInfo {
+  id: string;
+  name: string;
+  category: string;
+  strength: number;
+  winRate: number;
+}
+
+interface PickItem {
+  symbol: string;
+  name: string;
+  price: number;
+  changePercent: number;
+  score: number;
+  estWinRate: number;
+  buyCount: number;
+  sellCount: number;
+  totalStrategies: number;
+  conviction: number;
+  entry: number;
+  stop: number;
+  target: number;
+  riskReward: number;
+  rationale: string;
+  topStrategies: PickStrategyInfo[];
+}
+
+interface PicksSet {
+  date: string;
+  generatedAt: string;
+  market: string;
+  scanned: number;
+  universe: number;
+  picks: PickItem[];
+  avoid: PickItem[];
+  fromCache?: boolean;
+  stale?: boolean;
 }
 
 interface ScanResult {
@@ -352,127 +392,9 @@ function mapStrategyIndicatorsToChartIds(indicators: string[]): string[] {
   return [...new Set(ids)];
 }
 
-const STRATEGIES: StrategyInfo[] = [
-  // Chapter 1 - Swing
-  { id: "bb-ema", name: "Bollinger Bands + 9 EMA", chapter: "1.1", category: "Swing", book: "Classic Trading Library", description: "Buy when price takes support on lower BB with bullish 9-EMA. Sell at upper BB.", indicators: ["BB (20,2)", "EMA (9)"] },
-  { id: "williams-macd", name: "Williams %R + MACD Duo", chapter: "1.2", category: "Swing", book: "Classic Trading Library", description: "Williams %R oversold reversal + MACD histogram rising + price above SMA.", indicators: ["Williams %R", "MACD", "SMA (14)"] },
-  { id: "macd-fib", name: "MACD + Fibonacci Retracement", chapter: "1.3", category: "Swing", book: "Classic Trading Library", description: "MACD crossover at Fibonacci retracement levels for swing entries.", indicators: ["MACD", "Fibonacci"] },
-  { id: "triangle-breakout", name: "Riding a Breakout (Triangle)", chapter: "1.4", category: "Swing", book: "Classic Trading Library", description: "Detects narrowing price range (triangle) followed by volume breakout.", indicators: ["Price Range", "Volume"] },
-  { id: "institutional-moves", name: "Institutional Moves", chapter: "1.5", category: "Swing", book: "Classic Trading Library", description: "Gap up/down followed by retracement to demand/supply zone.", indicators: ["Gap Detection", "Volume"] },
-  { id: "bb-width", name: "BB Width Breakout", chapter: "1.6", category: "Swing", book: "Classic Trading Library", description: "Bollinger Band squeeze then directional expansion breakout.", indicators: ["BB Width", "BB (20,2)"] },
-  { id: "ichimoku-cloud", name: "Ichimoku Cloud", chapter: "1.7", category: "Swing", book: "Classic Trading Library", description: "Conversion/Base line crossover + price above/below the cloud.", indicators: ["Ichimoku (9,26,52)"] },
-  // Chapter 2 - Intraday
-  { id: "ma-fibonacci", name: "Moving Average + Fibonacci", chapter: "2.1", category: "Intraday", book: "Classic Trading Library", description: "Price above 200-SMA pulling back to Fibonacci support levels.", indicators: ["SMA (200)", "Fibonacci"] },
-  { id: "supertrend-pivot", name: "Supertrend + Pivot Points", chapter: "2.2", category: "Intraday", book: "Classic Trading Library", description: "Price above R1 + Supertrend bullish for buy signals.", indicators: ["Supertrend", "Pivots"] },
-  { id: "vwap-stddev", name: "VWAP + Standard Deviations", chapter: "2.3", category: "Intraday", book: "Classic Trading Library", description: "Price relative to VWAP proxy for overvalued/undervalued detection.", indicators: ["VWAP Proxy"] },
-  { id: "rsi-volume", name: "RSI + Volume Oscillator", chapter: "2.4", category: "Intraday", book: "Classic Trading Library", description: "RSI oversold/overbought confirmed by Volume Oscillator extremes.", indicators: ["RSI (14)", "Vol Osc (5,10)"] },
-  { id: "wait-trade-pullback", name: "Wait & Trade Pullback", chapter: "2.5", category: "Intraday", book: "Classic Trading Library", description: "Price in uptrend pulls back to pivot support with bullish candle.", indicators: ["Pivot Points", "Candle Pattern"] },
-  { id: "double-rsi", name: "Double RSI", chapter: "2.6", category: "Intraday", book: "Classic Trading Library", description: "RSI(5) + RSI(60) confluence for strong overbought/oversold signals.", indicators: ["RSI (5)", "RSI (60)"] },
-  { id: "cpr-trend", name: "CPR with Trend Following", chapter: "2.7", category: "Intraday", book: "Classic Trading Library", description: "Central Pivot Range: narrow CPR = trending, wide CPR = range-bound.", indicators: ["CPR", "Pivot Points"] },
-  // Chapter 3 - Advanced
-  { id: "dow-theory", name: "Dow Theory (HH/HL)", chapter: "3.1", category: "Advanced", book: "Classic Trading Library", description: "Higher highs + higher lows = uptrend. Lower highs + lower lows = downtrend.", indicators: ["Swing Points"] },
-  { id: "smart-money", name: "Smart Money Concept", chapter: "3.2", category: "Advanced", book: "Classic Trading Library", description: "Break of Structure (BoS) detection for institutional order flow.", indicators: ["BoS", "CHoCH"] },
-  { id: "elliott-wave", name: "Elliott Wave Theory", chapter: "3.3", category: "Advanced", book: "Classic Trading Library", description: "5-wave impulse pattern detection at correction points (wave 2/4).", indicators: ["Wave Analysis"] },
-  { id: "fractal-trading", name: "Fractal-Based Trading", chapter: "3.4", category: "Advanced", book: "Classic Trading Library", description: "Williams Fractals (4/4) + 50-SMA directional filter for breakouts.", indicators: ["Fractals", "SMA (50)"] },
-  { id: "renko-rsi-stoch", name: "Renko + RSI + Stoch RSI", chapter: "3.5", category: "Advanced", book: "Classic Trading Library", description: "RSI + Stochastic RSI confluence at key support/resistance levels.", indicators: ["RSI", "Stoch RSI"] },
-  { id: "donchian-pullback", name: "Donchian Channel Pullback", chapter: "3.6", category: "Advanced", book: "Classic Trading Library", description: "Price touches Donchian band, pulls back, then retests for entry.", indicators: ["Donchian (20)"] },
-  { id: "gann-linear-reg", name: "Gann Fan + Linear Regression", chapter: "3.7", category: "Advanced", book: "Classic Trading Library", description: "Linear regression trend direction with price position analysis.", indicators: ["Linear Reg", "Trend"] },
-  // Chapter 4 - Positional
-  { id: "macro-pivots", name: "Moving with Macro Trends", chapter: "4.1", category: "Positional", book: "Classic Trading Library", description: "Daily pivot points for positional swings at support/resistance.", indicators: ["Pivot Points"] },
-  { id: "supertrend-rsi", name: "Supertrend + RSI (Positional)", chapter: "4.2", category: "Positional", book: "Classic Trading Library", description: "RSI > 60 + bullish Supertrend = buy. RSI < 40 + bearish = sell.", indicators: ["Supertrend", "RSI (14)"] },
-  { id: "sectoral-analysis", name: "Sectoral Analysis", chapter: "4.3", category: "Positional", book: "Classic Trading Library", description: "Stock momentum vs sector - outperforming stocks get buy signals.", indicators: ["Relative Strength"] },
-  { id: "mw-rsi-pattern", name: "M & W RSI Pattern", chapter: "4.4", category: "Positional", book: "Classic Trading Library", description: "RSI W-bottom (buy) or M-top (sell) pattern detection.", indicators: ["RSI (14)"] },
-  // Chapter 5 - Scalping
-  { id: "sar-rsi-ha", name: "Parabolic SAR + RSI + Heiken Ashi", chapter: "5.1", category: "Scalping", book: "Classic Trading Library", description: "SAR below price + RSI > 50 + bullish candle = buy confluence.", indicators: ["SAR", "RSI", "Heiken Ashi"] },
-  { id: "rsi-divergence-bb", name: "RSI Divergence + Bollinger Bands", chapter: "5.2", category: "Scalping", book: "Classic Trading Library", description: "RSI divergence with price at Bollinger Band extremes.", indicators: ["RSI Divergence", "BB"] },
-  { id: "rsi-vwap-scalp", name: "RSI + VWAP Scalping", chapter: "5.3", category: "Scalping", book: "Classic Trading Library", description: "Price below VWAP + RSI < 40 = buy. Above VWAP + RSI > 60 = sell.", indicators: ["RSI", "VWAP Proxy"] },
-  { id: "consolidation-breakout", name: "Consolidation Breakouts", chapter: "5.4", category: "Scalping", book: "Classic Trading Library", description: "ATR contraction (tight range) followed by directional breakout.", indicators: ["ATR", "Range"] },
-  { id: "ma-scalping", name: "Moving Average Scalping", chapter: "5.5", category: "Scalping", book: "Classic Trading Library", description: "5-EMA crosses 13-EMA + price above/below 50-SMA.", indicators: ["EMA (5,13)", "SMA (50)"] },
-  { id: "martingale", name: "Martingale System", chapter: "5.6", category: "Scalping", book: "Classic Trading Library", description: "After 3+ consecutive red candles, buy on mean reversion probability.", indicators: ["Candle Pattern"] },
-  // Chapter 6 - Options
-  { id: "weekly-hedged", name: "Weekly Hedged Strategy", chapter: "6.1", category: "Options", book: "Classic Trading Library", description: "Low volatility range-bound detection for options selling.", indicators: ["ATR", "Pivots"] },
-  { id: "multi-tf-options", name: "Multi-Timeframe Options", chapter: "6.2", category: "Options", book: "Classic Trading Library", description: "Short-term (5/13 EMA) vs medium-term (21/50 EMA) trend alignment.", indicators: ["EMA (5,13,21,50)"] },
-  { id: "oi-analysis", name: "Open Interest Analysis", chapter: "6.3", category: "Options", book: "Classic Trading Library", description: "Volume + price direction analysis as OI proxy. Rising both = strong trend.", indicators: ["Volume", "Price"] },
-  { id: "supertrend-selling", name: "Supertrend Selling", chapter: "6.4", category: "Options", book: "Classic Trading Library", description: "Supertrend direction change signals for options entry.", indicators: ["Supertrend"] },
-  { id: "option-vwap", name: "Combined Option + VWAP", chapter: "6.5", category: "Options", book: "Classic Trading Library", description: "Price crossing VWAP proxy + trend direction confirmation.", indicators: ["VWAP Proxy", "EMA"] },
-  { id: "momentum-buying", name: "Momentum Buying Option", chapter: "6.6", category: "Options", book: "Classic Trading Library", description: "RSI > 65 + price above 20-EMA + strong recent gains.", indicators: ["RSI", "EMA (20)"] },
-  { id: "expiry-decay", name: "Expiry Decay Strategy", chapter: "6.7", category: "Options", book: "Classic Trading Library", description: "High RSI + low ATR = premium selling opportunity (range-bound).", indicators: ["RSI", "ATR"] },
-  { id: "combined-stoploss", name: "Combined Stoploss Strategy", chapter: "6.8", category: "Options", book: "Classic Trading Library", description: "Triple confirmation: above 20-EMA + above VWAP + RSI > 50.", indicators: ["EMA", "VWAP", "RSI"] },
-  { id: "theta-decay", name: "Theta Decay Strategy", chapter: "6.9", category: "Options", book: "Classic Trading Library", description: "ATR declining + price within BB middle zone = range-bound.", indicators: ["ATR", "BB"] },
-  { id: "btst-momentum", name: "BTST Momentum", chapter: "6.10", category: "Options", book: "Classic Trading Library", description: "Strong bullish candle (>1.5%) + high volume + RSI rising.", indicators: ["Volume", "RSI", "Price"] },
-  { id: "3pm-nifty", name: "3 PM Nifty Strategy", chapter: "6.11", category: "Options", book: "Classic Trading Library", description: "End-of-day momentum: close vs VWAP for next session direction.", indicators: ["VWAP Proxy", "Close"] },
-  { id: "momentum-selling", name: "Momentum Selling", chapter: "6.12", category: "Options", book: "Classic Trading Library", description: "Price below 20-EMA + RSI < 40 + big red candle (>1.5% loss).", indicators: ["EMA", "RSI"] },
-  { id: "swing-buying-options", name: "Swing Buying Options", chapter: "6.13", category: "Options", book: "Classic Trading Library", description: "BB lower support + RSI oversold + Volume spike = swing buy.", indicators: ["BB", "RSI", "Volume"] },
-  // Chapter 7 - Price Action
-  { id: "ema-crossover", name: "9 & 21 EMA Crossover", chapter: "7.1", category: "Price Action", book: "Classic Trading Library", description: "Classic EMA crossover. Bullish when 9-EMA crosses above 21-EMA.", indicators: ["EMA (9)", "EMA (21)"] },
-  { id: "positional-pa", name: "Positional Price Action", chapter: "7.2", category: "Price Action", book: "Classic Trading Library", description: "Price above both 50-SMA and 200-SMA = bullish. Below both = bearish.", indicators: ["SMA (50)", "SMA (200)"] },
-  { id: "pin-bar", name: "Pin Bar Reversal Pattern", chapter: "7.3", category: "Price Action", book: "Classic Trading Library", description: "Long wick candles (>2x body) near support/resistance for reversals.", indicators: ["Candle Pattern"] },
-  { id: "pullback", name: "Pullback Strategy", chapter: "7.4", category: "Price Action", book: "Classic Trading Library", description: "In uptrend, price pulls back to 20-EMA then bounces.", indicators: ["EMA (20)", "Trend"] },
-  { id: "repo-rate", name: "Trading on Repo Rates", chapter: "7.5", category: "Price Action", book: "Classic Trading Library", description: "200-SMA macro trend filter + RSI momentum confirmation.", indicators: ["SMA (200)", "RSI"] },
-  { id: "vcp", name: "Volatility Contraction (VCP)", chapter: "7.6", category: "Price Action", book: "Classic Trading Library", description: "Tightening price ranges (each contraction smaller) = pending breakout.", indicators: ["Range Analysis"] },
-  { id: "two-leg-pullback", name: "Two-Legged Pullback", chapter: "7.7", category: "Price Action", book: "Classic Trading Library", description: "Two consecutive pullback legs in trend, then reversal candle.", indicators: ["Candle Pattern", "Trend"] },
-
-  // The Intelligent Investor - Benjamin Graham
-  { id: "graham-margin-of-safety", name: "Margin of Safety", chapter: "Ch 20", category: "Value Investing", book: "Classic Trading Library", description: "Buy when price is >25% below 52-week high. Deep discount = margin of safety.", indicators: ["52W High", "Price"] },
-  { id: "graham-defensive-value", name: "Defensive Value Screen", chapter: "Ch 14", category: "Value Investing", book: "Classic Trading Library", description: "Low volatility + above 200-SMA + not overbought. Stable defensive stock.", indicators: ["ATR", "SMA (200)", "RSI"] },
-  { id: "graham-mr-market", name: "Mr. Market Contrarian", chapter: "Ch 8", category: "Value Investing", book: "Classic Trading Library", description: "Buy extreme fear (RSI<25 + price 20% below 50-SMA). Sell extreme greed.", indicators: ["RSI", "SMA (50)"] },
-  { id: "graham-enterprising", name: "Enterprising Investor", chapter: "Ch 15", category: "Value Investing", book: "Classic Trading Library", description: "Growth: above 50 & 200 SMA, higher highs, RSI 50-70.", indicators: ["SMA (50,200)", "RSI"] },
-  { id: "graham-net-current-asset", name: "Net Asset Value Play", chapter: "Ch 7", category: "Value Investing", book: "Classic Trading Library", description: "Near 52W lows (bottom 15%) with rising RSI. Deep value reversal.", indicators: ["52W Range", "RSI"] },
-
-  // Technical Analysis - John Murphy
-  { id: "murphy-triple-ma", name: "Triple Moving Average", chapter: "Ch 9", category: "Trend Following", book: "Classic Trading Library", description: "4-9-18 SMA alignment. Buy: 4>9>18. Sell: 4<9<18.", indicators: ["SMA (4,9,18)"] },
-  { id: "murphy-macd-histogram", name: "MACD Histogram Divergence", chapter: "Ch 10", category: "Trend Following", book: "Classic Trading Library", description: "MACD histogram divergence with price for reversal signals.", indicators: ["MACD Histogram"] },
-  { id: "murphy-rsi-70-30", name: "RSI 70/30 Classic", chapter: "Ch 10", category: "Trend Following", book: "Classic Trading Library", description: "Buy RSI crossing above 30. Sell RSI crossing below 70.", indicators: ["RSI (14)"] },
-  { id: "murphy-stochastic-kd", name: "Stochastic %K/%D", chapter: "Ch 10", category: "Trend Following", book: "Classic Trading Library", description: "Buy %K crosses %D in oversold (<20). Sell in overbought (>80).", indicators: ["Stochastic (14)"] },
-  { id: "murphy-support-resistance", name: "Support/Resistance Breakout", chapter: "Ch 4", category: "Trend Following", book: "Classic Trading Library", description: "Buy breakout above 20-day high. Sell breakdown below 20-day low.", indicators: ["20-Day Range"] },
-  { id: "murphy-head-shoulders", name: "Head & Shoulders", chapter: "Ch 5", category: "Trend Following", book: "Classic Trading Library", description: "Head & Shoulders pattern detection for major reversals.", indicators: ["Pattern"] },
-  { id: "murphy-double-top-bottom", name: "Double Top/Bottom", chapter: "Ch 5", category: "Trend Following", book: "Classic Trading Library", description: "Two peaks/troughs at similar levels signal reversal.", indicators: ["Pattern"] },
-  { id: "murphy-volume-confirmation", name: "Volume Price Confirm", chapter: "Ch 7", category: "Trend Following", book: "Classic Trading Library", description: "Rising price + rising volume = strong trend confirmation.", indicators: ["Volume", "Price"] },
-  { id: "murphy-ma-envelope", name: "MA Envelope", chapter: "Ch 9", category: "Trend Following", book: "Classic Trading Library", description: "Price outside 3% envelope of 20-SMA signals overbought/oversold.", indicators: ["SMA (20)", "Envelope"] },
-  { id: "murphy-roc", name: "Rate of Change (ROC)", chapter: "Ch 10", category: "Trend Following", book: "Classic Trading Library", description: "12-period ROC crossing zero line for momentum shifts.", indicators: ["ROC (12)"] },
-
-  // Japanese Candlestick - Steve Nison
-  { id: "nison-hammer", name: "Hammer Pattern", chapter: "Ch 4", category: "Candlestick", book: "Classic Trading Library", description: "Long lower shadow (2x body) after downtrend. Bullish reversal.", indicators: ["Candle Pattern"] },
-  { id: "nison-engulfing", name: "Engulfing Pattern", chapter: "Ch 4", category: "Candlestick", book: "Classic Trading Library", description: "Current candle body engulfs previous. Bullish/bearish reversal.", indicators: ["Candle Pattern"] },
-  { id: "nison-doji-star", name: "Doji Star", chapter: "Ch 8", category: "Candlestick", book: "Classic Trading Library", description: "Doji (open=close) after trending move signals indecision/reversal.", indicators: ["Candle Pattern"] },
-  { id: "nison-morning-evening-star", name: "Morning/Evening Star", chapter: "Ch 5", category: "Candlestick", book: "Classic Trading Library", description: "3-candle reversal: large, small body, large opposite direction.", indicators: ["Candle Pattern"] },
-  { id: "nison-dark-cloud-piercing", name: "Dark Cloud / Piercing", chapter: "Ch 4", category: "Candlestick", book: "Classic Trading Library", description: "2-candle pattern: opens beyond previous, closes into body.", indicators: ["Candle Pattern"] },
-  { id: "nison-three-soldiers-crows", name: "Three Soldiers/Crows", chapter: "Ch 6", category: "Candlestick", book: "Classic Trading Library", description: "3 consecutive same-direction candles with progressive closes.", indicators: ["Candle Pattern"] },
-  { id: "nison-harami", name: "Harami Pattern", chapter: "Ch 6", category: "Candlestick", book: "Classic Trading Library", description: "Small candle within previous large candle signals reversal.", indicators: ["Candle Pattern"] },
-  { id: "nison-shooting-star", name: "Shooting Star", chapter: "Ch 5", category: "Candlestick", book: "Classic Trading Library", description: "Long upper shadow at top of uptrend signals bearish reversal.", indicators: ["Candle Pattern"] },
-  { id: "nison-tweezers", name: "Tweezers Top/Bottom", chapter: "Ch 6", category: "Candlestick", book: "Classic Trading Library", description: "Two candles with matching highs/lows at turning points.", indicators: ["Candle Pattern"] },
-
-  // Common Sense Investing - John Bogle
-  { id: "bogle-trend-following", name: "Long-Term Trend", chapter: "Ch 8", category: "Index Investing", book: "Classic Trading Library", description: "Price above 200-SMA = long-term uptrend. Simple and effective.", indicators: ["SMA (200)"] },
-  { id: "bogle-mean-reversion", name: "Mean Reversion", chapter: "Ch 9", category: "Index Investing", book: "Classic Trading Library", description: "Price >10% from 100-SMA expects reversion. Buy below, sell above.", indicators: ["SMA (100)"] },
-  { id: "bogle-low-cost-momentum", name: "Low-Cost Momentum", chapter: "Ch 12", category: "Index Investing", book: "Classic Trading Library", description: "Low volatility + positive trend = steady investment candidate.", indicators: ["ATR", "SMA (50,100)"] },
-
-  // Market Wizards - Jack Schwager
-  { id: "wizard-trend-breakout", name: "Turtle Breakout", chapter: "Dennis", category: "Trend Following", book: "Classic Trading Library", description: "Buy breakout above 20-day high. Sell below 20-day low. (Richard Dennis)", indicators: ["20-Day Range"] },
-  { id: "wizard-risk-reward", name: "Risk-Adjusted Entry", chapter: "Hite", category: "Trend Following", book: "Classic Trading Library", description: "Enter near support (within 2% of 20-day low) with uptrend. (Larry Hite)", indicators: ["20-Day Low", "SMA (50)"] },
-  { id: "wizard-seykota-trend", name: "Seykota Trend System", chapter: "Seykota", category: "Trend Following", book: "Classic Trading Library", description: "50-EMA trend + MACD momentum must align. (Ed Seykota)", indicators: ["EMA (50)", "MACD"] },
-  { id: "wizard-weinstein-stage", name: "Weinstein Stage 2", chapter: "Weinstein", category: "Trend Following", book: "Classic Trading Library", description: "Price breaks above flattening 150-SMA + volume surge. (Mark Weinstein)", indicators: ["SMA (150)", "Volume"] },
-  { id: "wizard-schwartz-momentum", name: "Schwartz Momentum", chapter: "Schwartz", category: "Trend Following", book: "Classic Trading Library", description: "10-EMA above 40-EMA, both rising, pullback to 10-EMA = buy. (Marty Schwartz)", indicators: ["EMA (10,40)"] },
-
-  // OpenBB-Inspired Signal Concepts
-  { id: "obv-trend-confirm", name: "OBV Trend Confirmation", chapter: "OB1", category: "Trend Following", book: "OpenBB Signals", description: "On Balance Volume rising with price confirms buying pressure. Divergence warns of reversal.", indicators: ["OBV", "SMA (20)"] },
-  { id: "adl-accumulation", name: "Accumulation/Distribution", chapter: "OB2", category: "Trend Following", book: "OpenBB Signals", description: "Tracks money flow into/out of a stock. Rising ADL = institutional accumulation.", indicators: ["ADL", "EMA (21)"] },
-  { id: "adx-trend-strength", name: "ADX Trend Strength", chapter: "OB3", category: "Trend Following", book: "OpenBB Signals", description: "ADX > 25 indicates strong trend. +DI > -DI = bullish. Combines direction with strength.", indicators: ["ADX (14)", "+DI", "-DI"] },
-  { id: "cci-extreme-reversal", name: "CCI Extreme Reversal", chapter: "OB4", category: "Swing", book: "OpenBB Signals", description: "CCI below -100 signals oversold (buy), above +100 signals overbought (sell).", indicators: ["CCI (20)"] },
-  { id: "aroon-trend-change", name: "Aroon Trend Change", chapter: "OB5", category: "Swing", book: "OpenBB Signals", description: "Aroon Up crossing above Aroon Down signals new uptrend. Oscillator confirms direction.", indicators: ["Aroon (25)"] },
-  { id: "mfi-money-flow", name: "Money Flow Index", chapter: "OB6", category: "Swing", book: "OpenBB Signals", description: "Volume-weighted RSI. MFI < 20 = oversold with volume confirmation. MFI > 80 = overbought.", indicators: ["MFI (14)"] },
-  { id: "force-index-momentum", name: "Force Index Momentum", chapter: "OB7", category: "Swing", book: "OpenBB Signals", description: "Combines price change with volume. Positive force = bulls in control.", indicators: ["Force Index (13)"] },
-  { id: "golden-death-cross", name: "Golden/Death Cross", chapter: "OB8", category: "Positional", book: "OpenBB Signals", description: "50-SMA crossing above 200-SMA = Golden Cross (major buy). Below = Death Cross.", indicators: ["SMA (50)", "SMA (200)"] },
-  { id: "institutional-accumulation", name: "Institutional Accumulation", chapter: "OB9", category: "Positional", book: "OpenBB Signals", description: "Large volume spikes without proportional price moves indicate institutional accumulation.", indicators: ["Volume", "ATR", "Price"] },
-  { id: "relative-strength-market", name: "Relative Strength vs Market", chapter: "OB10", category: "Positional", book: "OpenBB Signals", description: "Stock outperforming its own history signals leadership.", indicators: ["ROC (5)", "ROC (20)", "SMA (50)"] },
-  { id: "fear-greed-momentum", name: "Fear & Greed Reversal", chapter: "OB11", category: "Swing", book: "OpenBB Signals", description: "Extreme RSI + BB + volume spike = market extreme. Buy fear, sell greed.", indicators: ["RSI (14)", "BB (20,2)", "Volume"] },
-  { id: "gap-continuation", name: "Gap & Go Pattern", chapter: "OB12", category: "Intraday", book: "OpenBB Signals", description: "Gap up/down with volume confirms direction. Gap fills are sell signals.", indicators: ["Gap %", "Volume", "VWAP Proxy"] },
-  { id: "stochastic-momentum", name: "Stochastic Momentum", chapter: "OB13", category: "Swing", book: "OpenBB Signals", description: "Stochastic %K/%D crossover in oversold/overbought zones.", indicators: ["Stochastic (14,3)", "SMA (50)"] },
-  { id: "multi-indicator-confluence", name: "Multi-Indicator Confluence", chapter: "OB14", category: "Advanced", book: "OpenBB Signals", description: "Combines RSI, MACD, BB, and volume for high-confidence signals when 3+ align.", indicators: ["RSI", "MACD", "BB", "Volume"] },
-  { id: "volatility-breakout", name: "Volatility Squeeze Breakout", chapter: "OB15", category: "Advanced", book: "OpenBB Signals", description: "BB width contracts (squeeze), then expands with direction. Low volatility precedes big moves.", indicators: ["BB Width", "ATR", "Volume"] },
-  { id: "rsi-macd-divergence", name: "RSI-MACD Divergence", chapter: "OB16", category: "Advanced", book: "OpenBB Signals", description: "Price makes new low but RSI doesn't = bullish divergence (strong buy).", indicators: ["RSI (14)", "MACD", "Price"] },
-  { id: "market-regime-detector", name: "Market Regime Detector", chapter: "OB17", category: "Advanced", book: "OpenBB Signals", description: "Identifies trending vs mean-reverting markets using ADX + ATR + MA alignment.", indicators: ["ADX", "ATR", "SMA (20,50)"] },
-];
+// The served strategy list (metadata only — evaluate() stays server-side).
+// Auto-generated from the 5-year backtest survivors; see scripts/backtest5y.ts.
+const STRATEGIES: StrategyInfo[] = STRATEGY_CATALOG;
 
 const CATEGORY_COLORS: Record<string, string> = {
   Swing: "bg-orange-500/20 text-orange-400 border-orange-500/30",
@@ -560,7 +482,7 @@ function Spinner() {
 }
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<"home" | "market" | "global" | "signals" | "portfolio" | "bot" | "etfs" | "themes" | "strategies" | "scan" | "search" | "learn">("home");
+  const [activeTab, setActiveTab] = useState<"home" | "picks" | "market" | "global" | "signals" | "portfolio" | "bot" | "etfs" | "themes" | "strategies" | "scan" | "search" | "learn">("home");
   const [strategiesSubTab, setStrategiesSubTab] = useState<"screener" | "insider">("screener");
   const [selectedStrategy, setSelectedStrategy] = useState<StrategyInfo | null>(null);
   const [signalFilter, setSignalFilter] = useState("ALL");
@@ -573,6 +495,8 @@ export default function Home() {
 
   // Scan
   const [scanResults, setScanResults] = useState<ScanResult[]>([]);
+  const [picksData, setPicksData] = useState<PicksSet | null>(null);
+  const [picksLoading, setPicksLoading] = useState(false);
   const [scanLoading, setScanLoading] = useState(false);
   const [scanInfo, setScanInfo] = useState({ scanned: 0, total: 0 });
   const [expandedScan, setExpandedScan] = useState<string | null>(null);
@@ -635,6 +559,7 @@ export default function Home() {
     // Clear cached market-specific data so tabs refetch
     setResults([]);
     setScanResults([]);
+    setPicksData(null);
     setMasterResults([]);
     setSignalsData(null);
     // Portfolio holdings + their live data span both markets, so we keep
@@ -661,7 +586,7 @@ export default function Home() {
       minimumFractionDigits: decimals,
       maximumFractionDigits: decimals,
     })}`, [currencySymbol, market]);
-  const universeLabel = market === "US" ? "S&P 500" : "NSE";
+  const universeLabel = market === "US" ? "S&P 500" : "NIFTY 500";
 
   // Per-market currency helpers — used by Portfolio so each holding renders in
   // its own native currency regardless of the globally-active market.
@@ -906,6 +831,23 @@ export default function Home() {
     setSignalsLoading(false);
   }, [market]);
 
+  const loadPicks = useCallback(async () => {
+    setPicksLoading(true);
+    track("picks_load", { market });
+    try {
+      const res = await fetch(`/api/recommendations?market=${market}`);
+      if (res.ok) setPicksData(await res.json());
+    } catch { /* ignore */ }
+    setPicksLoading(false);
+  }, [market]);
+
+  // Keep the Picks tab populated across market switches (switchMarket nulls
+  // the data) and when it's opened via the hero CTA.
+  useEffect(() => {
+    if (activeTab === "picks" && !picksData && !picksLoading) loadPicks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, market, picksData]);
+
   const loadBot = useCallback(async () => {
     setBotLoading(true);
     try {
@@ -1011,13 +953,13 @@ export default function Home() {
 
           {/* Desktop tab bar (lg+) */}
           <nav className="hidden lg:flex items-center gap-1 bg-white/5 rounded-lg p-0.5 overflow-x-auto flex-1 justify-center" aria-label="Primary">
-            {(["home", "market", "global", "signals", "portfolio", "bot", "etfs", "themes", "strategies", "scan", "search", "learn"] as const).map((tab) => (
+            {(["home", "picks", "market", "global", "signals", "portfolio", "bot", "etfs", "themes", "strategies", "scan", "search", "learn"] as const).map((tab) => (
               <button
                 key={tab}
-                onClick={() => { setActiveTab(tab); if (tab === "signals" && !signalsData) loadSignals(); if (tab === "global" && !globalData) loadGlobal(); if (tab === "portfolio" && portfolio.length > 0 && portfolioData.length === 0) refreshPortfolio(); if (tab === "etfs" && !etfData) loadEtfs(); if (tab === "themes" && !thematicData) loadThematic(); if (tab === "bot" && !botState) loadBot(); }}
+                onClick={() => { setActiveTab(tab); if (tab === "picks" && !picksData) loadPicks(); if (tab === "signals" && !signalsData) loadSignals(); if (tab === "global" && !globalData) loadGlobal(); if (tab === "portfolio" && portfolio.length > 0 && portfolioData.length === 0) refreshPortfolio(); if (tab === "etfs" && !etfData) loadEtfs(); if (tab === "themes" && !thematicData) loadThematic(); if (tab === "bot" && !botState) loadBot(); }}
                 className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all whitespace-nowrap ${activeTab === tab ? "bg-white/10 text-white" : "text-gray-400 hover:text-white"}`}
               >
-                {tab === "home" ? "Home" : tab === "market" ? "Market" : tab === "global" ? "Global" : tab === "signals" ? "Signals" : tab === "portfolio" ? `Portfolio${portfolio.length > 0 ? ` (${portfolio.length})` : ""}` : tab === "bot" ? "Bot" : tab === "etfs" ? "ETFs" : tab === "themes" ? "Themes" : tab === "strategies" ? "Strategies" : tab === "scan" ? "Scan" : tab === "search" ? "Lookup" : "Learn"}
+                {tab === "home" ? "Home" : tab === "picks" ? "Top Picks" : tab === "market" ? "Market" : tab === "global" ? "Global" : tab === "signals" ? "Signals" : tab === "portfolio" ? `Portfolio${portfolio.length > 0 ? ` (${portfolio.length})` : ""}` : tab === "bot" ? "Bot" : tab === "etfs" ? "ETFs" : tab === "themes" ? "Themes" : tab === "strategies" ? "Strategies" : tab === "scan" ? "Scan" : tab === "search" ? "Lookup" : "Learn"}
               </button>
             ))}
           </nav>
@@ -1079,12 +1021,13 @@ export default function Home() {
           <div className="lg:hidden border-t border-white/5 bg-[var(--header-bg)]">
             <nav className="max-w-7xl mx-auto px-4 sm:px-6 py-3" aria-label="Mobile primary">
               <div className="grid grid-cols-2 gap-1.5">
-                {(["home", "market", "global", "signals", "portfolio", "bot", "etfs", "themes", "strategies", "scan", "search", "learn"] as const).map((tab) => (
+                {(["home", "picks", "market", "global", "signals", "portfolio", "bot", "etfs", "themes", "strategies", "scan", "search", "learn"] as const).map((tab) => (
                   <button
                     key={tab}
                     onClick={() => {
                       setActiveTab(tab);
                       setMobileNavOpen(false);
+                      if (tab === "picks" && !picksData) loadPicks();
                       if (tab === "signals" && !signalsData) loadSignals();
                       if (tab === "global" && !globalData) loadGlobal();
                       if (tab === "portfolio" && portfolio.length > 0 && portfolioData.length === 0) refreshPortfolio();
@@ -1094,7 +1037,7 @@ export default function Home() {
                     }}
                     className={`px-3 py-2.5 rounded-lg text-sm font-medium text-left transition-all ${activeTab === tab ? "bg-white/10 text-white" : "bg-white/[0.02] text-gray-300 hover:bg-white/[0.05]"}`}
                   >
-                    {tab === "home" ? "Home" : tab === "market" ? "Market" : tab === "global" ? "Global" : tab === "signals" ? "Signals" : tab === "portfolio" ? `Portfolio${portfolio.length > 0 ? ` (${portfolio.length})` : ""}` : tab === "bot" ? "Bot" : tab === "etfs" ? "ETFs" : tab === "themes" ? "Themes" : tab === "strategies" ? "Strategies" : tab === "scan" ? "Scan" : tab === "search" ? "Lookup" : "Learn"}
+                    {tab === "home" ? "Home" : tab === "picks" ? "Top Picks" : tab === "market" ? "Market" : tab === "global" ? "Global" : tab === "signals" ? "Signals" : tab === "portfolio" ? `Portfolio${portfolio.length > 0 ? ` (${portfolio.length})` : ""}` : tab === "bot" ? "Bot" : tab === "etfs" ? "ETFs" : tab === "themes" ? "Themes" : tab === "strategies" ? "Strategies" : tab === "scan" ? "Scan" : tab === "search" ? "Lookup" : "Learn"}
                   </button>
                 ))}
               </div>
@@ -1154,10 +1097,10 @@ export default function Home() {
                 </p>
                 <div className="flex flex-wrap items-center justify-center gap-3 mb-10">
                   <button
-                    onClick={() => { track("cta_click", { label: "launch_screener", location: "hero" }); setActiveTab("market"); }}
+                    onClick={() => { track("cta_click", { label: "see_picks", location: "hero" }); setActiveTab("picks"); }}
                     className="px-6 py-3 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-black font-bold text-sm shadow-lg shadow-amber-500/20 transition-all"
                   >
-                    Launch the Screener →
+                    See Today&apos;s Top Picks →
                   </button>
                   <button
                     onClick={() => { track("cta_click", { label: "see_bot", location: "hero" }); setActiveTab("bot"); }}
@@ -1777,6 +1720,130 @@ export default function Home() {
         )}
 
         {/* ─── SIGNALS TAB ─── */}
+        {activeTab === "picks" && (
+          <div>
+            <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
+              <div>
+                <h1 className="text-2xl font-bold flex items-center gap-2">
+                  {market === "US" ? "🇺🇸" : "🇮🇳"} Today&apos;s Top Picks
+                </h1>
+                <p className="text-sm text-gray-500 mt-1">
+                  Ranked by win-rate-weighted confluence of {STRATEGIES.length} verified strategies
+                  {picksData ? ` · scanned ${picksData.scanned} of ${picksData.universe} ${universeLabel} stocks` : ""}
+                  {picksData?.generatedAt ? ` · ${new Date(picksData.generatedAt).toLocaleString()}` : ""}
+                </p>
+              </div>
+              <button
+                onClick={() => { setPicksData(null); }}
+                disabled={picksLoading}
+                className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold transition-all disabled:opacity-50"
+              >
+                {picksLoading ? "Scanning…" : "Refresh"}
+              </button>
+            </div>
+
+            {picksLoading && !picksData && (
+              <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="h-56 rounded-2xl bg-white/[0.03] border border-white/5 animate-pulse" />
+                ))}
+              </div>
+            )}
+
+            {!picksLoading && picksData && picksData.picks.length === 0 && (
+              <div className="text-center py-16 text-gray-500">
+                <p className="text-lg font-semibold text-gray-400 mb-1">No high-conviction buys right now</p>
+                <p className="text-sm">The verified strategies aren&apos;t agreeing on anything in this market today. That&apos;s a signal too — cash is a position.</p>
+              </div>
+            )}
+
+            {picksData && picksData.picks.length > 0 && (
+              <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {picksData.picks.map((p, idx) => (
+                  <div key={p.symbol} className="rounded-2xl bg-white/[0.02] border border-white/5 hover:border-emerald-500/20 transition-all p-4 flex flex-col gap-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className={`flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold ${idx < 3 ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30" : "bg-white/5 text-gray-400 border border-white/10"}`}>{idx + 1}</span>
+                        <div className="min-w-0">
+                          <button
+                            onClick={() => { track("pick_open", { symbol: p.symbol, market }); setActiveTab("search"); setSearchQuery(p.symbol); searchStock(p.symbol); }}
+                            className="text-base font-bold hover:text-emerald-300 transition-colors"
+                          >
+                            {p.symbol}
+                          </button>
+                          <p className="text-[11px] text-gray-500 truncate max-w-[160px]">{p.name}</p>
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <div className="text-sm font-semibold">{fmtPrice(p.price)}</div>
+                        <div className={`text-[11px] font-mono ${p.changePercent >= 0 ? "text-emerald-400" : "text-red-400"}`}>{p.changePercent >= 0 ? "+" : ""}{p.changePercent.toFixed(2)}%</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-[11px]">
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 font-semibold">{p.buyCount}/{p.totalStrategies} strategies agree</span>
+                      <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-gray-400">~{p.estWinRate}% hist. win rate</span>
+                    </div>
+
+                    <div className="grid grid-cols-4 gap-2 text-center">
+                      <div className="rounded-lg bg-white/[0.03] py-1.5">
+                        <div className="text-[9px] text-gray-500 uppercase tracking-wide">Entry</div>
+                        <div className="text-[11px] font-mono text-gray-200">{fmtPrice(p.entry)}</div>
+                      </div>
+                      <div className="rounded-lg bg-emerald-500/[0.06] py-1.5">
+                        <div className="text-[9px] text-gray-500 uppercase tracking-wide">Target</div>
+                        <div className="text-[11px] font-mono text-emerald-300">{fmtPrice(p.target)}</div>
+                      </div>
+                      <div className="rounded-lg bg-red-500/[0.06] py-1.5">
+                        <div className="text-[9px] text-gray-500 uppercase tracking-wide">Stop</div>
+                        <div className="text-[11px] font-mono text-red-300">{fmtPrice(p.stop)}</div>
+                      </div>
+                      <div className="rounded-lg bg-white/[0.03] py-1.5">
+                        <div className="text-[9px] text-gray-500 uppercase tracking-wide">R:R</div>
+                        <div className="text-[11px] font-mono text-gray-200">{p.riskReward.toFixed(1)}</div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1">
+                      {p.topStrategies.slice(0, 3).map((s) => (
+                        <span key={s.id} className="px-1.5 py-0.5 bg-white/5 rounded text-[10px] text-gray-400" title={`5y win rate ${s.winRate}%`}>
+                          {s.name} <span className="text-emerald-400/80">{s.winRate}%</span>
+                        </span>
+                      ))}
+                    </div>
+
+                    <p className="text-[11px] text-gray-500 leading-relaxed line-clamp-2">{p.rationale}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {picksData && picksData.avoid.length > 0 && (
+              <div className="mt-10">
+                <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Heaviest sell pressure — avoid or exit</h2>
+                <div className="flex flex-wrap gap-2">
+                  {picksData.avoid.map((p) => (
+                    <button
+                      key={p.symbol}
+                      onClick={() => { setActiveTab("search"); setSearchQuery(p.symbol); searchStock(p.symbol); }}
+                      className="px-3 py-1.5 rounded-lg bg-red-500/[0.06] border border-red-500/15 hover:border-red-500/30 text-xs transition-all"
+                    >
+                      <span className="font-bold text-red-300">{p.symbol}</span>
+                      <span className="text-gray-500 ml-2">{p.sellCount} sell signals</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {picksData && (
+              <p className="mt-8 text-[11px] text-gray-600 leading-relaxed max-w-3xl">
+                Recommendations are generated from historical backtests of technical strategies and are for research and education only, not investment advice. Past win rates don&apos;t guarantee future results. Position sizing and risk are your responsibility — the stop is part of the recommendation.
+              </p>
+            )}
+          </div>
+        )}
+
         {activeTab === "signals" && (
           <div>
             <div className="flex items-center justify-between mb-6">
