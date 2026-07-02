@@ -20,6 +20,7 @@ import {
   forceIndex,
   roc,
 } from "./indicators";
+import { VERIFIED_STRATEGY_IDS } from "./verifiedStrategies";
 
 export interface StrategyResult {
   signal: "BUY" | "SELL" | "NEUTRAL";
@@ -1493,7 +1494,11 @@ function hurstExponent(closes: number[], maxLag = 20): number {
   return isFinite(slope) ? Math.max(0, Math.min(1, slope)) : 0.5;
 }
 
-export const STRATEGIES: Strategy[] = [
+// Full strategy library, including ones that failed the 5-year backtest.
+// The site only serves STRATEGIES (bottom of file) — the subset that passed
+// the verification bar (see verifiedStrategies.ts for the exact criteria).
+// Backtest tooling imports ALL_STRATEGIES to re-verify.
+export const ALL_STRATEGIES: Strategy[] = [
   // CHAPTER 1 - SWING STRATEGIES
   {
     id: "bb-ema",
@@ -3995,3 +4000,11 @@ export const STRATEGIES: Strategy[] = [
     },
   },
 ];
+
+// The strategies the site actually serves: only those that passed the 5-year
+// backtest bar (>=63.5% win rate + positive expectancy across the top-500
+// universes of both markets — see verifiedStrategies.ts header for the full
+// trade plan). Regenerate via: npx tsx scripts/backtest5y.ts.
+export const STRATEGIES: Strategy[] = ALL_STRATEGIES.filter((s) =>
+  VERIFIED_STRATEGY_IDS.has(s.id)
+);

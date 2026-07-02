@@ -488,11 +488,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   "Index Investing": "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
 };
 
-const BOOKS = [
-  "All Sources",
-  "Classic Trading Library",
-  "OpenBB Signals",
-];
+const BOOKS = ["All Sources", ...Array.from(new Set(STRATEGIES.map((s) => s.book)))];
 
 function formatNumber(n: number, market: "IN" | "US" = "IN"): string {
   if (market === "US") {
@@ -991,7 +987,7 @@ export default function Home() {
     return catMatch && bookMatch;
   });
 
-  const categories = ["All", "Swing", "Intraday", "Advanced", "Positional", "Scalping", "Options", "Price Action", "Value Investing", "Candlestick", "Trend Following", "Index Investing"];
+  const categories = ["All", ...Array.from(new Set(STRATEGIES.map((s) => s.category)))];
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -1146,15 +1142,15 @@ export default function Home() {
                 </div>
                 <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight leading-[1.05] mb-5">
                   <span className="bg-gradient-to-br from-white via-amber-100 to-amber-400 bg-clip-text text-transparent">
-                    {STRATEGIES.length} trading strategies.
+                    {STRATEGIES.length} verified strategies.
                   </span>
                   <br />
                   <span className="bg-gradient-to-br from-amber-300 via-orange-400 to-red-500 bg-clip-text text-transparent">
-                    Two markets. One screener.
+                    Top 500 stocks. Two markets.
                   </span>
                 </h1>
                 <p className="text-base sm:text-lg text-gray-400 max-w-2xl mx-auto leading-relaxed mb-8">
-                  <strong className="text-gray-200">JuicedTrade Stock Screener</strong> runs {STRATEGIES.length} trading strategies, adapted from classic trading literature and open-source quant research, across every NSE-listed Indian stock and the entire S&amp;P 500. Every trading day. Get buy and sell signals, run backtests, screen ETFs by theme, and watch two autonomous bots — an intraday trader and a long-term investor — trade those signals in real time.
+                  <strong className="text-gray-200">JuicedTrade</strong> is a stock recommendation engine for the top 500 Indian stocks (NIFTY 500) and the top 500 US stocks (S&amp;P 500). We backtested 110 strategies from classic trading literature and open-source quant research over the last 5 years and kept only the {STRATEGIES.length} that won at least 63% of their simulated trades with positive average returns. Every stock, evaluated against every verified strategy, every trading day, plus two autonomous bots trading those signals in real time.
                 </p>
                 <div className="flex flex-wrap items-center justify-center gap-3 mb-10">
                   <button
@@ -1171,9 +1167,9 @@ export default function Home() {
                   </button>
                 </div>
                 <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-gray-500">
-                  <span className="flex items-center gap-1.5"><span className="text-lg">🇮🇳</span> 2,100+ NSE stocks</span>
+                  <span className="flex items-center gap-1.5"><span className="text-lg">🇮🇳</span> NIFTY 500 stocks</span>
                   <span className="flex items-center gap-1.5"><span className="text-lg">🇺🇸</span> 500 S&amp;P stocks</span>
-                  <span className="flex items-center gap-1.5"><span className="text-emerald-400">●</span> {STRATEGIES.length} strategies</span>
+                  <span className="flex items-center gap-1.5"><span className="text-emerald-400">●</span> {STRATEGIES.length} verified strategies</span>
                   <span className="flex items-center gap-1.5"><span className="text-blue-400">●</span> 80+ ETFs scanned</span>
                   <span className="flex items-center gap-1.5"><span className="text-purple-400">●</span> 1-click backtest</span>
                 </div>
@@ -1184,10 +1180,10 @@ export default function Home() {
             <section className="border-y border-white/5 bg-white/[0.015]" aria-labelledby="sources-heading">
               <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 text-center">
                 <h2 id="sources-heading" className="text-[10px] uppercase tracking-[0.2em] text-gray-500 mb-3 font-semibold">
-                  Strategies adapted from bestselling trading literature
+                  Survivors of a 5-year backtest across both markets
                 </h2>
                 <p className="text-sm text-gray-400 max-w-2xl mx-auto leading-relaxed">
-                  Swing · Intraday · Advanced · Positional · Scalping · Options · Price Action · Candlestick Patterns · Value Investing · Trend Following · Index Investing. <strong className="text-gray-200">{STRATEGIES.length} strategies across 11 categories</strong>, every stock evaluated daily.
+                  We tested 110 strategies from bestselling trading literature and quant research on 5 years of NIFTY 500 and S&amp;P 500 history, simulating every buy signal with an ATR-based target and stop. <strong className="text-gray-200">Only the {STRATEGIES.length} that closed 63-70% of their trades profitably, in both markets, made the cut</strong>, and every stock is evaluated against all of them daily.
                 </p>
               </div>
             </section>
@@ -1388,7 +1384,7 @@ export default function Home() {
                     },
                     {
                       q: "Which markets are covered?",
-                      a: "India: all 2,100+ NSE-listed equities. United States: all 500 S&P 500 stocks. Switch markets from the header toggle at any time and the entire app adapts.",
+                      a: "India: the top 500 NSE stocks (official NIFTY 500 constituents). United States: all 500 S&P 500 stocks. Switch markets from the header toggle at any time and the entire app adapts.",
                     },
                     {
                       q: "How is it different from Chartink, Screener.in, or TradingView?",

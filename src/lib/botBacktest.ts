@@ -1,4 +1,5 @@
 import { getHistoricalData, getIntradayData } from "./stockData";
+import { STRATEGIES } from "./strategies";
 import { getMarketConfig, type Market } from "./markets";
 import { analyze, LONGTERM_PROFILE } from "./botBrain";
 import { enabledSetFromEdges } from "./strategyEdge";
@@ -13,7 +14,7 @@ import type { OHLCV } from "./indicators";
 //
 // Caveat: the long-term fundamental tilt is skipped in backtest (Yahoo only
 // exposes current fundamentals, not as-of-date), so historical long-term picks
-// are driven purely by the technical brain + 110-strategy confluence.
+// are driven purely by the technical brain + verified-strategy confluence.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SCAN_BATCH = 6;
@@ -172,7 +173,7 @@ export async function backtestLongTerm(market: Market, lookbackDays = 30): Promi
 
   return metrics(
     market, "longterm", state.startingCapital, state.snapshots, state.trades,
-    `Replayed ${windowDates.length} trading days with adaptive pruning (${enabled.size}/110 strategies kept) + regime-aware cash. Fundamental tilt disabled in backtest.`,
+    `Replayed ${windowDates.length} trading days with adaptive pruning (${enabled.size}/${STRATEGIES.length} strategies kept) + regime-aware cash. Fundamental tilt disabled in backtest.`,
   );
 }
 

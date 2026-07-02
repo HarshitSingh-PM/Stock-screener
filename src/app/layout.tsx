@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { GoogleAnalytics } from "@next/third-parties/google";
+import { STRATEGIES } from "@/lib/strategies";
 import "./globals.css";
 
 // Set NEXT_PUBLIC_GA_ID=G-XXXXXXXXXX in .env.local (or shell env at build time).
@@ -19,9 +20,8 @@ const geistMono = Geist_Mono({
 
 const SITE_URL = "https://juicedtrade.com";
 const SITE_NAME = "JuicedTrade";
-const SITE_TAGLINE = "JuicedTrade Stock Screener · 110 Strategies for NSE & S&P 500";
-const SITE_DESCRIPTION =
-  "JuicedTrade is a free stock screener for Indian (NSE) and US (S&P 500) markets. Run 110 trading strategies across 2,100+ NSE stocks and the S&P 500, scan ETFs by theme, get daily buy/sell signals, and watch two autonomous paper-trading bots — an intraday trader and a long-term investor — make decisions every day.";
+const SITE_TAGLINE = "JuicedTrade · Backtest-Verified Stock Recommendations for NIFTY 500 & S&P 500";
+const SITE_DESCRIPTION = `JuicedTrade is a free stock recommendation engine for the top 500 Indian (NIFTY 500) and top 500 US (S&P 500) stocks. Every one of its ${STRATEGIES.length} strategies passed a 5-year backtest with a 63%+ win rate and positive average returns in both markets; the other 80 were cut. Get daily buy/sell recommendations, screen ETFs by theme, and watch two autonomous paper-trading bots act on the same verified signals.`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -113,12 +113,12 @@ const jsonLdSoftware = {
     "availability": "https://schema.org/InStock",
   },
   "featureList": [
-    "110 trading strategies from classic trading literature and open-source quant research",
-    "Scan all 2,100+ NSE-listed stocks and 500 S&P 500 stocks",
-    "Daily buy / sell / neutral signals across every strategy",
+    `${STRATEGIES.length} backtest-verified trading strategies (63%+ win rate and positive expectancy over 5 years; the other 80 removed)`,
+    "Covers the top 500 stocks in each market: NIFTY 500 and S&P 500",
+    "Daily buy / sell / neutral recommendations across every verified strategy",
     "Two autonomous paper-trading bots: an intraday trader and a long-term investor",
     "ETF screener grouped by theme with buy/hold/sell recommendation",
-    "Backtesting on 1-year history across an index plus 5 cross-validation stocks",
+    "Every strategy re-verifiable against 5 years of history across 200 sampled stocks",
     "Market overview with pivots, Fibonacci, key supports & resistances",
     "Global market cues with India + US market prediction",
     "Notable holders & insider transaction tracking",
@@ -148,7 +148,7 @@ const jsonLdFaq = {
       "name": "What is JuicedTrade?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "JuicedTrade is a free stock screener that evaluates 2,100+ NSE-listed Indian stocks and all 500 S&P 500 US stocks against 110 trading strategies adapted from classic trading literature and open-source quant research. It gives daily buy/sell/neutral signals, an ETF screener, two autonomous paper-trading bots (an intraday trader and a long-term investor), market overview dashboards, and backtesting.",
+        "text": `JuicedTrade is a free stock recommendation engine that evaluates the top 500 Indian stocks (NIFTY 500) and top 500 US stocks (S&P 500) against ${STRATEGIES.length} trading strategies, each verified over a 5-year backtest with a 63%+ win rate and positive average returns. It gives daily buy/sell/neutral recommendations, an ETF screener, two autonomous paper-trading bots (an intraday trader and a long-term investor), market overview dashboards, and backtesting.`,
       },
     },
     {
@@ -156,7 +156,7 @@ const jsonLdFaq = {
       "name": "Which markets does JuicedTrade cover?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "JuicedTrade covers two markets: India (NSE, all listed equities, around 2,100 symbols) and the United States (S&P 500). You can switch markets from the header toggle at any time, and the screener, ETF list, signals, and trading bot all adapt to the active market.",
+        "text": "JuicedTrade covers the top 500 stocks in two markets: India (the official NIFTY 500 constituents) and the United States (S&P 500). You can switch markets from the header toggle at any time, and the recommendations, ETF list, signals, and trading bot all adapt to the active market.",
       },
     },
     {
@@ -180,7 +180,7 @@ const jsonLdFaq = {
       "name": "How many trading strategies does JuicedTrade use?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "JuicedTrade evaluates every stock against 110 strategies covering swing trading, intraday, positional, scalping, options proxies, price action, candlestick patterns, value investing, trend following, index investing, and quant/ML models. The strategies are adapted from classic trading literature plus open-source quant research and signal concepts.",
+        "text": `JuicedTrade evaluates every stock against ${STRATEGIES.length} verified strategies drawn from a library of 110 covering swing trading, intraday, positional, scalping, options proxies, price action, candlestick patterns, value investing, trend following, index investing, and quant/ML models. Only strategies that passed a 5-year backtest with a 63%+ win rate and positive expectancy across both markets are used; the other 80 were removed.`,
       },
     },
     {
@@ -188,7 +188,7 @@ const jsonLdFaq = {
       "name": "How is JuicedTrade different from TradingView, Screener.in, or Chartink?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "TradingView is a charting platform, Screener.in is a fundamental screener, and Chartink runs single-condition technical scans. JuicedTrade is different in three ways: (1) it evaluates 110 named strategies in parallel and shows which ones agree, instead of forcing you to compose a single condition; (2) it covers both NSE and S&P 500 in one tool with one toggle; (3) it ships two autonomous paper-trading bots (an intraday trader and a long-term investor) that act on the same strategy library, so you can see what consistent strategy-following would have produced.",
+        "text": `TradingView is a charting platform, Screener.in is a fundamental screener, and Chartink runs single-condition technical scans. JuicedTrade is different in three ways: (1) it evaluates ${STRATEGIES.length} named, backtest-verified strategies in parallel and shows which ones agree, instead of forcing you to compose a single condition; (2) it covers the top 500 stocks of both NSE and the US market in one tool with one toggle; (3) it ships two autonomous paper-trading bots (an intraday trader and a long-term investor) that act on the same verified strategy set, so you can see what consistent strategy-following would have produced.`,
       },
     },
     {

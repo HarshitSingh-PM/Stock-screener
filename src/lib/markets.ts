@@ -1,5 +1,5 @@
 import { SP500_SYMBOLS } from "./universe/sp500";
-import { NSE_ALL_SYMBOLS } from "./universe/nseAll";
+import { IN_TOP500_SYMBOLS } from "./universe/inTop500";
 import { IN_BOT_UNIVERSE } from "./universe/inBotUniverse";
 import { US_BOT_UNIVERSE } from "./universe/usBotUniverse";
 
@@ -45,9 +45,9 @@ const IN: MarketConfig = {
     { symbol: "^NSEI", name: "NIFTY 50" },
     { symbol: "^BSESN", name: "SENSEX" },
   ],
-  universe: NSE_ALL_SYMBOLS,
-  universeLabel: `NSE (${NSE_ALL_SYMBOLS.length})`,
-  insiderUniverse: NSE_ALL_SYMBOLS.slice(0, 30),
+  universe: IN_TOP500_SYMBOLS,
+  universeLabel: `NIFTY 500 (${IN_TOP500_SYMBOLS.length})`,
+  insiderUniverse: IN_BOT_UNIVERSE.slice(0, 30),
   backtestStocks: ["RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK"],
   botUniverse: IN_BOT_UNIVERSE,
   botStartingCapital: 1_000_000, // ₹10 lakh

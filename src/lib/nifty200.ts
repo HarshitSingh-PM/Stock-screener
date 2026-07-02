@@ -1,8 +1,8 @@
 // Back-compat shim. New code should import from "@/lib/markets" and the
 // per-market universes under "@/lib/universe/*".
-import { NSE_ALL_SYMBOLS } from "./universe/nseAll";
+import { IN_TOP500_SYMBOLS } from "./universe/inTop500";
 
 export { toYahooSymbol, fromYahooSymbol } from "./markets";
 
-// Legacy name. Now points at the full NSE EQ universe instead of just Nifty 500.
-export const NIFTY_500_SYMBOLS: string[] = NSE_ALL_SYMBOLS;
+// Legacy name. Points at the official NIFTY 500 constituents (top 500 NSE stocks).
+export const NIFTY_500_SYMBOLS: string[] = IN_TOP500_SYMBOLS;
