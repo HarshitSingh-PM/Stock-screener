@@ -9,6 +9,8 @@ A Next.js (v16) stock recommendation engine for the top 500 stocks of each marke
 - `src/lib/strategies.ts` exports BOTH `ALL_STRATEGIES` (full 110 library) and `STRATEGIES` (verified subset the whole app uses).
 - `scripts/backtest5y.ts`: 5-year daily-bar backtest across 100 stocks sampled from each market's top-500 universe. Run chunks (`--chunk k/8` in parallel), then `--merge`, then `--generate` (rewrites `verifiedStrategies.ts` + `backtestCache.ts`). Trade plan: long-only, entry at signal close, target +1.5×ATR14, stop −2.5×ATR14, gap-aware, both-hit-same-day = loss, time exit at horizon close. Bar: win rate ≥60% (user-set), avg return >0%/trade, trades ≥300. Hold periods by category: Intraday/Scalping 3d, Swing/PA/Candlestick/Options/Advanced 10d, Positional/Trend/Index/Value 21d.
 - Universe: IN = official NIFTY 500 constituents (`src/lib/universe/inTop500.ts`), US = S&P 500. The full ~2,100-symbol NSE list (`universe/nseAll.ts`) is no longer served.
+- `src/lib/strategyCatalog.ts` (generated): metadata-only list of the served strategies for the client bundle. page.tsx's `STRATEGIES` = this catalog — do NOT hand-edit strategy metadata in page.tsx; regenerate instead.
+- `src/lib/recommend.ts` + `/api/recommendations`: the Top Picks engine. Scans the top-500 universe, ranks by win-rate-weighted confluence (weight = (winRate−55)/10, floor 0.25) × brain conviction, attaches the long-term brain's entry/stop/target. Caches to `data/recommendations-{market}.json` per UTC day; stale cache served on compute failure. Server cron refreshes full 500 after each market close (11:30 UTC IN, 23:00 UTC US → /var/log/juicedtrade-picks-*.log).
 
 ## Tech Stack
 - **Framework**: Next.js 16.2.3 (App Router, TypeScript, Tailwind CSS)
@@ -54,6 +56,7 @@ Two autonomous paper-trading bots run per market (IN/US): a **Long-Term Investor
 - Strategy results on the frontend are client-side rendered, so won't appear in SSR HTML
 
 ## UI Tabs
+0. **Top Picks** - Daily ranked buy recommendations (win-rate-weighted strategy confluence + brain trade plan) with entry/target/stop, agreeing strategies, avoid list. Hero CTA lands here.
 1. **Market** - Sensex/Nifty 50 candlestick chart with key levels, targets, supports, fibonacci
 2. **Global** - World markets dashboard: S&P 500, Nasdaq, Dow, Nikkei, Hang Seng, FTSE, DAX, crude oil, gold, USD/INR, VIX, US 10Y yields. India prediction gauge (0-100) with weighted factor analysis. Correlation insights explaining how each global move impacts Indian equities.
 3. **Signals** - Market signals dashboard with sentiment gauge (0-100), 15+ buy/sell indicators (trend/momentum/volume/volatility/breadth), and market events (gaps, crosses, extremes, volume anomalies)
