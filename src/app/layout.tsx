@@ -21,7 +21,7 @@ const geistMono = Geist_Mono({
 const SITE_URL = "https://juicedtrade.com";
 const SITE_NAME = "JuicedTrade";
 const SITE_TAGLINE = "JuicedTrade · Backtest-Verified Stock Recommendations for NIFTY 500 & S&P 500";
-const SITE_DESCRIPTION = `JuicedTrade is a free stock recommendation engine for the top 500 Indian (NIFTY 500) and top 500 US (S&P 500) stocks. Every one of its ${STRATEGIES.length} strategies passed a 5-year backtest with a 63%+ win rate and positive average returns in both markets; the other 80 were cut. Get daily buy/sell recommendations, screen ETFs by theme, and watch two autonomous paper-trading bots act on the same verified signals.`;
+const SITE_DESCRIPTION = `JuicedTrade is a free stock recommendation engine for the top 500 Indian (NIFTY 500) and top 500 US (S&P 500) stocks. Every one of its ${STRATEGIES.length} strategies passed a 5-year backtest with a 60%+ win rate and positive average returns; the other 64 were cut. Get daily buy/sell recommendations, screen ETFs by theme, and watch two autonomous paper-trading bots act on the same verified signals.`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -113,7 +113,7 @@ const jsonLdSoftware = {
     "availability": "https://schema.org/InStock",
   },
   "featureList": [
-    `${STRATEGIES.length} backtest-verified trading strategies (63%+ win rate and positive expectancy over 5 years; the other 80 removed)`,
+    `${STRATEGIES.length} backtest-verified trading strategies (60%+ win rate and positive expectancy over 5 years; the other 64 removed)`,
     "Covers the top 500 stocks in each market: NIFTY 500 and S&P 500",
     "Daily buy / sell / neutral recommendations across every verified strategy",
     "Two autonomous paper-trading bots: an intraday trader and a long-term investor",
@@ -148,7 +148,7 @@ const jsonLdFaq = {
       "name": "What is JuicedTrade?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": `JuicedTrade is a free stock recommendation engine that evaluates the top 500 Indian stocks (NIFTY 500) and top 500 US stocks (S&P 500) against ${STRATEGIES.length} trading strategies, each verified over a 5-year backtest with a 63%+ win rate and positive average returns. It gives daily buy/sell/neutral recommendations, an ETF screener, two autonomous paper-trading bots (an intraday trader and a long-term investor), market overview dashboards, and backtesting.`,
+        "text": `JuicedTrade is a free stock recommendation engine that evaluates the top 500 Indian stocks (NIFTY 500) and top 500 US stocks (S&P 500) against ${STRATEGIES.length} trading strategies, each verified over a 5-year backtest with a 60%+ win rate and positive average returns. It gives daily buy/sell/neutral recommendations, an ETF screener, two autonomous paper-trading bots (an intraday trader and a long-term investor), market overview dashboards, and backtesting.`,
       },
     },
     {
@@ -180,7 +180,7 @@ const jsonLdFaq = {
       "name": "How many trading strategies does JuicedTrade use?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": `JuicedTrade evaluates every stock against ${STRATEGIES.length} verified strategies drawn from a library of 110 covering swing trading, intraday, positional, scalping, options proxies, price action, candlestick patterns, value investing, trend following, index investing, and quant/ML models. Only strategies that passed a 5-year backtest with a 63%+ win rate and positive expectancy across both markets are used; the other 80 were removed.`,
+        "text": `JuicedTrade evaluates every stock against ${STRATEGIES.length} verified strategies drawn from a library of 110 covering swing trading, intraday, positional, scalping, options proxies, price action, candlestick patterns, value investing, trend following, index investing, and quant/ML models. Only strategies that passed a 5-year backtest with a 60%+ win rate and positive expectancy across both markets are used; the other 64 were removed.`,
       },
     },
     {

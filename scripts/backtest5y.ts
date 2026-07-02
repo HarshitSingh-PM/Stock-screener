@@ -281,18 +281,18 @@ function merge() {
   }
 }
 
-// The user's original ask was a 70% bar, but NO strategy clears 70% under an
-// honest 5-year simulation (best: 69.9%). 63.5% + positive expectancy is the
-// top band the data actually supports; below it strategies cluster toward the
-// ~62.5% breakeven of the 1.5:2.5 target/stop plan.
-const WIN_RATE_BAR = 63.5;
-const AVG_RETURN_BAR = 0.3; // %/trade — expectancy guard
+// The original ask was a 70% bar, but NO strategy clears 70% under an honest
+// 5-year simulation (best: 69.9%). Harshit set the bar at 60% (2026-07-02:
+// "remove everything below 60%"), with a positive-expectancy guard so no
+// money-losing strategy ships regardless of its win rate.
+const WIN_RATE_BAR = 60;
+const AVG_RETURN_BAR = 0; // %/trade — must be strictly positive (expectancy guard)
 const MIN_TRADES = 300; // fewer across ~200 stocks x 5y = no statistical basis; strategy is dead weight
 
 /** Read data/backtest-5y.json and regenerate verifiedStrategies.ts + backtestCache.ts. */
 function generate() {
   const { rows, generated } = JSON.parse(fs.readFileSync(OUT_JSON, "utf8"));
-  const pass = (r: any) => r.trades >= MIN_TRADES && r.winRate >= WIN_RATE_BAR && r.avgReturn >= AVG_RETURN_BAR;
+  const pass = (r: any) => r.trades >= MIN_TRADES && r.winRate >= WIN_RATE_BAR && r.avgReturn > AVG_RETURN_BAR;
   const passed = rows.filter(pass);
   const failed = rows.filter((r: any) => !pass(r));
 
@@ -300,7 +300,7 @@ function generate() {
 // 5-year backtest (${generated.slice(0, 10)}): 100 stocks sampled from each market's
 // top-500 universe (NIFTY 500 + S&P 500), daily bars, long-only trade plan
 // (target +${TARGET_ATR}*ATR14 / stop -${STOP_ATR}*ATR14 / category-based time exit).
-// Bar to pass: win rate >= ${WIN_RATE_BAR}%, avg return >= ${AVG_RETURN_BAR}%/trade, >= ${MIN_TRADES} trades.
+// Bar to pass: win rate >= ${WIN_RATE_BAR}%, avg return > ${AVG_RETURN_BAR}%/trade, >= ${MIN_TRADES} trades.
 // ${passed.length}/${rows.length} strategies passed.
 export const VERIFIED_STRATEGY_IDS: Set<string> = new Set<string>([
 ${passed.map((r: any) => `  "${r.id}", // ${r.winRate}% over ${r.trades} trades (IN ${r.perMarket.IN?.winRate ?? "-"}%, US ${r.perMarket.US?.winRate ?? "-"}%)`).join("\n")}

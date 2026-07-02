@@ -4002,7 +4002,7 @@ export const ALL_STRATEGIES: Strategy[] = [
 ];
 
 // The strategies the site actually serves: only those that passed the 5-year
-// backtest bar (>=63.5% win rate + positive expectancy across the top-500
+// backtest bar (>=60% win rate + positive expectancy across the top-500
 // universes of both markets — see verifiedStrategies.ts header for the full
 // trade plan). Regenerate via: npx tsx scripts/backtest5y.ts.
 export const STRATEGIES: Strategy[] = ALL_STRATEGIES.filter((s) =>

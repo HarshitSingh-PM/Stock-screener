@@ -2,8 +2,8 @@
 // 5-year backtest (2026-07-02): 100 stocks sampled from each market's
 // top-500 universe (NIFTY 500 + S&P 500), daily bars, long-only trade plan
 // (target +1.5*ATR14 / stop -2.5*ATR14 / category-based time exit).
-// Bar to pass: win rate >= 63.5%, avg return >= 0.3%/trade, >= 300 trades.
-// 30/110 strategies passed.
+// Bar to pass: win rate >= 60%, avg return > 0%/trade, >= 300 trades.
+// 46/110 strategies passed.
 export const VERIFIED_STRATEGY_IDS: Set<string> = new Set<string>([
   "graham-mr-market", // 69.9% over 322 trades (IN 71.5%, US 68.6%)
   "graham-net-current-asset", // 65.8% over 2921 trades (IN 63.9%, US 67.3%)
@@ -29,10 +29,26 @@ export const VERIFIED_STRATEGY_IDS: Set<string> = new Set<string>([
   "murphy-macd-histogram", // 63.7% over 7089 trades (IN 64.6%, US 63%)
   "murphy-stochastic-kd", // 63.7% over 5178 trades (IN 64.8%, US 62.9%)
   "supertrend-rsi", // 63.6% over 9192 trades (IN 63.8%, US 63.4%)
+  "graham-defensive-value", // 63.6% over 10066 trades (IN 65.6%, US 62.6%)
   "murphy-triple-ma", // 63.6% over 16330 trades (IN 64.5%, US 62.7%)
   "murphy-roc", // 63.6% over 9395 trades (IN 64.6%, US 62.7%)
   "wizard-risk-reward", // 63.6% over 1676 trades (IN 65.9%, US 61.9%)
   "obv-trend-confirm", // 63.6% over 21294 trades (IN 64.7%, US 62.6%)
   "adx-trend-strength", // 63.6% over 8861 trades (IN 64.7%, US 62.4%)
   "macro-pivots", // 63.5% over 22507 trades (IN 64.6%, US 62.5%)
+  "sectoral-analysis", // 63.4% over 14762 trades (IN 64.2%, US 62.6%)
+  "murphy-volume-confirmation", // 63.4% over 15549 trades (IN 64.3%, US 62.5%)
+  "adl-accumulation", // 63.1% over 14284 trades (IN 64.7%, US 62%)
+  "murphy-rsi-70-30", // 62.7% over 11749 trades (IN 63.4%, US 62.2%)
+  "bogle-low-cost-momentum", // 62.6% over 8814 trades (IN 64.5%, US 61.2%)
+  "golden-death-cross", // 62.6% over 2917 trades (IN 63.1%, US 62.3%)
+  "qm-zscore-reversion", // 61.7% over 3492 trades (IN 61%, US 62.1%)
+  "fear-greed-momentum", // 61.2% over 3336 trades (IN 62%, US 60.6%)
+  "williams-macd", // 61.1% over 1738 trades (IN 61.4%, US 60.8%)
+  "volatility-breakout", // 60.9% over 4102 trades (IN 61.5%, US 60%)
+  "swing-buying-options", // 60.5% over 7132 trades (IN 59.9%, US 61%)
+  "nison-harami", // 60.5% over 5819 trades (IN 59.9%, US 61%)
+  "cci-extreme-reversal", // 60.2% over 7628 trades (IN 60.4%, US 60.1%)
+  "qm-signal-rolling", // 60.2% over 6983 trades (IN 59.4%, US 60.9%)
+  "positional-pa", // 60.1% over 18822 trades (IN 60.6%, US 59.7%)
 ]);

@@ -1150,7 +1150,7 @@ export default function Home() {
                   </span>
                 </h1>
                 <p className="text-base sm:text-lg text-gray-400 max-w-2xl mx-auto leading-relaxed mb-8">
-                  <strong className="text-gray-200">JuicedTrade</strong> is a stock recommendation engine for the top 500 Indian stocks (NIFTY 500) and the top 500 US stocks (S&amp;P 500). We backtested 110 strategies from classic trading literature and open-source quant research over the last 5 years and kept only the {STRATEGIES.length} that won at least 63% of their simulated trades with positive average returns. Every stock, evaluated against every verified strategy, every trading day, plus two autonomous bots trading those signals in real time.
+                  <strong className="text-gray-200">JuicedTrade</strong> is a stock recommendation engine for the top 500 Indian stocks (NIFTY 500) and the top 500 US stocks (S&amp;P 500). We backtested 110 strategies from classic trading literature and open-source quant research over the last 5 years and kept only the {STRATEGIES.length} that won at least 60% of their simulated trades with positive average returns. Every stock, evaluated against every verified strategy, every trading day, plus two autonomous bots trading those signals in real time.
                 </p>
                 <div className="flex flex-wrap items-center justify-center gap-3 mb-10">
                   <button
@@ -1183,7 +1183,7 @@ export default function Home() {
                   Survivors of a 5-year backtest across both markets
                 </h2>
                 <p className="text-sm text-gray-400 max-w-2xl mx-auto leading-relaxed">
-                  We tested 110 strategies from bestselling trading literature and quant research on 5 years of NIFTY 500 and S&amp;P 500 history, simulating every buy signal with an ATR-based target and stop. <strong className="text-gray-200">Only the {STRATEGIES.length} that closed 63-70% of their trades profitably, in both markets, made the cut</strong>, and every stock is evaluated against all of them daily.
+                  We tested 110 strategies from bestselling trading literature and quant research on 5 years of NIFTY 500 and S&amp;P 500 history, simulating every buy signal with an ATR-based target and stop. <strong className="text-gray-200">Only the {STRATEGIES.length} that closed 60-70% of their trades profitably made the cut</strong>, and every stock is evaluated against all of them daily.
                 </p>
               </div>
             </section>
