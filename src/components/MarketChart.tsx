@@ -20,15 +20,6 @@ interface IndexData {
   targets: { bullishTarget1: number; bullishTarget2: number; bearishTarget1: number; bearishTarget2: number };
   yearHigh: number;
   yearLow: number;
-  prediction: {
-    direction: "UP" | "DOWN" | "NEUTRAL";
-    probUp: number;
-    confidence: number;
-    score: number;
-    horizon: number;
-    driftUpRate: number;
-    factors: { name: string; vote: number; weight: number; detail: string }[];
-  } | null;
 }
 
 function Tip({ text }: { text: string }) {
@@ -124,60 +115,6 @@ export default function MarketChart({ market = "IN" }: { market?: "IN" | "US" })
         </div>
       </div>
 
-      {/* Next-day direction prediction */}
-      {idx.prediction && (() => {
-        const p = idx.prediction!;
-        const up = p.direction === "UP";
-        const down = p.direction === "DOWN";
-        const dirLabel = up ? "Leaning Bullish" : down ? "Leaning Bearish" : "Neutral / Mixed";
-        const arrow = up ? "▲" : down ? "▼" : "↔";
-        const hz = p.horizon || 5;
-        return (
-          <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4">
-            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                Market Posture · ~1-Week Outlook · {idx.name}
-                <Tip text={`A sentiment read on the index's posture over roughly the next ${hz} trading days — not a next-day bet. It blends the same factors the bots use: trend (EMA stack + ADX), multi-day momentum, RSI, MACD, mean-reversion (z-score + Bollinger) and the 200-DMA regime, then de-biases toward the index's own historical up-rate. Next-day moves are near-random; a multi-day posture is where these factors carry signal. Educational only, not investment advice.`} />
-              </h3>
-              <span className="text-[10px] text-gray-600">Sentiment gauge · not advice</span>
-            </div>
-            <div className="flex items-center gap-4 flex-wrap">
-              <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${
-                up ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-400"
-                : down ? "bg-red-500/10 border-red-500/25 text-red-400"
-                : "bg-yellow-500/10 border-yellow-500/25 text-yellow-400"}`}>
-                <span className="text-lg font-bold">{arrow}</span>
-                <span className="text-sm font-bold">{dirLabel}</span>
-              </div>
-              <div className="flex-1 min-w-[180px]">
-                <div className="flex justify-between text-[10px] text-gray-500 mb-1">
-                  <span className="text-red-400">Bearish</span>
-                  <span className="font-mono text-gray-300">{p.probUp}% chance higher in ~{hz}d</span>
-                  <span className="text-emerald-400">Bullish</span>
-                </div>
-                <div className="h-2.5 rounded-full bg-red-500/30 overflow-hidden">
-                  <div className="h-full" style={{ width: `${p.probUp}%`, background: up ? "#10b981" : down ? "#ef4444" : "#eab308" }} />
-                </div>
-                <div className="text-[10px] text-gray-500 mt-1">Confidence: <span className="font-mono text-gray-300">{p.confidence}%</span> · base up-rate {p.driftUpRate}%</div>
-              </div>
-            </div>
-            {/* Factor breakdown */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-3">
-              {p.factors.filter(f => f.weight > 0).map((f) => (
-                <div key={f.name} className="bg-white/[0.02] border border-white/5 rounded-lg px-2.5 py-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-semibold text-gray-300">{f.name}</span>
-                    <span className={`text-[11px] font-mono ${f.vote > 0.1 ? "text-emerald-400" : f.vote < -0.1 ? "text-red-400" : "text-gray-500"}`}>
-                      {f.vote > 0.1 ? "Bull" : f.vote < -0.1 ? "Bear" : "Neutral"}
-                    </span>
-                  </div>
-                  <div className="text-[10px] text-gray-500 mt-0.5 leading-tight">{f.detail}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      })()}
 
       {/* Chart with timeframes built in */}
       <CandlestickChart

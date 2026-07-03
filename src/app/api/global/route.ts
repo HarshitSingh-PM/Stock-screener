@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import YahooFinance from "yahoo-finance2";
+import { VERIFIED_GLOBAL_CUES, VERIFIED_GAP_COMBOS, type GapCombo } from "@/lib/verifiedCues";
 
 const yahooFinance = new (YahooFinance as any)({ suppressNotices: ["yahooSurvey"] });
 
@@ -267,482 +268,114 @@ function getMarketStatus(symbol: string): string {
   return "closed";
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Verified analysis layer. Every insight, factor, and combo below is backed by
+// a 5-year backtest (scripts/backtestCues.ts) against the outcome it claims to
+// predict; anything that failed verification was removed from the site.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const avgOf = (...xs: (number | undefined)[]) => {
+  const v = xs.filter((x): x is number => x != null && isFinite(x));
+  return v.length ? v.reduce((a, b) => a + b, 0) / v.length : NaN;
+};
+
+/** Live cue direction (+1 bullish / -1 bearish / 0 inactive) — thresholds
+ *  mirror scripts/backtestCues.ts exactly. */
+function liveCueDirections(bySymbol: Record<string, GlobalMarket>, market: "IN" | "US"): Map<string, number> {
+  const g = (s: string) => bySymbol[s];
+  const dirs = new Map<string, number>();
+  const act = (v: number, thr: number, invert = false) =>
+    !isFinite(v) || Math.abs(v) <= thr ? 0 : (v > 0 ? 1 : -1) * (invert ? -1 : 1);
+  const sp = g("^GSPC"), nas = g("^IXIC"), dji = g("^DJI");
+  const asia = avgOf(g("^N225")?.changePercent, g("^HSI")?.changePercent, g("000001.SS")?.changePercent);
+  const eur = avgOf(g("^FTSE")?.changePercent, g("^GDAXI")?.changePercent);
+  const oil = g("CL=F") || g("BZ=F");
+  if (market === "IN") {
+    const avgUS = avgOf(sp?.changePercent, nas?.changePercent, dji?.changePercent);
+    dirs.set("us-close", act(avgUS, 0.3));
+    dirs.set("us-close-strong", act(avgUS, 1.5));
+    dirs.set("nasdaq-divergence", nas && sp ? act(nas.changePercent - sp.changePercent, 0.5) : 0);
+    dirs.set("europe-prev", act(eur, 0.5));
+    dirs.set("dxy", act(g("DX-Y.NYB")?.changePercent ?? NaN, 0.3, true));
+    dirs.set("usdinr", act(g("USDINR=X")?.changePercent ?? NaN, 0.2, true));
+    dirs.set("vix-spike", act(g("^VIX")?.changePercent ?? NaN, 10, true));
+  } else {
+    dirs.set("asia-day", act(asia, 0.3));
+    dirs.set("own-momentum", act(sp?.changePercent ?? NaN, 0.3));
+    dirs.set("vix-spike", act(g("^VIX")?.changePercent ?? NaN, 10, true));
+    dirs.set("tnx-move", act(g("^TNX")?.changePercent ?? NaN, 2, true));
+    dirs.set("dxy", act(g("DX-Y.NYB")?.changePercent ?? NaN, 0.3, true));
+    dirs.set("oil-daily", act(oil?.changePercent ?? NaN, 2));
+    dirs.set("gold-daily", act(g("GC=F")?.changePercent ?? NaN, 1, true));
+  }
+  return dirs;
+}
+
+const OUTCOME_LABEL: Record<string, string> = {
+  gap: "next opening gap",
+  day: "next session close",
+  fwd5: "5-day direction",
+};
+
 function generateInsights(markets: GlobalMarket[]): CorrelationInsight[] {
-  const insights: CorrelationInsight[] = [];
   const bySymbol: Record<string, GlobalMarket> = {};
   for (const m of markets) bySymbol[m.symbol] = m;
-
-  const sp500 = bySymbol["^GSPC"];
-  const nasdaq = bySymbol["^IXIC"];
-  const dji = bySymbol["^DJI"];
-  const nikkei = bySymbol["^N225"];
-  const hsi = bySymbol["^HSI"];
-  const shanghai = bySymbol["000001.SS"];
-  const ftse = bySymbol["^FTSE"];
-  const dax = bySymbol["^GDAXI"];
-  const oil = bySymbol["CL=F"] || bySymbol["BZ=F"];
-  const brent = bySymbol["BZ=F"];
-  const gold = bySymbol["GC=F"];
-  const usdinr = bySymbol["USDINR=X"];
-  const dxy = bySymbol["DX-Y.NYB"];
-  const vix = bySymbol["^VIX"];
-  const tnx = bySymbol["^TNX"];
-
-  // 1. US Market Impact
-  if (sp500 && nasdaq) {
-    const avgUSChange = (sp500.changePercent + nasdaq.changePercent + (dji?.changePercent || sp500.changePercent)) / 3;
-    if (Math.abs(avgUSChange) > 0.3) {
-      insights.push({
-        title: avgUSChange > 0 ? "US Markets Closed Higher" : "US Markets Closed Lower",
-        description: `S&P 500 ${sp500.changePercent >= 0 ? "+" : ""}${sp500.changePercent.toFixed(2)}%, Nasdaq ${nasdaq.changePercent >= 0 ? "+" : ""}${nasdaq.changePercent.toFixed(2)}%${dji ? `, Dow ${dji.changePercent >= 0 ? "+" : ""}${dji.changePercent.toFixed(2)}%` : ""}. US markets have ~0.6 correlation with Indian markets. ${Math.abs(avgUSChange) > 1.5 ? "Strong move - expect significant gap." : "Moderate move - mild impact expected."}`,
-        impact: avgUSChange > 0.3 ? "POSITIVE" : avgUSChange < -0.3 ? "NEGATIVE" : "NEUTRAL",
-        strength: Math.abs(avgUSChange) > 1.5 ? "STRONG" : Math.abs(avgUSChange) > 0.7 ? "MODERATE" : "WEAK",
-        category: "index",
-      });
-    }
-
-    // Tech-heavy Nasdaq divergence
-    if (nasdaq && sp500 && Math.abs(nasdaq.changePercent - sp500.changePercent) > 0.5) {
-      const techLeading = nasdaq.changePercent > sp500.changePercent;
-      insights.push({
-        title: techLeading ? "Tech Outperforming Broader Market" : "Tech Underperforming Broader Market",
-        description: `Nasdaq ${techLeading ? "outpaced" : "lagged"} S&P 500 by ${Math.abs(nasdaq.changePercent - sp500.changePercent).toFixed(2)}%. ${techLeading ? "IT stocks (TCS, Infosys, HCL) may see positive sentiment." : "IT sector may face selling pressure. Watch Indian IT names."}`,
-        impact: techLeading ? "POSITIVE" : "NEGATIVE",
-        strength: Math.abs(nasdaq.changePercent - sp500.changePercent) > 1 ? "STRONG" : "MODERATE",
-        category: "index",
-      });
-    }
+  const dirs = liveCueDirections(bySymbol, "IN");
+  const insights: CorrelationInsight[] = [];
+  for (const cue of VERIFIED_GLOBAL_CUES.IN) {
+    const dir = dirs.get(cue.id) ?? 0;
+    if (dir === 0) continue;
+    insights.push({
+      title: `${cue.label.replace(/ \(.*\)$/, "")} → ${dir > 0 ? "bullish" : "bearish"} for Nifty`,
+      description: `Backtested over 5 years: when this condition fired, the ${OUTCOME_LABEL[cue.outcome]} went the predicted way ${cue.hitRate}% of ${cue.n} times (${cue.testHitRate}% on the last 18 months, avg move ${cue.avgMove > 0 ? "+" : ""}${cue.avgMove}%). It is firing ${dir > 0 ? "bullish" : "bearish"} right now.`,
+      impact: dir > 0 ? "POSITIVE" : "NEGATIVE",
+      strength: cue.hitRate >= 80 ? "STRONG" : cue.hitRate >= 70 ? "MODERATE" : "WEAK",
+      category: cue.id.startsWith("vix") ? "volatility" : cue.id === "dxy" || cue.id === "usdinr" ? "currency" : "index",
+    });
   }
-
-  // 2. Asian Peer Impact
-  const asianMarkets = [nikkei, hsi, shanghai].filter(Boolean) as GlobalMarket[];
-  if (asianMarkets.length > 0) {
-    const avgAsiaChange = asianMarkets.reduce((sum, m) => sum + m.changePercent, 0) / asianMarkets.length;
-    if (Math.abs(avgAsiaChange) > 0.3) {
-      const details = asianMarkets.map(m => `${m.name.split(" (")[0]} ${m.changePercent >= 0 ? "+" : ""}${m.changePercent.toFixed(2)}%`).join(", ");
-      insights.push({
-        title: avgAsiaChange > 0 ? "Asian Markets Trading Higher" : "Asian Markets Under Pressure",
-        description: `${details}. Asian markets trade in the same session as India and have high real-time correlation. ${Math.abs(avgAsiaChange) > 1.5 ? "Major regional move - expect Nifty to follow direction." : "Regional sentiment will influence Indian market direction."}`,
-        impact: avgAsiaChange > 0.3 ? "POSITIVE" : avgAsiaChange < -0.3 ? "NEGATIVE" : "NEUTRAL",
-        strength: Math.abs(avgAsiaChange) > 1 ? "STRONG" : "MODERATE",
-        category: "index",
-      });
-    }
-
-    // China-specific (impacts metals, commodities)
-    if (shanghai && Math.abs(shanghai.changePercent) > 1) {
-      insights.push({
-        title: shanghai.changePercent > 0 ? "China Rally - Commodity Demand Signal" : "China Weakness - Demand Concern",
-        description: `Shanghai Composite ${shanghai.changePercent >= 0 ? "+" : ""}${shanghai.changePercent.toFixed(2)}%. China is the world's largest commodity consumer. ${shanghai.changePercent > 0 ? "Positive for Indian metal & mining stocks (Tata Steel, Hindalco, JSW)." : "Negative for commodity-linked Indian stocks. Watch metals sector."}`,
-        impact: shanghai.changePercent > 0 ? "POSITIVE" : "NEGATIVE",
-        strength: Math.abs(shanghai.changePercent) > 2 ? "STRONG" : "MODERATE",
-        category: "index",
-      });
-    }
-  }
-
-  // 3. European Cues
-  if (ftse || dax) {
-    const eurMarkets = [ftse, dax].filter(Boolean) as GlobalMarket[];
-    const avgEurChange = eurMarkets.reduce((sum, m) => sum + m.changePercent, 0) / eurMarkets.length;
-    if (Math.abs(avgEurChange) > 0.5) {
-      insights.push({
-        title: avgEurChange > 0 ? "European Markets Positive" : "European Markets Negative",
-        description: `${eurMarkets.map(m => `${m.name.split(" (")[0]} ${m.changePercent >= 0 ? "+" : ""}${m.changePercent.toFixed(2)}%`).join(", ")}. European session overlaps with Indian afternoon trading. FII flows from Europe impact late-session moves.`,
-        impact: avgEurChange > 0 ? "POSITIVE" : "NEGATIVE",
-        strength: Math.abs(avgEurChange) > 1 ? "MODERATE" : "WEAK",
-        category: "index",
-      });
-    }
-  }
-
-  // 4. Crude Oil Impact
-  if (oil) {
-    if (Math.abs(oil.changePercent) > 1) {
-      insights.push({
-        title: oil.changePercent > 0 ? "Crude Oil Prices Rising" : "Crude Oil Prices Falling",
-        description: `${oil.name} at $${oil.price.toFixed(2)} (${oil.changePercent >= 0 ? "+" : ""}${oil.changePercent.toFixed(2)}%). India imports ~85% of its oil. ${oil.changePercent > 0 ? "Rising oil hurts India's trade deficit, OMCs (BPCL, HPCL, IOC) under pressure. Negative for Rupee." : "Falling oil is positive for India - reduces import bill, helps OMCs margins, supports Rupee."} ${Math.abs(oil.changePercent) > 3 ? "MAJOR move - significant macro impact." : ""}`,
-        impact: oil.changePercent > 1 ? "NEGATIVE" : oil.changePercent < -1 ? "POSITIVE" : "NEUTRAL",
-        strength: Math.abs(oil.changePercent) > 3 ? "STRONG" : "MODERATE",
-        category: "commodity",
-      });
-    }
-
-    // Week-over-week oil trend
-    if (Math.abs(oil.weekChange) > 3) {
-      insights.push({
-        title: `Oil ${oil.weekChange > 0 ? "Up" : "Down"} ${Math.abs(oil.weekChange).toFixed(1)}% This Week`,
-        description: `Sustained ${oil.weekChange > 0 ? "rise" : "decline"} in crude. ${oil.weekChange > 0 ? "Persistent high oil is structural negative for Indian markets. Watch for RBI commentary on inflation." : "Multi-day oil decline is a strong tailwind for Indian equities and the Rupee."}`,
-        impact: oil.weekChange > 3 ? "NEGATIVE" : oil.weekChange < -3 ? "POSITIVE" : "NEUTRAL",
-        strength: "MODERATE",
-        category: "commodity",
-      });
-    }
-  }
-
-  // 5. Gold as Safe Haven
-  if (gold) {
-    if (Math.abs(gold.changePercent) > 1) {
-      insights.push({
-        title: gold.changePercent > 0 ? "Gold Prices Surging" : "Gold Prices Declining",
-        description: `Gold at $${gold.price.toFixed(2)} (${gold.changePercent >= 0 ? "+" : ""}${gold.changePercent.toFixed(2)}%). ${gold.changePercent > 1.5 ? "Sharp gold rally signals risk-off / fear in global markets. Equities may face headwinds." : gold.changePercent < -1 ? "Gold decline signals risk-on sentiment. Positive for equities." : "Moderate gold move."} Indian gold stocks (Titan, Kalyan) track gold prices.`,
-        impact: gold.changePercent > 1.5 ? "NEGATIVE" : gold.changePercent < -1 ? "POSITIVE" : "NEUTRAL",
-        strength: Math.abs(gold.changePercent) > 2 ? "STRONG" : "MODERATE",
-        category: "commodity",
-      });
-    }
-  }
-
-  // 6. USD/INR Currency
-  if (usdinr) {
-    if (Math.abs(usdinr.changePercent) > 0.2) {
-      const rupeeFalling = usdinr.changePercent > 0; // Higher USD/INR = weaker rupee
-      insights.push({
-        title: rupeeFalling ? "Rupee Weakening Against Dollar" : "Rupee Strengthening Against Dollar",
-        description: `USD/INR at ₹${usdinr.price.toFixed(2)} (${usdinr.changePercent >= 0 ? "+" : ""}${usdinr.changePercent.toFixed(2)}%). ${rupeeFalling ? "Weak rupee signals FII outflows, higher import costs. Negative for market. IT exporters (TCS, Infosys) benefit from weaker rupee." : "Strong rupee signals FII inflows, positive sentiment. Good for importers, but IT exporters may see revenue pressure."}`,
-        impact: rupeeFalling ? "NEGATIVE" : "POSITIVE",
-        strength: Math.abs(usdinr.changePercent) > 0.5 ? "STRONG" : "MODERATE",
-        category: "currency",
-      });
-    }
-  }
-
-  // 7. Dollar Index
-  if (dxy) {
-    if (Math.abs(dxy.changePercent) > 0.3) {
-      insights.push({
-        title: dxy.changePercent > 0 ? "Dollar Index Strengthening" : "Dollar Index Weakening",
-        description: `DXY at ${dxy.price.toFixed(2)} (${dxy.changePercent >= 0 ? "+" : ""}${dxy.changePercent.toFixed(2)}%). ${dxy.changePercent > 0 ? "Strong dollar typically means FII outflows from emerging markets including India. Negative for Nifty." : "Weak dollar drives FII inflows into emerging markets. Positive for Indian equities."}`,
-        impact: dxy.changePercent > 0.3 ? "NEGATIVE" : dxy.changePercent < -0.3 ? "POSITIVE" : "NEUTRAL",
-        strength: Math.abs(dxy.changePercent) > 0.7 ? "STRONG" : "MODERATE",
-        category: "currency",
-      });
-    }
-  }
-
-  // 8. VIX Fear Gauge
-  if (vix) {
-    if (vix.price > 25) {
-      insights.push({
-        title: `VIX Elevated at ${vix.price.toFixed(1)} - Fear Mode`,
-        description: `VIX above 25 indicates high fear in US markets. ${vix.changePercent > 5 ? "VIX spiking " + vix.changePercent.toFixed(1) + "% — panic selling likely to spill over to India." : "Elevated anxiety persists."} Historically, India Nifty falls ~0.5-1% when VIX is above 25. Consider hedging or reducing exposure.`,
-        impact: "NEGATIVE",
-        strength: vix.price > 30 ? "STRONG" : "MODERATE",
-        category: "volatility",
-      });
-    } else if (vix.price < 15 && vix.changePercent < -5) {
-      insights.push({
-        title: `VIX Collapsing to ${vix.price.toFixed(1)} - Complacency`,
-        description: `Very low VIX signals extreme complacency. While bullish short-term, historically VIX below 15 preceded volatility spikes. Market may be setting up for a correction.`,
-        impact: "MIXED",
-        strength: "WEAK",
-        category: "volatility",
-      });
-    }
-    if (Math.abs(vix.changePercent) > 10) {
-      insights.push({
-        title: `VIX ${vix.changePercent > 0 ? "Spiked" : "Collapsed"} ${Math.abs(vix.changePercent).toFixed(1)}%`,
-        description: `Major VIX move signals ${vix.changePercent > 0 ? "sudden fear — expect risk-off across global markets. Indian market likely to see gap down or selling pressure." : "fear dissipating — risk-on rally likely. Indian market may see buying."}`,
-        impact: vix.changePercent > 10 ? "NEGATIVE" : "POSITIVE",
-        strength: "STRONG",
-        category: "volatility",
-      });
-    }
-  }
-
-  // 9. US Bond Yields
-  if (tnx) {
-    if (Math.abs(tnx.changePercent) > 2) {
-      insights.push({
-        title: tnx.changePercent > 0 ? "US Bond Yields Rising" : "US Bond Yields Falling",
-        description: `US 10Y at ${tnx.price.toFixed(2)}% (${tnx.changePercent >= 0 ? "+" : ""}${tnx.changePercent.toFixed(2)}% change). ${tnx.changePercent > 0 ? "Rising yields attract money to US bonds, away from emerging markets. Negative for Indian equities and FII flows." : "Falling yields push money into riskier assets like Indian equities. Positive for FII inflows."}`,
-        impact: tnx.changePercent > 2 ? "NEGATIVE" : tnx.changePercent < -2 ? "POSITIVE" : "NEUTRAL",
-        strength: Math.abs(tnx.changePercent) > 4 ? "STRONG" : "MODERATE",
-        category: "currency",
-      });
-    }
-    if (tnx.price > 4.5) {
-      insights.push({
-        title: `US 10Y Yield Above ${tnx.price.toFixed(1)}% - Elevated`,
-        description: `High US yields (${tnx.price.toFixed(2)}%) compete with equity returns globally. Emerging market outflows increase when US yields are attractive. Structural headwind for Indian market.`,
-        impact: "NEGATIVE",
-        strength: tnx.price > 5 ? "STRONG" : "MODERATE",
-        category: "currency",
-      });
-    }
-  }
-
   return insights;
 }
 
-function generatePrediction(markets: GlobalMarket[], insights: CorrelationInsight[]): { score: number; label: string; factors: PredictionFactor[] } {
-  const factors: PredictionFactor[] = [];
-  const bySymbol: Record<string, GlobalMarket> = {};
-  for (const m of markets) bySymbol[m.symbol] = m;
-
-  const sp500 = bySymbol["^GSPC"];
-  const nasdaq = bySymbol["^IXIC"];
-  const dji = bySymbol["^DJI"];
-  const nikkei = bySymbol["^N225"];
-  const hsi = bySymbol["^HSI"];
-  const shanghai = bySymbol["000001.SS"];
-  const oil = bySymbol["CL=F"] || bySymbol["BZ=F"];
-  const gold = bySymbol["GC=F"];
-  const usdinr = bySymbol["USDINR=X"];
-  const dxy = bySymbol["DX-Y.NYB"];
-  const vix = bySymbol["^VIX"];
-  const tnx = bySymbol["^TNX"];
-  const ftse = bySymbol["^FTSE"];
-  const dax = bySymbol["^GDAXI"];
-
-  // Factor 1: US Markets (highest weight - 0.6 correlation)
-  if (sp500 && nasdaq) {
-    const avgUS = (sp500.changePercent + nasdaq.changePercent) / 2;
-    const weight = Math.min(40, Math.max(-40, avgUS * 20));
-    factors.push({
-      factor: "US Market Close",
-      direction: avgUS > 0.2 ? "UP" : avgUS < -0.2 ? "DOWN" : "FLAT",
-      weight: Math.round(weight),
-      reasoning: `S&P ${sp500.changePercent >= 0 ? "+" : ""}${sp500.changePercent.toFixed(2)}%, Nasdaq ${nasdaq.changePercent >= 0 ? "+" : ""}${nasdaq.changePercent.toFixed(2)}%. US overnight move is the strongest predictor for Indian market open.`,
-    });
-  }
-
-  // Factor 2: Asian Markets (same session)
-  const asianPeers = [nikkei, hsi, shanghai].filter(Boolean) as GlobalMarket[];
-  if (asianPeers.length > 0) {
-    const avgAsia = asianPeers.reduce((s, m) => s + m.changePercent, 0) / asianPeers.length;
-    const weight = Math.min(30, Math.max(-30, avgAsia * 15));
-    factors.push({
-      factor: "Asian Peers",
-      direction: avgAsia > 0.2 ? "UP" : avgAsia < -0.2 ? "DOWN" : "FLAT",
-      weight: Math.round(weight),
-      reasoning: `${asianPeers.map(m => `${m.name.split(" ")[0]} ${m.changePercent >= 0 ? "+" : ""}${m.changePercent.toFixed(2)}%`).join(", ")}. Same-session Asian markets have real-time influence.`,
-    });
-  }
-
-  // Factor 3: European Markets
-  const eurMarkets = [ftse, dax].filter(Boolean) as GlobalMarket[];
-  if (eurMarkets.length > 0) {
-    const avgEur = eurMarkets.reduce((s, m) => s + m.changePercent, 0) / eurMarkets.length;
-    const weight = Math.min(15, Math.max(-15, avgEur * 8));
-    factors.push({
-      factor: "European Cues",
-      direction: avgEur > 0.2 ? "UP" : avgEur < -0.2 ? "DOWN" : "FLAT",
-      weight: Math.round(weight),
-      reasoning: `${eurMarkets.map(m => `${m.name.split(" (")[0]} ${m.changePercent >= 0 ? "+" : ""}${m.changePercent.toFixed(2)}%`).join(", ")}. European session impacts Indian afternoon trading via FII flows.`,
-    });
-  }
-
-  // Factor 4: Crude Oil (inverse for India)
-  if (oil) {
-    // Oil up is bad for India (importer), oil down is good
-    const weight = Math.min(20, Math.max(-20, -oil.changePercent * 5));
-    factors.push({
-      factor: "Crude Oil Price",
-      direction: oil.changePercent < -0.5 ? "UP" : oil.changePercent > 0.5 ? "DOWN" : "FLAT",
-      weight: Math.round(weight),
-      reasoning: `${oil.name} $${oil.price.toFixed(2)} (${oil.changePercent >= 0 ? "+" : ""}${oil.changePercent.toFixed(2)}%). India imports 85% of oil - rising oil hurts trade deficit and inflation.`,
-    });
-  }
-
-  // Factor 5: USD/INR
-  if (usdinr) {
-    // Rupee weakening (higher USDINR) is negative
-    const weight = Math.min(15, Math.max(-15, -usdinr.changePercent * 25));
-    factors.push({
-      factor: "Rupee Movement",
-      direction: usdinr.changePercent < -0.1 ? "UP" : usdinr.changePercent > 0.1 ? "DOWN" : "FLAT",
-      weight: Math.round(weight),
-      reasoning: `USD/INR ₹${usdinr.price.toFixed(2)} (${usdinr.changePercent >= 0 ? "+" : ""}${usdinr.changePercent.toFixed(2)}%). ${usdinr.changePercent > 0 ? "Weaker rupee = FII outflows." : usdinr.changePercent < 0 ? "Stronger rupee = FII inflows." : "Stable currency."}`,
-    });
-  }
-
-  // Factor 6: Dollar Index (inverse)
-  if (dxy) {
-    const weight = Math.min(10, Math.max(-10, -dxy.changePercent * 8));
-    factors.push({
-      factor: "Dollar Index",
-      direction: dxy.changePercent < -0.2 ? "UP" : dxy.changePercent > 0.2 ? "DOWN" : "FLAT",
-      weight: Math.round(weight),
-      reasoning: `DXY ${dxy.price.toFixed(2)} (${dxy.changePercent >= 0 ? "+" : ""}${dxy.changePercent.toFixed(2)}%). Strong dollar pulls FII money from emerging markets.`,
-    });
-  }
-
-  // Factor 7: VIX (inverse)
-  if (vix) {
-    let weight = 0;
-    if (vix.price > 25) weight = -15;
-    else if (vix.price > 20) weight = -5;
-    else if (vix.price < 15) weight = 10;
-    // Adjust for change
-    weight += Math.min(10, Math.max(-10, -vix.changePercent * 0.5));
-    factors.push({
-      factor: "VIX Fear Index",
-      direction: vix.changePercent < -3 ? "UP" : vix.changePercent > 3 ? "DOWN" : "FLAT",
-      weight: Math.round(Math.min(20, Math.max(-20, weight))),
-      reasoning: `VIX at ${vix.price.toFixed(1)} (${vix.changePercent >= 0 ? "+" : ""}${vix.changePercent.toFixed(1)}%). ${vix.price > 25 ? "High fear = risk-off." : vix.price < 15 ? "Low fear = risk-on." : "Normal range."} VIX spike = expect selling.`,
-    });
-  }
-
-  // Factor 8: Gold (mixed)
-  if (gold) {
-    // Sharp gold rally = risk-off, mild = neutral
-    const weight = gold.changePercent > 1.5 ? -10 : gold.changePercent < -1 ? 5 : 0;
-    if (weight !== 0) {
-      factors.push({
-        factor: "Gold (Safe Haven)",
-        direction: gold.changePercent < -0.5 ? "UP" : gold.changePercent > 1 ? "DOWN" : "FLAT",
-        weight,
-        reasoning: `Gold $${gold.price.toFixed(2)} (${gold.changePercent >= 0 ? "+" : ""}${gold.changePercent.toFixed(2)}%). ${gold.changePercent > 1.5 ? "Gold rush = flight to safety = equity negative." : "Gold decline = risk appetite returning."}`,
-      });
-    }
-  }
-
-  // Factor 9: US Bond Yields
-  if (tnx) {
-    const weight = tnx.changePercent > 3 ? -10 : tnx.changePercent < -3 ? 8 : 0;
-    if (weight !== 0) {
-      factors.push({
-        factor: "US 10Y Yield",
-        direction: tnx.changePercent < -2 ? "UP" : tnx.changePercent > 2 ? "DOWN" : "FLAT",
-        weight,
-        reasoning: `Yield at ${tnx.price.toFixed(2)}% (${tnx.changePercent >= 0 ? "+" : ""}${tnx.changePercent.toFixed(2)}%). ${tnx.changePercent > 0 ? "Rising yields compete with equities for capital." : "Falling yields favor equities."}`,
-      });
-    }
-  }
-
-  // Calculate prediction score
-  const totalWeight = factors.reduce((sum, f) => sum + f.weight, 0);
-  // Normalize to 0-100 scale (50 = neutral)
-  const score = Math.min(95, Math.max(5, 50 + totalWeight));
-
-  let label: string;
-  if (score >= 75) label = "Strong Bullish";
-  else if (score >= 60) label = "Moderately Bullish";
-  else if (score >= 55) label = "Slightly Bullish";
-  else if (score >= 45) label = "Neutral / Indecisive";
-  else if (score >= 40) label = "Slightly Bearish";
-  else if (score >= 25) label = "Moderately Bearish";
-  else label = "Strong Bearish";
-
-  // Sort factors by absolute weight (most impactful first)
-  factors.sort((a, b) => Math.abs(b.weight) - Math.abs(a.weight));
-
-  return { score, label, factors };
+interface ActiveGapCombo extends GapCombo {
+  direction: "UP" | "DOWN";
 }
 
-// Outlook for the US session (S&P 500). Same scoring style as the India model,
-// but reasoning, weights, and inversions reflect the US perspective.
-function generateUSPrediction(markets: GlobalMarket[]): { score: number; label: string; factors: PredictionFactor[] } {
-  const factors: PredictionFactor[] = [];
+function activeCombos(markets: GlobalMarket[], market: "IN" | "US"): ActiveGapCombo[] {
   const bySymbol: Record<string, GlobalMarket> = {};
   for (const m of markets) bySymbol[m.symbol] = m;
-
-  const nikkei = bySymbol["^N225"];
-  const hsi = bySymbol["^HSI"];
-  const shanghai = bySymbol["000001.SS"];
-  const oil = bySymbol["CL=F"] || bySymbol["BZ=F"];
-  const gold = bySymbol["GC=F"];
-  const dxy = bySymbol["DX-Y.NYB"];
-  const vix = bySymbol["^VIX"];
-  const tnx = bySymbol["^TNX"];
-  const ftse = bySymbol["^FTSE"];
-  const dax = bySymbol["^GDAXI"];
-
-  // Factor 1: Asian session — leads US pre-market sentiment.
-  const asian = [nikkei, hsi, shanghai].filter(Boolean) as GlobalMarket[];
-  if (asian.length > 0) {
-    const avg = asian.reduce((s, m) => s + m.changePercent, 0) / asian.length;
-    const weight = Math.min(25, Math.max(-25, avg * 12));
-    factors.push({
-      factor: "Asian Overnight",
-      direction: avg > 0.2 ? "UP" : avg < -0.2 ? "DOWN" : "FLAT",
-      weight: Math.round(weight),
-      reasoning: `${asian.map(m => `${m.name.split(" ")[0]} ${m.changePercent >= 0 ? "+" : ""}${m.changePercent.toFixed(2)}%`).join(", ")}. Asian close sets the tone for US futures.`,
-    });
+  const dirs = liveCueDirections(bySymbol, market);
+  const out: ActiveGapCombo[] = [];
+  for (const combo of VERIFIED_GAP_COMBOS[market]) {
+    const ds = combo.members.map((m) => dirs.get(m) ?? 0);
+    if (ds.some((d) => d === 0) || new Set(ds).size !== 1) continue;
+    out.push({ ...combo, direction: ds[0] > 0 ? "UP" : "DOWN" });
   }
+  return out;
+}
 
-  // Factor 2: European session — runs into the US open.
-  const europe = [ftse, dax].filter(Boolean) as GlobalMarket[];
-  if (europe.length > 0) {
-    const avg = europe.reduce((s, m) => s + m.changePercent, 0) / europe.length;
-    const weight = Math.min(25, Math.max(-25, avg * 13));
+function verifiedPrediction(markets: GlobalMarket[], market: "IN" | "US"): { score: number; label: string; factors: PredictionFactor[] } {
+  const bySymbol: Record<string, GlobalMarket> = {};
+  for (const m of markets) bySymbol[m.symbol] = m;
+  const dirs = liveCueDirections(bySymbol, market);
+  const factors: PredictionFactor[] = [];
+  let total = 0;
+  for (const cue of VERIFIED_GLOBAL_CUES[market]) {
+    const dir = dirs.get(cue.id) ?? 0;
+    const weight = dir === 0 ? 0 : Math.round(dir * (cue.hitRate - 50) * 0.9);
+    total += weight;
     factors.push({
-      factor: "European Session",
-      direction: avg > 0.2 ? "UP" : avg < -0.2 ? "DOWN" : "FLAT",
-      weight: Math.round(weight),
-      reasoning: `${europe.map(m => `${m.name.split(" (")[0]} ${m.changePercent >= 0 ? "+" : ""}${m.changePercent.toFixed(2)}%`).join(", ")}. European indices trade through the first half of the US session; cross-Atlantic correlation ~0.55-0.7.`,
-    });
-  }
-
-  // Factor 3: VIX. Inverse for US — high VIX implies risk-off.
-  if (vix) {
-    let weight = 0;
-    if (vix.price > 25) weight = -20;
-    else if (vix.price > 20) weight = -8;
-    else if (vix.price < 13) weight = 12;
-    else if (vix.price < 16) weight = 6;
-    weight += Math.min(10, Math.max(-10, -vix.changePercent * 0.5));
-    factors.push({
-      factor: "VIX (Fear)",
-      direction: vix.changePercent < -3 ? "UP" : vix.changePercent > 3 ? "DOWN" : "FLAT",
-      weight: Math.round(Math.min(25, Math.max(-25, weight))),
-      reasoning: `VIX ${vix.price.toFixed(1)} (${vix.changePercent >= 0 ? "+" : ""}${vix.changePercent.toFixed(1)}%). ${vix.price > 25 ? "Elevated fear — expect defensive trade." : vix.price < 14 ? "Complacency — risk-on backdrop." : "Normal regime."}`,
-    });
-  }
-
-  // Factor 4: US 10Y yield. Rising yields pressure equities, especially long-duration tech.
-  if (tnx) {
-    const weight = Math.min(20, Math.max(-20, -tnx.changePercent * 6));
-    factors.push({
-      factor: "US 10Y Yield",
-      direction: tnx.changePercent < -2 ? "UP" : tnx.changePercent > 2 ? "DOWN" : "FLAT",
-      weight: Math.round(weight),
-      reasoning: `Yield at ${tnx.price.toFixed(2)}% (${tnx.changePercent >= 0 ? "+" : ""}${tnx.changePercent.toFixed(2)}%). ${tnx.changePercent > 0 ? "Rising yields compress equity multiples." : "Falling yields support multiples, especially growth/tech."}`,
-    });
-  }
-
-  // Factor 5: Dollar index. Strong dollar hurts US multinationals' translated earnings.
-  if (dxy) {
-    const weight = Math.min(12, Math.max(-12, -dxy.changePercent * 6));
-    factors.push({
-      factor: "Dollar Index (DXY)",
-      direction: dxy.changePercent < -0.2 ? "UP" : dxy.changePercent > 0.2 ? "DOWN" : "FLAT",
-      weight: Math.round(weight),
-      reasoning: `DXY ${dxy.price.toFixed(2)} (${dxy.changePercent >= 0 ? "+" : ""}${dxy.changePercent.toFixed(2)}%). ${dxy.changePercent > 0 ? "Stronger dollar pressures S&P 500 earnings (40% of revenue is overseas)." : "Weaker dollar lifts multinational earnings."}`,
-    });
-  }
-
-  // Factor 6: Crude oil. Mildly positive for US (now a net exporter), but extreme spikes hurt consumer.
-  if (oil) {
-    let weight = 0;
-    if (oil.changePercent > 4) weight = -10;
-    else if (oil.changePercent > 2) weight = -3;
-    else if (oil.changePercent < -3) weight = 4;
-    factors.push({
-      factor: "Crude Oil",
-      direction: oil.changePercent > 1 ? "UP" : oil.changePercent < -1 ? "DOWN" : "FLAT",
+      factor: cue.label.replace(/ \(.*\)$/, ""),
+      direction: dir > 0 ? "UP" : dir < 0 ? "DOWN" : "FLAT",
       weight,
-      reasoning: `${oil.name} $${oil.price.toFixed(2)} (${oil.changePercent >= 0 ? "+" : ""}${oil.changePercent.toFixed(2)}%). US is net oil exporter; modest moves help energy sector, sharp spikes weigh on consumer demand & inflation expectations.`,
+      reasoning: `Verified predictor of the ${OUTCOME_LABEL[cue.outcome]}: right ${cue.hitRate}% of ${cue.n} occurrences over 5y (${cue.testHitRate}% holdout). ${dir === 0 ? "Not firing right now." : `Firing ${dir > 0 ? "bullish" : "bearish"} now.`}`,
     });
   }
-
-  // Factor 7: Gold (safe haven).
-  if (gold) {
-    const weight = gold.changePercent > 1.5 ? -8 : gold.changePercent < -1 ? 4 : 0;
-    if (weight !== 0) {
-      factors.push({
-        factor: "Gold (Safe Haven)",
-        direction: gold.changePercent < -0.5 ? "UP" : gold.changePercent > 1 ? "DOWN" : "FLAT",
-        weight,
-        reasoning: `Gold $${gold.price.toFixed(2)} (${gold.changePercent >= 0 ? "+" : ""}${gold.changePercent.toFixed(2)}%). ${gold.changePercent > 1.5 ? "Sharp rally = risk-off bid." : "Gold weakness = risk appetite intact."}`,
-      });
-    }
+  let score = Math.min(95, Math.max(5, 50 + total));
+  // A live 90%+ combo overrides toward its direction.
+  const combos = activeCombos(markets, market);
+  if (combos.length > 0) {
+    score = combos[0].direction === "UP" ? Math.max(score, 88) : Math.min(score, 12);
   }
-
-  const totalWeight = factors.reduce((sum, f) => sum + f.weight, 0);
-  const score = Math.min(95, Math.max(5, 50 + totalWeight));
-
   let label: string;
   if (score >= 75) label = "Strong Bullish";
   else if (score >= 60) label = "Moderately Bullish";
@@ -751,11 +384,10 @@ function generateUSPrediction(markets: GlobalMarket[]): { score: number; label: 
   else if (score >= 40) label = "Slightly Bearish";
   else if (score >= 25) label = "Moderately Bearish";
   else label = "Strong Bearish";
-
   factors.sort((a, b) => Math.abs(b.weight) - Math.abs(a.weight));
-
   return { score, label, factors };
 }
+
 
 export async function GET() {
   try {
@@ -830,14 +462,18 @@ export async function GET() {
     }
 
     const insights = generateInsights(markets);
-    const prediction = generatePrediction(markets, insights);
-    const usPrediction = generateUSPrediction(markets);
+    const prediction = verifiedPrediction(markets, "IN");
+    const usPrediction = verifiedPrediction(markets, "US");
 
     return NextResponse.json({
       markets,
       insights,
       prediction,
       usPrediction,
+      combos: {
+        IN: { active: activeCombos(markets, "IN"), catalog: VERIFIED_GAP_COMBOS.IN },
+        US: { active: activeCombos(markets, "US"), catalog: VERIFIED_GAP_COMBOS.US },
+      },
       timestamp: new Date().toISOString(),
     });
   } catch (error: any) {

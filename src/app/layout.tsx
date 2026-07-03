@@ -120,7 +120,7 @@ const jsonLdSoftware = {
     "ETF screener grouped by theme with buy/hold/sell recommendation",
     "Every strategy re-verifiable against 5 years of history across 200 sampled stocks",
     "Market overview with pivots, Fibonacci, key supports & resistances",
-    "Global market cues with India + US market prediction",
+    "Global market cues distilled to verified predictors only, with 90%+ backtested gap-combo alerts",
     "Notable holders & insider transaction tracking",
     "Interactive candlestick charts with 7 timeframes and 20+ indicators",
   ],

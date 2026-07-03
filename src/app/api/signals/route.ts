@@ -7,7 +7,7 @@ const yahooFinance = new (YahooFinance as any)({ suppressNotices: ["yahooSurvey"
 
 export const maxDuration = 60;
 
-interface MarketSignal {
+export interface MarketSignal {
   name: string;
   value: number;
   signal: "BULLISH" | "BEARISH" | "NEUTRAL";
@@ -24,7 +24,7 @@ interface MarketEvent {
   timestamp: string;
 }
 
-function analyzeIndex(candles: OHLCV[]): MarketSignal[] {
+export function analyzeIndex(candles: OHLCV[]): MarketSignal[] {
   const signals: MarketSignal[] = [];
   const closes = candles.map(c => c.close);
   const highs = candles.map(c => c.high);

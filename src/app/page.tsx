@@ -221,11 +221,23 @@ interface PredictionFactor {
   reasoning: string;
 }
 
+interface GapComboInfo {
+  members: string[];
+  labels: string[];
+  outcome: string;
+  hitRate: number;
+  n: number;
+  testHitRate: number;
+  avgMove: number;
+  direction?: "UP" | "DOWN";
+}
+
 interface GlobalData {
   markets: GlobalMarket[];
   insights: CorrelationInsight[];
   prediction: { score: number; label: string; factors: PredictionFactor[] };
   usPrediction?: { score: number; label: string; factors: PredictionFactor[] };
+  combos?: Record<"IN" | "US", { active: GapComboInfo[]; catalog: GapComboInfo[] }>;
   timestamp: string;
 }
 
@@ -535,7 +547,7 @@ function Spinner() {
 }
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<"home" | "picks" | "market" | "global" | "signals" | "portfolio" | "bot" | "etfs" | "themes" | "strategies" | "scan" | "search" | "learn">("home");
+  const [activeTab, setActiveTab] = useState<"home" | "picks" | "market" | "global" | "portfolio" | "bot" | "etfs" | "themes" | "strategies" | "scan" | "search" | "learn">("home");
   const [strategiesSubTab, setStrategiesSubTab] = useState<"screener" | "insider">("screener");
   const [selectedStrategy, setSelectedStrategy] = useState<StrategyInfo | null>(null);
   const [signalFilter, setSignalFilter] = useState("ALL");
@@ -565,8 +577,6 @@ export default function Home() {
   const [backtestLoading, setBacktestLoading] = useState(false);
 
   // Signals
-  const [signalsData, setSignalsData] = useState<SignalsData | null>(null);
-  const [signalsLoading, setSignalsLoading] = useState(false);
   const [signalCategoryFilter, setSignalCategoryFilter] = useState<"all" | "trend" | "momentum" | "volume" | "volatility" | "breadth">("all");
 
   // Global
@@ -618,7 +628,6 @@ export default function Home() {
     setPicksData(null);
     setScoreboard(null);
     setMasterResults([]);
-    setSignalsData(null);
     // Portfolio holdings + their live data span both markets, so we keep
     // them across market toggles and let each holding render in its own currency.
     setInsiderData({ holders: [], deals: [], bulkDeals: [] });
@@ -879,15 +888,6 @@ export default function Home() {
     setGlobalLoading(false);
   }, []);
 
-  const loadSignals = useCallback(async () => {
-    setSignalsLoading(true);
-    try {
-      const res = await fetch(`/api/signals?market=${market}`);
-      if (res.ok) setSignalsData(await res.json());
-    } catch { /* ignore */ }
-    setSignalsLoading(false);
-  }, [market]);
-
   const loadPicks = useCallback(async () => {
     setPicksLoading(true);
     track("picks_load", { market });
@@ -1021,13 +1021,13 @@ export default function Home() {
 
           {/* Desktop tab bar (lg+) */}
           <nav className="hidden lg:flex items-center gap-1 bg-white/5 rounded-lg p-0.5 overflow-x-auto flex-1 justify-center" aria-label="Primary">
-            {(["home", "picks", "market", "global", "signals", "portfolio", "bot", "etfs", "themes", "strategies", "scan", "search", "learn"] as const).map((tab) => (
+            {(["home", "picks", "market", "global", "portfolio", "bot", "etfs", "themes", "strategies", "scan", "search", "learn"] as const).map((tab) => (
               <button
                 key={tab}
-                onClick={() => { setActiveTab(tab); if (tab === "picks" && !picksData) loadPicks(); if (tab === "signals" && !signalsData) loadSignals(); if (tab === "global" && !globalData) loadGlobal(); if (tab === "portfolio" && portfolio.length > 0 && portfolioData.length === 0) refreshPortfolio(); if (tab === "etfs" && !etfData) loadEtfs(); if (tab === "themes" && !thematicData) loadThematic(); if (tab === "bot" && !botState) loadBot(); }}
+                onClick={() => { setActiveTab(tab); if (tab === "picks" && !picksData) loadPicks(); if (tab === "global" && !globalData) loadGlobal(); if (tab === "portfolio" && portfolio.length > 0 && portfolioData.length === 0) refreshPortfolio(); if (tab === "etfs" && !etfData) loadEtfs(); if (tab === "themes" && !thematicData) loadThematic(); if (tab === "bot" && !botState) loadBot(); }}
                 className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all whitespace-nowrap ${activeTab === tab ? "bg-white/10 text-white" : "text-gray-400 hover:text-white"}`}
               >
-                {tab === "home" ? "Home" : tab === "picks" ? "Top Picks" : tab === "market" ? "Market" : tab === "global" ? "Global" : tab === "signals" ? "Signals" : tab === "portfolio" ? `Portfolio${portfolio.length > 0 ? ` (${portfolio.length})` : ""}` : tab === "bot" ? "Bot" : tab === "etfs" ? "ETFs" : tab === "themes" ? "Themes" : tab === "strategies" ? "Strategies" : tab === "scan" ? "Scan" : tab === "search" ? "Lookup" : "Learn"}
+                {tab === "home" ? "Home" : tab === "picks" ? "Top Picks" : tab === "market" ? "Market" : tab === "global" ? "Global" : tab === "portfolio" ? `Portfolio${portfolio.length > 0 ? ` (${portfolio.length})` : ""}` : tab === "bot" ? "Bot" : tab === "etfs" ? "ETFs" : tab === "themes" ? "Themes" : tab === "strategies" ? "Strategies" : tab === "scan" ? "Scan" : tab === "search" ? "Lookup" : "Learn"}
               </button>
             ))}
           </nav>
@@ -1089,14 +1089,14 @@ export default function Home() {
           <div className="lg:hidden border-t border-white/5 bg-[var(--header-bg)]">
             <nav className="max-w-7xl mx-auto px-4 sm:px-6 py-3" aria-label="Mobile primary">
               <div className="grid grid-cols-2 gap-1.5">
-                {(["home", "picks", "market", "global", "signals", "portfolio", "bot", "etfs", "themes", "strategies", "scan", "search", "learn"] as const).map((tab) => (
+                {(["home", "picks", "market", "global", "portfolio", "bot", "etfs", "themes", "strategies", "scan", "search", "learn"] as const).map((tab) => (
                   <button
                     key={tab}
                     onClick={() => {
                       setActiveTab(tab);
                       setMobileNavOpen(false);
                       if (tab === "picks" && !picksData) loadPicks();
-                      if (tab === "signals" && !signalsData) loadSignals();
+                     
                       if (tab === "global" && !globalData) loadGlobal();
                       if (tab === "portfolio" && portfolio.length > 0 && portfolioData.length === 0) refreshPortfolio();
                       if (tab === "etfs" && !etfData) loadEtfs();
@@ -1105,7 +1105,7 @@ export default function Home() {
                     }}
                     className={`px-3 py-2.5 rounded-lg text-sm font-medium text-left transition-all ${activeTab === tab ? "bg-white/10 text-white" : "bg-white/[0.02] text-gray-300 hover:bg-white/[0.05]"}`}
                   >
-                    {tab === "home" ? "Home" : tab === "picks" ? "Top Picks" : tab === "market" ? "Market" : tab === "global" ? "Global" : tab === "signals" ? "Signals" : tab === "portfolio" ? `Portfolio${portfolio.length > 0 ? ` (${portfolio.length})` : ""}` : tab === "bot" ? "Bot" : tab === "etfs" ? "ETFs" : tab === "themes" ? "Themes" : tab === "strategies" ? "Strategies" : tab === "scan" ? "Scan" : tab === "search" ? "Lookup" : "Learn"}
+                    {tab === "home" ? "Home" : tab === "picks" ? "Top Picks" : tab === "market" ? "Market" : tab === "global" ? "Global" : tab === "portfolio" ? `Portfolio${portfolio.length > 0 ? ` (${portfolio.length})` : ""}` : tab === "bot" ? "Bot" : tab === "etfs" ? "ETFs" : tab === "themes" ? "Themes" : tab === "strategies" ? "Strategies" : tab === "scan" ? "Scan" : tab === "search" ? "Lookup" : "Learn"}
                   </button>
                 ))}
               </div>
@@ -1244,14 +1244,8 @@ export default function Home() {
                   {
                     icon: "🌍",
                     title: "Global Market Cues",
-                    body: "20+ world markets with a quantitative prediction (0-100) for both India and US sessions. See exactly which factors are driving direction.",
+                    body: "20+ world markets distilled into verified predictors only: every cue backtested over 5 years against the outcome it claims, with 90%+ combo alerts for the Nifty open.",
                     cta: "global" as const,
-                  },
-                  {
-                    icon: "📡",
-                    title: "Signals & Sentiment",
-                    body: "15+ buy/sell technical indicators, sentiment gauge, market events. Live read of the index's underlying technical posture.",
-                    cta: "signals" as const,
                   },
                   {
                     icon: "🔬",
@@ -1698,12 +1692,49 @@ export default function Home() {
                   </div>
                 </div>
 
+                {/* ── Verified 90%+ gap combos ── */}
+                {globalData.combos && (
+                  <div className="mb-8">
+                    <div className="flex items-center gap-2 mb-3">
+                      <h3 className="text-sm font-semibold text-amber-300 uppercase tracking-wider">⚡ Verified gap predictors (90%+ over 5 years)</h3>
+                      <span className="text-[10px] text-gray-500">combos of global cues that called the next Nifty open correctly 90%+ of the time, incl. an 18-month holdout</span>
+                    </div>
+                    {globalData.combos.IN.active.length > 0 ? (
+                      <div className="grid sm:grid-cols-2 gap-3 mb-3">
+                        {globalData.combos.IN.active.map((c, i) => (
+                          <div key={i} className={`rounded-xl border p-4 ${c.direction === "UP" ? "bg-emerald-500/[0.05] border-emerald-500/25" : "bg-red-500/[0.05] border-red-500/25"}`}>
+                            <div className="flex items-center gap-2 mb-1.5">
+                              <span className={`text-base font-bold ${c.direction === "UP" ? "text-emerald-300" : "text-red-300"}`}>Nifty likely to gap {c.direction === "UP" ? "UP" : "DOWN"} at next open</span>
+                              <span className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[11px] font-bold">{c.hitRate}% over {c.n} signals</span>
+                            </div>
+                            <p className="text-xs text-gray-400">{c.labels.join(" + ")} all agree right now. Holdout accuracy {c.testHitRate}%, avg gap {c.avgMove > 0 ? "+" : ""}{c.avgMove}% in the predicted direction.</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4 text-xs text-gray-500 mb-3">
+                        None of the verified combos is firing right now. They are rare by design — that&apos;s what makes them accurate.
+                      </div>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      {globalData.combos.IN.catalog.map((c, i) => (
+                        <span key={i} className="px-2.5 py-1 rounded-lg bg-white/[0.03] border border-white/5 text-[10px] text-gray-500" title={`${c.labels.join(" + ")} · holdout ${c.testHitRate}%`}>
+                          {c.hitRate}% / {c.n} signals · {c.members.length} cues
+                        </span>
+                      ))}
+                      {globalData.combos.US.catalog.length === 0 && (
+                        <span className="px-2.5 py-1 rounded-lg bg-white/[0.03] border border-white/5 text-[10px] text-gray-600">US market: no combo passed the 90% bar — none shown, by design</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* ── Correlation Insights (Impact on India) ── */}
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Impact Analysis on Indian Markets</h3>
+                  <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Verified Global Cues — Impact on Indian Markets</h3>
                   {globalData.insights.length === 0 ? (
                     <div className="bg-white/[0.02] border border-white/5 rounded-xl p-8 text-center text-gray-500 text-sm">
-                      No significant global cues detected. Markets are relatively calm.
+                      No verified cue is firing right now. Only signals that passed a 5-year backtest are shown here; quiet is a valid answer.
                     </div>
                   ) : (
                     <div className="space-y-2.5">
@@ -2120,201 +2151,6 @@ export default function Home() {
           </div>
         )}
 
-        {activeTab === "signals" && (
-          <div>
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-xl font-bold">Market Signals & Events</h2>
-                <p className="text-sm text-gray-500 mt-1">Real-time buy/sell indicators and market-moving events from 15+ technical signals</p>
-              </div>
-              <button
-                onClick={loadSignals}
-                disabled={signalsLoading}
-                className="px-5 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 rounded-xl text-sm font-bold transition-all disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-blue-500/20"
-              >
-                {signalsLoading ? <><Spinner /> Loading...</> : "Refresh Signals"}
-              </button>
-            </div>
-
-            {signalsLoading && !signalsData && (
-              <div className="space-y-4">
-                <div className="skeleton h-40 w-full rounded-xl" />
-                <div className="grid grid-cols-3 gap-4"><div className="skeleton h-32 rounded-xl" /><div className="skeleton h-32 rounded-xl" /><div className="skeleton h-32 rounded-xl" /></div>
-                <div className="skeleton h-64 w-full rounded-xl" />
-              </div>
-            )}
-
-            {signalsData && (
-              <div className="space-y-6">
-                {/* ── Sentiment Gauge ── */}
-                <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Market Sentiment</h3>
-                    <div className="flex items-center gap-3 text-xs text-gray-500">
-                      <span>{signalsData.market.primaryName}: <span className="font-mono font-semibold text-white">{signalsData.market.primaryPrice}</span> <span className={parseFloat(signalsData.market.primaryChange) >= 0 ? "text-emerald-400" : "text-red-400"}>{parseFloat(signalsData.market.primaryChange) >= 0 ? "+" : ""}{signalsData.market.primaryChange}%</span></span>
-                      {signalsData.market.secondaryPrice && <span>{signalsData.market.secondaryName}: <span className="font-mono font-semibold text-white">{signalsData.market.secondaryPrice}</span></span>}
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-6 sm:gap-8">
-                    {/* Gauge */}
-                    <div className="flex-shrink-0 relative w-36 h-36">
-                      <svg viewBox="0 0 120 120" className="w-full h-full -rotate-90">
-                        <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="10" />
-                        <circle cx="60" cy="60" r="50" fill="none"
-                          stroke={signalsData.sentiment.score >= 70 ? "#10b981" : signalsData.sentiment.score >= 55 ? "#22c55e" : signalsData.sentiment.score >= 45 ? "#eab308" : signalsData.sentiment.score >= 30 ? "#f97316" : "#ef4444"}
-                          strokeWidth="10" strokeLinecap="round"
-                          strokeDasharray={`${signalsData.sentiment.score * 3.14} 314`}
-                        />
-                      </svg>
-                      <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <span className={`text-3xl font-bold ${signalsData.sentiment.score >= 55 ? "text-emerald-400" : signalsData.sentiment.score >= 45 ? "text-yellow-400" : "text-red-400"}`}>
-                          {signalsData.sentiment.score}
-                        </span>
-                        <span className="text-[10px] text-gray-500 uppercase">{signalsData.sentiment.label}</span>
-                      </div>
-                    </div>
-                    <div className="flex-1 space-y-3">
-                      <div className="flex items-center gap-3">
-                        <span className="text-emerald-400 font-bold text-lg w-8 text-right">{signalsData.sentiment.bullish}</span>
-                        <div className="flex-1 h-3 bg-white/5 rounded-full overflow-hidden">
-                          <div className="h-full bg-emerald-500 rounded-full transition-all duration-700" style={{ width: `${(signalsData.sentiment.bullish / signalsData.sentiment.total) * 100}%` }} />
-                        </div>
-                        <span className="text-xs text-gray-500 w-16">Bullish</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-gray-400 font-bold text-lg w-8 text-right">{signalsData.sentiment.neutral}</span>
-                        <div className="flex-1 h-3 bg-white/5 rounded-full overflow-hidden">
-                          <div className="h-full bg-gray-500 rounded-full transition-all duration-700" style={{ width: `${(signalsData.sentiment.neutral / signalsData.sentiment.total) * 100}%` }} />
-                        </div>
-                        <span className="text-xs text-gray-500 w-16">Neutral</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-red-400 font-bold text-lg w-8 text-right">{signalsData.sentiment.bearish}</span>
-                        <div className="flex-1 h-3 bg-white/5 rounded-full overflow-hidden">
-                          <div className="h-full bg-red-500 rounded-full transition-all duration-700" style={{ width: `${(signalsData.sentiment.bearish / signalsData.sentiment.total) * 100}%` }} />
-                        </div>
-                        <span className="text-xs text-gray-500 w-16">Bearish</span>
-                      </div>
-                      <div className="text-[10px] text-gray-600 mt-1">Based on {signalsData.sentiment.total} technical indicators analyzed on {signalsData.market.primaryName}</div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* ── Buy/Sell Signal Indicators ── */}
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Signal Indicators</h3>
-                    <div className="flex items-center gap-1.5">
-                      {(["all", "trend", "momentum", "volume", "volatility", "breadth"] as const).map((cat) => (
-                        <button key={cat} onClick={() => setSignalCategoryFilter(cat)}
-                          className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-all border ${signalCategoryFilter === cat ? "bg-white/10 text-white border-white/20" : "border-white/5 text-gray-500 hover:text-gray-300"}`}
-                        >{cat.charAt(0).toUpperCase() + cat.slice(1)}</button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {signalsData.signals
-                      .filter(s => signalCategoryFilter === "all" || s.category === signalCategoryFilter)
-                      .map((s, i) => (
-                      <div key={i} className={`bg-white/[0.02] border rounded-xl p-4 transition-all ${s.signal === "BULLISH" ? "border-emerald-500/20 hover:border-emerald-500/40" : s.signal === "BEARISH" ? "border-red-500/20 hover:border-red-500/40" : "border-white/5 hover:border-white/10"}`}>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-semibold">{s.name}</span>
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${s.signal === "BULLISH" ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" : s.signal === "BEARISH" ? "bg-red-500/15 text-red-400 border-red-500/30" : "bg-gray-500/15 text-gray-400 border-gray-500/30"}`}>
-                            {s.signal === "BULLISH" ? "▲ BUY" : s.signal === "BEARISH" ? "▼ SELL" : "● HOLD"}
-                          </span>
-                        </div>
-                        {/* Signal strength bar */}
-                        <div className="relative h-2 bg-white/5 rounded-full overflow-hidden mb-2">
-                          <div className="absolute inset-0 flex">
-                            <div className="w-1/3 border-r border-white/10" />
-                            <div className="w-1/3 border-r border-white/10" />
-                          </div>
-                          <div
-                            className={`h-full rounded-full transition-all duration-700 ${s.value > 60 ? "bg-emerald-500" : s.value > 40 ? "bg-yellow-500" : "bg-red-500"}`}
-                            style={{ width: `${Math.min(100, Math.max(2, s.value))}%` }}
-                          />
-                        </div>
-                        <div className="flex items-center justify-between mb-1">
-                          <span className={`text-[10px] font-medium uppercase tracking-wider ${
-                            s.category === "trend" ? "text-indigo-400" : s.category === "momentum" ? "text-pink-400" : s.category === "volume" ? "text-cyan-400" : s.category === "volatility" ? "text-orange-400" : "text-teal-400"
-                          }`}>{s.category}</span>
-                          <span className="text-xs font-mono text-gray-400">{s.value.toFixed(0)}</span>
-                        </div>
-                        <p className="text-[11px] text-gray-500 leading-relaxed">{s.details}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* ── Market Events & Happenings ── */}
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Market Events & Happenings</h3>
-                  {signalsData.events.length === 0 ? (
-                    <div className="bg-white/[0.02] border border-white/5 rounded-xl p-8 text-center text-gray-500 text-sm">
-                      No significant market events detected today. Markets are calm.
-                    </div>
-                  ) : (
-                    <div className="space-y-2.5">
-                      {signalsData.events.map((e, i) => (
-                        <div key={i} className={`bg-white/[0.02] border rounded-xl p-4 transition-all hover:bg-white/[0.03] ${
-                          e.impact === "HIGH" ? "border-l-2 border-l-amber-500 border-r border-t border-b border-white/5" :
-                          "border-white/5"
-                        }`}>
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                                  e.signal === "BULLISH" ? "bg-emerald-400" : e.signal === "BEARISH" ? "bg-red-400" : e.signal === "WATCH" ? "bg-amber-400" : "bg-gray-400"
-                                }`} />
-                                <span className="text-sm font-semibold">{e.title}</span>
-                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                                  e.impact === "HIGH" ? "bg-red-500/15 text-red-400" : e.impact === "MEDIUM" ? "bg-amber-500/15 text-amber-400" : "bg-gray-500/15 text-gray-400"
-                                }`}>{e.impact}</span>
-                              </div>
-                              <p className="text-xs text-gray-400 leading-relaxed">{e.description}</p>
-                            </div>
-                            <div className="flex flex-col items-end flex-shrink-0">
-                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                e.signal === "BULLISH" ? "bg-emerald-500/15 text-emerald-400" : e.signal === "BEARISH" ? "bg-red-500/15 text-red-400" : e.signal === "WATCH" ? "bg-amber-500/15 text-amber-400" : "bg-gray-500/15 text-gray-400"
-                              }`}>
-                                {e.signal === "BULLISH" ? "▲ Bullish" : e.signal === "BEARISH" ? "▼ Bearish" : e.signal === "WATCH" ? "◆ Watch" : "● Neutral"}
-                              </span>
-                              <span className={`mt-1 px-1.5 py-0.5 rounded text-[9px] ${
-                                e.type === "technical" ? "bg-indigo-500/10 text-indigo-400" : e.type === "sentiment" ? "bg-pink-500/10 text-pink-400" : e.type === "economic" ? "bg-teal-500/10 text-teal-400" : e.type === "sector" ? "bg-cyan-500/10 text-cyan-400" : "bg-amber-500/10 text-amber-400"
-                              }`}>{e.type}</span>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* ── Signal Legend ── */}
-                <div className="bg-white/[0.02] border border-white/5 rounded-xl p-4">
-                  <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-2 font-semibold">Signal Categories</div>
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-[11px]">
-                    <div><span className="text-indigo-400 font-semibold">Trend:</span> <span className="text-gray-500">SMA alignment, ADX, Golden/Death Cross</span></div>
-                    <div><span className="text-pink-400 font-semibold">Momentum:</span> <span className="text-gray-500">RSI, MACD, Stochastic, CCI, ROC</span></div>
-                    <div><span className="text-cyan-400 font-semibold">Volume:</span> <span className="text-gray-500">OBV, MFI, Volume activity</span></div>
-                    <div><span className="text-orange-400 font-semibold">Volatility:</span> <span className="text-gray-500">BB width, ATR, BB position</span></div>
-                    <div><span className="text-teal-400 font-semibold">Breadth:</span> <span className="text-gray-500">52-week position, momentum</span></div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {!signalsLoading && !signalsData && (
-              <div className="flex flex-col items-center justify-center h-64 text-center">
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center mb-4">
-                  <svg className="w-8 h-8 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
-                </div>
-                <h3 className="text-lg font-semibold mb-1">Market Signals Dashboard</h3>
-                <p className="text-sm text-gray-500 max-w-md">Click &quot;Refresh Signals&quot; to load 15+ buy/sell indicators with market events and sentiment analysis for {market === "US" ? "the S&P 500" : "Nifty 50"}.</p>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* ─── PORTFOLIO TAB ─── */}
         {activeTab === "portfolio" && (
