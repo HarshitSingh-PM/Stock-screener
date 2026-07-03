@@ -1,81 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStockQuote, getHistoricalData } from "@/lib/stockData";
 import { STRATEGIES } from "@/lib/strategies";
-import { sma, rsi, macd } from "@/lib/indicators";
 import { getMarket } from "@/lib/markets";
 import { getETFs } from "@/lib/etfs";
+import { etfComponents, verifiedCall } from "@/lib/etfScore";
+import { ETF_CALL_STATS } from "@/lib/verifiedEtfCalls";
 
 export const maxDuration = 180;
 export const dynamic = "force-dynamic";
-
-type Recommendation = "STRONG_BUY" | "BUY" | "HOLD" | "SELL" | "STRONG_SELL";
-
-function decideRecommendation(
-  closes: number[],
-  buyCount: number,
-  sellCount: number,
-  total: number,
-): { rec: Recommendation; score: number; rationale: string[] } {
-  const rationale: string[] = [];
-
-  // Trend filter: price vs 50/200 SMA.
-  const sma50 = sma(closes, 50);
-  const sma200 = sma(closes, 200);
-  const last = closes.length - 1;
-  const price = closes[last];
-  const ma50 = sma50[last];
-  const ma200 = sma200[last];
-
-  let trendScore = 0;
-  if (ma50 != null && ma200 != null) {
-    if (price > ma50 && ma50 > ma200) { trendScore = 2; rationale.push("Price above 50 & 200 SMA, uptrend intact"); }
-    else if (price < ma50 && ma50 < ma200) { trendScore = -2; rationale.push("Price below 50 & 200 SMA, downtrend"); }
-    else if (price > ma200) { trendScore = 1; rationale.push("Price above 200 SMA, long-term bullish"); }
-    else { trendScore = -1; rationale.push("Price below 200 SMA, long-term bearish"); }
-  }
-
-  // Momentum: RSI.
-  const r = rsi(closes, 14);
-  const lastRsi = r[last];
-  let momentumScore = 0;
-  if (lastRsi != null) {
-    if (lastRsi < 30) { momentumScore = 2; rationale.push(`RSI ${lastRsi.toFixed(0)} — oversold`); }
-    else if (lastRsi > 70) { momentumScore = -2; rationale.push(`RSI ${lastRsi.toFixed(0)} — overbought`); }
-    else if (lastRsi > 55) { momentumScore = 1; rationale.push(`RSI ${lastRsi.toFixed(0)} — bullish momentum`); }
-    else if (lastRsi < 45) { momentumScore = -1; rationale.push(`RSI ${lastRsi.toFixed(0)} — bearish momentum`); }
-  }
-
-  // MACD direction.
-  const m = macd(closes);
-  const lastMacd = m.macdLine[last];
-  const lastSignal = m.signalLine[last];
-  let macdScore = 0;
-  if (lastMacd != null && lastSignal != null) {
-    if (lastMacd > lastSignal && lastMacd > 0) { macdScore = 1; rationale.push("MACD above signal, above zero"); }
-    else if (lastMacd < lastSignal && lastMacd < 0) { macdScore = -1; rationale.push("MACD below signal, below zero"); }
-  }
-
-  // Strategy confluence: weight by buy/sell ratio of the full strategy library.
-  const buyRatio = total > 0 ? buyCount / total : 0;
-  const sellRatio = total > 0 ? sellCount / total : 0;
-  let confluenceScore = 0;
-  if (buyRatio - sellRatio > 0.15) { confluenceScore = 2; rationale.push(`${buyCount}/${total} strategies bullish`); }
-  else if (buyRatio - sellRatio > 0.05) { confluenceScore = 1; rationale.push(`${buyCount}/${total} strategies bullish`); }
-  else if (sellRatio - buyRatio > 0.15) { confluenceScore = -2; rationale.push(`${sellCount}/${total} strategies bearish`); }
-  else if (sellRatio - buyRatio > 0.05) { confluenceScore = -1; rationale.push(`${sellCount}/${total} strategies bearish`); }
-
-  // Aggregate. Max 7 (2+2+1+2), min -7.
-  const score = trendScore + momentumScore + macdScore + confluenceScore;
-
-  let rec: Recommendation;
-  if (score >= 5) rec = "STRONG_BUY";
-  else if (score >= 2) rec = "BUY";
-  else if (score <= -5) rec = "STRONG_SELL";
-  else if (score <= -2) rec = "SELL";
-  else rec = "HOLD";
-
-  return { rec, score, rationale };
-}
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -105,7 +37,8 @@ export async function GET(request: NextRequest) {
         const buyCount = strategyResults.filter((r) => r.signal === "BUY").length;
         const sellCount = strategyResults.filter((r) => r.signal === "SELL").length;
 
-        const { rec, score, rationale } = decideRecommendation(closes, buyCount, sellCount, STRATEGIES.length);
+        const { comp, rationale } = etfComponents(closes, buyCount, sellCount, STRATEGIES.length);
+        const { rec, score } = verifiedCall(comp);
 
         return {
           symbol: etf.symbol,
@@ -152,5 +85,6 @@ export async function GET(request: NextRequest) {
     themes: Object.keys(byTheme),
     byTheme,
     results,
+    callStats: ETF_CALL_STATS[market],
   });
 }

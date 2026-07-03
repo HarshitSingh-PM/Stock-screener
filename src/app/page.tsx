@@ -333,6 +333,7 @@ interface ETFData {
   scanned: number;
   themes: string[];
   byTheme: Record<string, ETFResult[]>;
+  callStats?: Record<"BUY" | "STRONG_BUY", { n: number; hitRate21: number; testHitRate21: number; hitRate63: number; avgReturn63: number }>;
 }
 
 interface ThematicStock {
@@ -713,7 +714,7 @@ export default function Home() {
   const [thematicLoading, setThematicLoading] = useState(false);
   const [expandedTheme, setExpandedTheme] = useState<string | null>(null);
   const [etfThemeFilter, setEtfThemeFilter] = useState<string>("All");
-  const [etfRecFilter, setEtfRecFilter] = useState<"All" | "BUY" | "HOLD" | "SELL">("All");
+  const [etfRecFilter, setEtfRecFilter] = useState<"All" | "BUY" | "HOLD">("All");
   const [expandedEtf, setExpandedEtf] = useState<string | null>(null);
 
   // Bot
@@ -3363,7 +3364,6 @@ export default function Home() {
           const recMatches = (r: ETFResult) => {
             if (etfRecFilter === "All") return true;
             if (etfRecFilter === "BUY") return r.recommendation === "BUY" || r.recommendation === "STRONG_BUY";
-            if (etfRecFilter === "SELL") return r.recommendation === "SELL" || r.recommendation === "STRONG_SELL";
             return r.recommendation === "HOLD";
           };
           return (
@@ -3372,8 +3372,13 @@ export default function Home() {
                 <div>
                   <h2 className="text-xl font-bold">ETF Screener</h2>
                   <p className="text-sm text-gray-500 mt-1">
-                    {market === "US" ? "US-listed ETFs" : "NSE-listed ETFs"} grouped by theme. Each ETF is scored across trend, momentum, MACD, and {STRATEGIES.length}-strategy confluence to produce a buy, hold, or sell call.
+                    {market === "US" ? "US-listed ETFs" : "NSE-listed ETFs"} grouped by theme. Each ETF is scored across trend, momentum, MACD, and {STRATEGIES.length}-strategy confluence to produce a buy or hold call.
                   </p>
+                  {etfData?.callStats && (
+                    <p className="text-[11px] text-gray-600 mt-1.5 max-w-2xl">
+                      5-year backtest: Strong Buy calls were profitable {etfData.callStats.STRONG_BUY.hitRate63}% of the time over the next quarter ({etfData.callStats.STRONG_BUY.n.toLocaleString()} calls, avg {etfData.callStats.STRONG_BUY.avgReturn63 >= 0 ? "+" : ""}{etfData.callStats.STRONG_BUY.avgReturn63}%), Buy calls {etfData.callStats.BUY.hitRate63}%. Sell calls graded worse than a coin flip and were removed — a weak setup shows as Hold.
+                    </p>
+                  )}
                 </div>
                 <button
                   onClick={loadEtfs}
@@ -3399,7 +3404,7 @@ export default function Home() {
                     ))}
                   </div>
                   <div className="flex gap-1.5 bg-white/[0.02] border border-white/5 rounded-lg p-1">
-                    {(["All", "BUY", "HOLD", "SELL"] as const).map((r) => (
+                    {(["All", "BUY", "HOLD"] as const).map((r) => (
                       <button
                         key={r}
                         onClick={() => setEtfRecFilter(r)}
