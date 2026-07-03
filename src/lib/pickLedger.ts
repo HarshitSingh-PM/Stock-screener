@@ -31,6 +31,8 @@ export interface LedgerEntry {
   stop: number;
   estWinRate: number;
   buyCount: number;
+  comboId?: string;      // set when the pick was published as a mined-group signal
+  comboWinRate?: number; // that group's 5y backtested win rate
   status: PickStatus;
   fillPrice?: number;    // actual next-session open
   fillDate?: string;
@@ -66,20 +68,27 @@ function writeLedger(ledger: Ledger) {
   fs.writeFileSync(ledgerFile(ledger.market), JSON.stringify(ledger));
 }
 
-/** Append today's published picks. A symbol with an open entry is not re-added. */
+/** Append today's published picks + combo signals. Open symbols aren't re-added. */
 export function recordPicks(set: RecommendationSet) {
-  if (set.scanned < MIN_SCANNED_TO_RECORD || set.picks.length === 0) return;
+  if (set.scanned < MIN_SCANNED_TO_RECORD) return;
+  const published = [...set.picks, ...(set.comboHits ?? [])];
+  if (published.length === 0) return;
   const ledger = readLedger(set.market);
   const openSymbols = new Set(ledger.entries.filter((e) => e.status === "open").map((e) => e.symbol));
+  const seen = new Set<string>();
   let added = 0;
-  for (const p of set.picks) {
-    if (openSymbols.has(p.symbol)) continue;
+  for (const p of published) {
+    if (openSymbols.has(p.symbol) || seen.has(p.symbol)) continue;
+    seen.add(p.symbol);
     const id = `${set.date}-${set.market}-${p.symbol}`;
     if (ledger.entries.some((e) => e.id === id)) continue;
+    const combo = p.combos?.[0];
     ledger.entries.push({
       id, date: set.date, market: set.market, symbol: p.symbol, name: p.name,
       priceAtPick: p.price, entry: p.entry, target: p.target, stop: p.stop,
-      estWinRate: p.estWinRate, buyCount: p.buyCount, status: "open",
+      estWinRate: p.estWinRate, buyCount: p.buyCount,
+      ...(combo ? { comboId: combo.id, comboWinRate: combo.winRate } : {}),
+      status: "open",
     });
     added++;
   }

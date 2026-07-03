@@ -53,6 +53,14 @@ interface PickStrategyInfo {
   winRate: number;
 }
 
+interface ActiveComboInfo {
+  id: string;
+  size: number;
+  winRate: number;
+  testWinRate: number;
+  trades: number;
+}
+
 interface PickItem {
   symbol: string;
   name: string;
@@ -70,6 +78,7 @@ interface PickItem {
   riskReward: number;
   rationale: string;
   topStrategies: PickStrategyInfo[];
+  combos?: ActiveComboInfo[];
 }
 
 interface PicksSet {
@@ -80,6 +89,7 @@ interface PicksSet {
   universe: number;
   picks: PickItem[];
   avoid: PickItem[];
+  comboHits?: PickItem[];
   fromCache?: boolean;
   stale?: boolean;
 }
@@ -96,6 +106,8 @@ interface LedgerEntryUI {
   estWinRate: number;
   buyCount: number;
   status: "open" | "target" | "stop" | "expired_win" | "expired_loss";
+  comboId?: string;
+  comboWinRate?: number;
   fillPrice?: number;
   fillDate?: string;
   exitPrice?: number;
@@ -1833,6 +1845,56 @@ export default function Home() {
               </div>
             )}
 
+            {picksView === "today" && picksData && (picksData.comboHits?.length ?? 0) > 0 && (
+              <div className="mb-8">
+                <div className="flex items-center gap-2 mb-3">
+                  <h2 className="text-sm font-semibold text-amber-300 uppercase tracking-wider">⚡ High win-rate combos firing now</h2>
+                  <span className="text-[10px] text-gray-500">strategy groups that won 80%+ of their trades over 5 years, all agreeing today</span>
+                </div>
+                <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
+                  {picksData.comboHits!.map((p) => (
+                    <div key={`combo-${p.symbol}`} className="rounded-2xl bg-amber-500/[0.04] border border-amber-500/20 hover:border-amber-400/40 transition-all p-4 flex flex-col gap-2.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <button
+                            onClick={() => { track("combo_open", { symbol: p.symbol, market }); setActiveTab("search"); setSearchQuery(p.symbol); searchStock(p.symbol); }}
+                            className="text-base font-bold hover:text-amber-300 transition-colors"
+                          >
+                            {p.symbol}
+                          </button>
+                          <p className="text-[11px] text-gray-500 truncate max-w-[170px]">{p.name}</p>
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <div className="text-sm font-semibold">{fmtPrice(p.price)}</div>
+                          <div className={`text-[11px] font-mono ${p.changePercent >= 0 ? "text-emerald-400" : "text-red-400"}`}>{p.changePercent >= 0 ? "+" : ""}{p.changePercent.toFixed(2)}%</div>
+                        </div>
+                      </div>
+                      {(p.combos ?? []).slice(0, 2).map((c) => (
+                        <div key={c.id} className="flex items-center gap-2 text-[11px]">
+                          <span className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold">{c.winRate}% win rate</span>
+                          <span className="text-gray-500">{c.size}-strategy combo · {c.trades} trades in 5y · {c.testWinRate}% on holdout</span>
+                        </div>
+                      ))}
+                      <div className="grid grid-cols-3 gap-2 text-center">
+                        <div className="rounded-lg bg-white/[0.03] py-1.5">
+                          <div className="text-[9px] text-gray-500 uppercase tracking-wide">Entry</div>
+                          <div className="text-[11px] font-mono text-gray-200">{fmtPrice(p.entry)}</div>
+                        </div>
+                        <div className="rounded-lg bg-emerald-500/[0.06] py-1.5">
+                          <div className="text-[9px] text-gray-500 uppercase tracking-wide">Target</div>
+                          <div className="text-[11px] font-mono text-emerald-300">{fmtPrice(p.target)}</div>
+                        </div>
+                        <div className="rounded-lg bg-red-500/[0.06] py-1.5">
+                          <div className="text-[9px] text-gray-500 uppercase tracking-wide">Stop</div>
+                          <div className="text-[11px] font-mono text-red-300">{fmtPrice(p.stop)}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {picksView === "today" && picksData && picksData.picks.length > 0 && (
               <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {picksData.picks.map((p, idx) => (
@@ -1856,9 +1918,12 @@ export default function Home() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 text-[11px]">
+                    <div className="flex flex-wrap items-center gap-2 text-[11px]">
                       <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 font-semibold">{p.buyCount}/{p.totalStrategies} strategies agree</span>
                       <span className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-gray-400">~{p.estWinRate}% hist. win rate</span>
+                      {(p.combos?.length ?? 0) > 0 && (
+                        <span className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold">⚡ {p.combos![0].winRate}% combo</span>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-4 gap-2 text-center">
@@ -1875,8 +1940,8 @@ export default function Home() {
                         <div className="text-[11px] font-mono text-red-300">{fmtPrice(p.stop)}</div>
                       </div>
                       <div className="rounded-lg bg-white/[0.03] py-1.5">
-                        <div className="text-[9px] text-gray-500 uppercase tracking-wide">R:R</div>
-                        <div className="text-[11px] font-mono text-gray-200">{p.riskReward.toFixed(1)}</div>
+                        <div className="text-[9px] text-gray-500 uppercase tracking-wide">Max hold</div>
+                        <div className="text-[11px] font-mono text-gray-200">21d</div>
                       </div>
                     </div>
 
@@ -1976,6 +2041,7 @@ export default function Home() {
                             <tr key={e.id} className="border-t border-white/5 hover:bg-white/[0.02]">
                               <td className="px-3 py-2.5">
                                 <button onClick={() => { setActiveTab("search"); setSearchQuery(e.symbol); searchStock(e.symbol); }} className="font-bold hover:text-emerald-300 transition-colors">{e.symbol}</button>
+                                {e.comboId && <span className="ml-1.5 text-amber-400" title={`Published as a ${e.comboWinRate}% combo signal`}>⚡</span>}
                                 <span className="text-gray-600 ml-2 hidden sm:inline">{e.date}</span>
                               </td>
                               <td className="text-right px-3 py-2.5 text-gray-500">{e.date.slice(5)}</td>
@@ -2013,6 +2079,7 @@ export default function Home() {
                             <tr key={e.id} className="border-t border-white/5 hover:bg-white/[0.02]">
                               <td className="px-3 py-2.5">
                                 <button onClick={() => { setActiveTab("search"); setSearchQuery(e.symbol); searchStock(e.symbol); }} className="font-bold hover:text-emerald-300 transition-colors">{e.symbol}</button>
+                                {e.comboId && <span className="ml-1.5 text-amber-400" title={`Published as a ${e.comboWinRate}% combo signal`}>⚡</span>}
                               </td>
                               <td className="text-right px-3 py-2.5 text-gray-500">{e.date.slice(5)}</td>
                               <td className="text-right px-3 py-2.5 text-gray-500">{e.exitDate?.slice(5) ?? "—"}</td>

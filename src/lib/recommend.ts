@@ -1,8 +1,9 @@
 import fs from "fs";
 import path from "path";
 import { getHistoricalData, getStockQuote } from "./stockData";
-import { STRATEGIES } from "./strategies";
+import { STRATEGIES, ALL_STRATEGIES } from "./strategies";
 import { BACKTEST_CACHE } from "./backtestCache";
+import { SIGNAL_GROUPS } from "./signalGroups";
 import { analyze, LONGTERM_PROFILE, Thesis } from "./botBrain";
 import { getMarketConfig, type Market } from "./markets";
 import { recordPicks } from "./pickLedger";
@@ -28,6 +29,14 @@ export interface PickStrategy {
   winRate: number; // 5y backtested win rate
 }
 
+export interface ActiveCombo {
+  id: string;
+  size: number;
+  winRate: number;   // full 5y win rate of the group's joint signal
+  testWinRate: number;
+  trades: number;
+}
+
 export interface Recommendation {
   symbol: string;
   name: string;
@@ -45,6 +54,7 @@ export interface Recommendation {
   riskReward: number;
   rationale: string;
   topStrategies: PickStrategy[];
+  combos: ActiveCombo[];  // mined 80%+ groups fully firing on this stock right now
 }
 
 export interface RecommendationSet {
@@ -55,7 +65,15 @@ export interface RecommendationSet {
   universe: number;
   picks: Recommendation[];
   avoid: Recommendation[];
+  comboHits: Recommendation[]; // every scanned stock with an active mined group
 }
+
+// Strategies that only exist as group members (not individually served) still
+// need evaluating when checking whether a group fires.
+const SERVED_IDS = new Set(STRATEGIES.map((s) => s.id));
+const COMBO_ONLY_MEMBERS = ALL_STRATEGIES.filter(
+  (s) => !SERVED_IDS.has(s.id) && SIGNAL_GROUPS.some((g) => g.members.includes(s.id))
+);
 
 // 60% winner → 0.5 vote, 65% → 1.0, 70% → 1.5. Floor keeps any served
 // strategy from being silenced entirely.
@@ -98,6 +116,7 @@ async function scoreSymbol(symbol: string, market: Market): Promise<Recommendati
   let buyCount = 0, sellCount = 0;
   let estNum = 0, estDen = 0;
   const buys: PickStrategy[] = [];
+  const buyIds = new Set<string>();
 
   for (const s of STRATEGIES) {
     const w = strategyWeight(s.id);
@@ -112,6 +131,7 @@ async function scoreSymbol(symbol: string, market: Market): Promise<Recommendati
     if (r.signal === "BUY") {
       buyCount++;
       weightedBuy += vote;
+      buyIds.add(s.id);
       const wr = BACKTEST_CACHE[s.id]?.winRate ?? 0;
       estNum += vote * wr;
       estDen += vote;
@@ -123,11 +143,31 @@ async function scoreSymbol(symbol: string, market: Market): Promise<Recommendati
   }
   if (totalWeight <= 0) return null;
 
+  // Group members outside the served set only matter for combo detection —
+  // they don't vote in the confluence score.
+  for (const s of COMBO_ONLY_MEMBERS) {
+    try {
+      const r = s.evaluate(candles);
+      if (r.signal === "BUY" && r.strength >= 30) buyIds.add(s.id);
+    } catch { /* ignore */ }
+  }
+  const combos: ActiveCombo[] = SIGNAL_GROUPS
+    .filter((g) => g.members.every((m) => buyIds.has(m)))
+    .map((g) => ({ id: g.id, size: g.members.length, winRate: g.winRate, testWinRate: g.testWinRate, trades: g.trades }))
+    .sort((a, b) => b.winRate - a.winRate);
+
   const thesis: Thesis | null = analyze(symbol, candles, LONGTERM_PROFILE);
   if (!thesis) return null;
 
   const net = (100 * (weightedBuy - weightedSell)) / totalWeight;
   const score = net * (0.5 + 0.5 * thesis.conviction);
+
+  // Trade plan uses the SAME multiples the 5y backtest verified (target
+  // +1.5*ATR14, stop -2.5*ATR14 from the last close) so the public track
+  // record grades exactly what was tested.
+  const entry = candles[candles.length - 1].close;
+  const target = entry + 1.5 * thesis.atr;
+  const stop = entry - 2.5 * thesis.atr;
 
   return {
     symbol,
@@ -140,14 +180,15 @@ async function scoreSymbol(symbol: string, market: Market): Promise<Recommendati
     sellCount,
     totalStrategies: STRATEGIES.length,
     conviction: +thesis.conviction.toFixed(2),
-    entry: +thesis.entry.toFixed(2),
-    stop: +thesis.stop.toFixed(2),
-    target: +thesis.target.toFixed(2),
-    riskReward: +thesis.riskReward.toFixed(2),
-    rationale: thesis.rationale,
+    entry: +entry.toFixed(2),
+    stop: +stop.toFixed(2),
+    target: +target.toFixed(2),
+    riskReward: 0.6,
+    rationale: thesis.rationale.replace(/\s*·\s*R:R[^·]*$/, ""),
     topStrategies: buys
       .sort((a, b) => b.winRate * b.strength - a.winRate * a.strength)
       .slice(0, 5),
+    combos,
   };
 }
 
@@ -183,6 +224,13 @@ export async function buildRecommendations(
     .sort((a, b) => a.score - b.score)
     .slice(0, avoidN);
 
+  // Every stock where a mined 80%+ group is fully firing, best group first —
+  // shown regardless of whether it also made the top picks.
+  const comboHits = scored
+    .filter((r) => r.combos.length > 0)
+    .sort((a, b) => (b.combos[0]?.winRate ?? 0) - (a.combos[0]?.winRate ?? 0) || b.score - a.score)
+    .slice(0, 12);
+
   const set: RecommendationSet = {
     date: new Date().toISOString().slice(0, 10),
     generatedAt: new Date().toISOString(),
@@ -191,6 +239,7 @@ export async function buildRecommendations(
     universe: cfg.universe.length,
     picks,
     avoid,
+    comboHits,
   };
   writeCache(set);
   // Full-universe runs publish to the immutable track record (pickLedger
