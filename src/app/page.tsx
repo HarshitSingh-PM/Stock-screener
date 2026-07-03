@@ -84,6 +84,47 @@ interface PicksSet {
   stale?: boolean;
 }
 
+interface LedgerEntryUI {
+  id: string;
+  date: string;
+  symbol: string;
+  name: string;
+  priceAtPick: number;
+  entry: number;
+  target: number;
+  stop: number;
+  estWinRate: number;
+  buyCount: number;
+  status: "open" | "target" | "stop" | "expired_win" | "expired_loss";
+  fillPrice?: number;
+  fillDate?: string;
+  exitPrice?: number;
+  exitDate?: string;
+  pnlPercent?: number;
+  lastPrice?: number;
+  unrealizedPnl?: number;
+  daysHeld?: number;
+}
+
+interface ScoreboardData {
+  market: string;
+  stats: {
+    resolved: number;
+    wins: number;
+    winRate: number;
+    targetHits: number;
+    stopOuts: number;
+    expired: number;
+    avgReturn: number;
+    totalReturn: number;
+    openCount: number;
+    trackingSince: string;
+  };
+  open: LedgerEntryUI[];
+  resolved: LedgerEntryUI[];
+  lastResolvedAt: string | null;
+}
+
 interface ScanResult {
   symbol: string;
   name: string;
@@ -497,6 +538,9 @@ export default function Home() {
   const [scanResults, setScanResults] = useState<ScanResult[]>([]);
   const [picksData, setPicksData] = useState<PicksSet | null>(null);
   const [picksLoading, setPicksLoading] = useState(false);
+  const [picksView, setPicksView] = useState<"today" | "record">("today");
+  const [scoreboard, setScoreboard] = useState<ScoreboardData | null>(null);
+  const [scoreboardLoading, setScoreboardLoading] = useState(false);
   const [scanLoading, setScanLoading] = useState(false);
   const [scanInfo, setScanInfo] = useState({ scanned: 0, total: 0 });
   const [expandedScan, setExpandedScan] = useState<string | null>(null);
@@ -560,6 +604,7 @@ export default function Home() {
     setResults([]);
     setScanResults([]);
     setPicksData(null);
+    setScoreboard(null);
     setMasterResults([]);
     setSignalsData(null);
     // Portfolio holdings + their live data span both markets, so we keep
@@ -841,12 +886,23 @@ export default function Home() {
     setPicksLoading(false);
   }, [market]);
 
+  const loadScoreboard = useCallback(async () => {
+    setScoreboardLoading(true);
+    track("scoreboard_load", { market });
+    try {
+      const res = await fetch(`/api/scoreboard?market=${market}`);
+      if (res.ok) setScoreboard(await res.json());
+    } catch { /* ignore */ }
+    setScoreboardLoading(false);
+  }, [market]);
+
   // Keep the Picks tab populated across market switches (switchMarket nulls
   // the data) and when it's opened via the hero CTA.
   useEffect(() => {
-    if (activeTab === "picks" && !picksData && !picksLoading) loadPicks();
+    if (activeTab === "picks" && picksView === "today" && !picksData && !picksLoading) loadPicks();
+    if (activeTab === "picks" && picksView === "record" && !scoreboard && !scoreboardLoading) loadScoreboard();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, market, picksData]);
+  }, [activeTab, market, picksData, picksView, scoreboard]);
 
   const loadBot = useCallback(async () => {
     setBotLoading(true);
@@ -1722,27 +1778,47 @@ export default function Home() {
         {/* ─── SIGNALS TAB ─── */}
         {activeTab === "picks" && (
           <div>
-            <div className="flex flex-wrap items-end justify-between gap-3 mb-6">
+            <div className="flex flex-wrap items-end justify-between gap-3 mb-4">
               <div>
                 <h1 className="text-2xl font-bold flex items-center gap-2">
-                  {market === "US" ? "🇺🇸" : "🇮🇳"} Today&apos;s Top Picks
+                  {market === "US" ? "🇺🇸" : "🇮🇳"} {picksView === "today" ? "Today's Top Picks" : "Pick Track Record"}
                 </h1>
                 <p className="text-sm text-gray-500 mt-1">
-                  Ranked by win-rate-weighted confluence of {STRATEGIES.length} verified strategies
-                  {picksData ? ` · scanned ${picksData.scanned} of ${picksData.universe} ${universeLabel} stocks` : ""}
-                  {picksData?.generatedAt ? ` · ${new Date(picksData.generatedAt).toLocaleString()}` : ""}
+                  {picksView === "today" ? (
+                    <>
+                      Ranked by win-rate-weighted confluence of {STRATEGIES.length} verified strategies
+                      {picksData ? ` · scanned ${picksData.scanned} of ${picksData.universe} ${universeLabel} stocks` : ""}
+                      {picksData?.generatedAt ? ` · ${new Date(picksData.generatedAt).toLocaleString()}` : ""}
+                    </>
+                  ) : (
+                    <>Every published pick, resolved against real prices at its own target and stop. No edits, no cherry-picking.</>
+                  )}
                 </p>
               </div>
-              <button
-                onClick={() => { setPicksData(null); }}
-                disabled={picksLoading}
-                className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold transition-all disabled:opacity-50"
-              >
-                {picksLoading ? "Scanning…" : "Refresh"}
-              </button>
+              {picksView === "today" && (
+                <button
+                  onClick={() => { setPicksData(null); }}
+                  disabled={picksLoading}
+                  className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold transition-all disabled:opacity-50"
+                >
+                  {picksLoading ? "Scanning…" : "Refresh"}
+                </button>
+              )}
             </div>
 
-            {picksLoading && !picksData && (
+            <div className="mb-6 flex items-center gap-1 bg-white/5 rounded-lg p-0.5 w-fit">
+              {(["today", "record"] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setPicksView(v)}
+                  className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${picksView === v ? "bg-white/10 text-white" : "text-gray-400 hover:text-white"}`}
+                >
+                  {v === "today" ? "Today's Picks" : "Track Record"}
+                </button>
+              ))}
+            </div>
+
+            {picksView === "today" && picksLoading && !picksData && (
               <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {Array.from({ length: 6 }).map((_, i) => (
                   <div key={i} className="h-56 rounded-2xl bg-white/[0.03] border border-white/5 animate-pulse" />
@@ -1750,14 +1826,14 @@ export default function Home() {
               </div>
             )}
 
-            {!picksLoading && picksData && picksData.picks.length === 0 && (
+            {picksView === "today" && !picksLoading && picksData && picksData.picks.length === 0 && (
               <div className="text-center py-16 text-gray-500">
                 <p className="text-lg font-semibold text-gray-400 mb-1">No high-conviction buys right now</p>
                 <p className="text-sm">The verified strategies aren&apos;t agreeing on anything in this market today. That&apos;s a signal too — cash is a position.</p>
               </div>
             )}
 
-            {picksData && picksData.picks.length > 0 && (
+            {picksView === "today" && picksData && picksData.picks.length > 0 && (
               <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {picksData.picks.map((p, idx) => (
                   <div key={p.symbol} className="rounded-2xl bg-white/[0.02] border border-white/5 hover:border-emerald-500/20 transition-all p-4 flex flex-col gap-3">
@@ -1818,7 +1894,7 @@ export default function Home() {
               </div>
             )}
 
-            {picksData && picksData.avoid.length > 0 && (
+            {picksView === "today" && picksData && picksData.avoid.length > 0 && (
               <div className="mt-10">
                 <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Heaviest sell pressure — avoid or exit</h2>
                 <div className="flex flex-wrap gap-2">
@@ -1836,7 +1912,140 @@ export default function Home() {
               </div>
             )}
 
-            {picksData && (
+            {picksView === "record" && scoreboardLoading && !scoreboard && (
+              <div className="grid sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="h-20 rounded-xl bg-white/[0.03] border border-white/5 animate-pulse" />
+                ))}
+              </div>
+            )}
+
+            {picksView === "record" && scoreboard && (
+              <div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-8">
+                  <div className="rounded-xl bg-white/[0.02] border border-white/5 p-4">
+                    <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Live win rate</div>
+                    <div className={`text-2xl font-bold ${scoreboard.stats.resolved === 0 ? "text-gray-500" : scoreboard.stats.winRate >= 60 ? "text-emerald-400" : scoreboard.stats.winRate >= 50 ? "text-yellow-400" : "text-red-400"}`}>
+                      {scoreboard.stats.resolved === 0 ? "—" : `${scoreboard.stats.winRate}%`}
+                    </div>
+                    <div className="text-[10px] text-gray-600">{scoreboard.stats.wins} of {scoreboard.stats.resolved} resolved</div>
+                  </div>
+                  <div className="rounded-xl bg-white/[0.02] border border-white/5 p-4">
+                    <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Avg return / pick</div>
+                    <div className={`text-2xl font-bold ${scoreboard.stats.resolved === 0 ? "text-gray-500" : scoreboard.stats.avgReturn >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                      {scoreboard.stats.resolved === 0 ? "—" : `${scoreboard.stats.avgReturn >= 0 ? "+" : ""}${scoreboard.stats.avgReturn}%`}
+                    </div>
+                    <div className="text-[10px] text-gray-600">realized, fill to exit</div>
+                  </div>
+                  <div className="rounded-xl bg-white/[0.02] border border-white/5 p-4">
+                    <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Outcomes</div>
+                    <div className="text-sm font-semibold mt-1"><span className="text-emerald-400">{scoreboard.stats.targetHits} target</span> · <span className="text-red-400">{scoreboard.stats.stopOuts} stop</span></div>
+                    <div className="text-[10px] text-gray-600">{scoreboard.stats.expired} time exits</div>
+                  </div>
+                  <div className="rounded-xl bg-white/[0.02] border border-white/5 p-4">
+                    <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Open picks</div>
+                    <div className="text-2xl font-bold text-gray-200">{scoreboard.stats.openCount}</div>
+                    <div className="text-[10px] text-gray-600">being tracked live</div>
+                  </div>
+                  <div className="rounded-xl bg-white/[0.02] border border-white/5 p-4">
+                    <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Tracking since</div>
+                    <div className="text-sm font-semibold text-gray-200 mt-1.5">{scoreboard.stats.trackingSince}</div>
+                    <div className="text-[10px] text-gray-600">picks logged the day published</div>
+                  </div>
+                </div>
+
+                {scoreboard.open.length > 0 && (
+                  <div className="mb-8">
+                    <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Open picks</h2>
+                    <div className="overflow-x-auto rounded-xl border border-white/5">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="bg-white/[0.03] text-gray-500 uppercase text-[10px] tracking-wider">
+                            <th className="text-left px-3 py-2.5">Stock</th>
+                            <th className="text-right px-3 py-2.5">Picked</th>
+                            <th className="text-right px-3 py-2.5">Fill</th>
+                            <th className="text-right px-3 py-2.5">Now</th>
+                            <th className="text-right px-3 py-2.5">P&amp;L</th>
+                            <th className="text-right px-3 py-2.5">Target</th>
+                            <th className="text-right px-3 py-2.5">Stop</th>
+                            <th className="text-right px-3 py-2.5">Days</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {scoreboard.open.map((e) => (
+                            <tr key={e.id} className="border-t border-white/5 hover:bg-white/[0.02]">
+                              <td className="px-3 py-2.5">
+                                <button onClick={() => { setActiveTab("search"); setSearchQuery(e.symbol); searchStock(e.symbol); }} className="font-bold hover:text-emerald-300 transition-colors">{e.symbol}</button>
+                                <span className="text-gray-600 ml-2 hidden sm:inline">{e.date}</span>
+                              </td>
+                              <td className="text-right px-3 py-2.5 text-gray-500">{e.date.slice(5)}</td>
+                              <td className="text-right px-3 py-2.5 font-mono text-gray-300">{e.fillPrice != null ? fmtPrice(e.fillPrice) : "pending"}</td>
+                              <td className="text-right px-3 py-2.5 font-mono text-gray-300">{e.lastPrice != null ? fmtPrice(e.lastPrice) : "—"}</td>
+                              <td className={`text-right px-3 py-2.5 font-mono font-semibold ${(e.unrealizedPnl ?? 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>{e.unrealizedPnl != null ? `${e.unrealizedPnl >= 0 ? "+" : ""}${e.unrealizedPnl}%` : "—"}</td>
+                              <td className="text-right px-3 py-2.5 font-mono text-emerald-300/70">{fmtPrice(e.target)}</td>
+                              <td className="text-right px-3 py-2.5 font-mono text-red-300/70">{fmtPrice(e.stop)}</td>
+                              <td className="text-right px-3 py-2.5 text-gray-500">{e.daysHeld ?? 0}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {scoreboard.resolved.length > 0 && (
+                  <div className="mb-6">
+                    <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Resolved picks</h2>
+                    <div className="overflow-x-auto rounded-xl border border-white/5">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="bg-white/[0.03] text-gray-500 uppercase text-[10px] tracking-wider">
+                            <th className="text-left px-3 py-2.5">Stock</th>
+                            <th className="text-right px-3 py-2.5">Picked</th>
+                            <th className="text-right px-3 py-2.5">Exited</th>
+                            <th className="text-left px-3 py-2.5">Outcome</th>
+                            <th className="text-right px-3 py-2.5">P&amp;L</th>
+                            <th className="text-right px-3 py-2.5">Days</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {scoreboard.resolved.map((e) => (
+                            <tr key={e.id} className="border-t border-white/5 hover:bg-white/[0.02]">
+                              <td className="px-3 py-2.5">
+                                <button onClick={() => { setActiveTab("search"); setSearchQuery(e.symbol); searchStock(e.symbol); }} className="font-bold hover:text-emerald-300 transition-colors">{e.symbol}</button>
+                              </td>
+                              <td className="text-right px-3 py-2.5 text-gray-500">{e.date.slice(5)}</td>
+                              <td className="text-right px-3 py-2.5 text-gray-500">{e.exitDate?.slice(5) ?? "—"}</td>
+                              <td className="px-3 py-2.5">
+                                {e.status === "target" && <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 text-[10px] font-semibold">Target hit</span>}
+                                {e.status === "stop" && <span className="px-2 py-0.5 rounded-full bg-red-500/15 text-red-300 border border-red-500/25 text-[10px] font-semibold">Stopped out</span>}
+                                {e.status === "expired_win" && <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400/80 border border-emerald-500/15 text-[10px] font-semibold">Time exit +</span>}
+                                {e.status === "expired_loss" && <span className="px-2 py-0.5 rounded-full bg-red-500/10 text-red-400/80 border border-red-500/15 text-[10px] font-semibold">Time exit −</span>}
+                              </td>
+                              <td className={`text-right px-3 py-2.5 font-mono font-semibold ${(e.pnlPercent ?? 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>{e.pnlPercent != null ? `${e.pnlPercent >= 0 ? "+" : ""}${e.pnlPercent}%` : "—"}</td>
+                              <td className="text-right px-3 py-2.5 text-gray-500">{e.daysHeld ?? "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {scoreboard.open.length === 0 && scoreboard.resolved.length === 0 && (
+                  <div className="text-center py-16 text-gray-500">
+                    <p className="text-lg font-semibold text-gray-400 mb-1">The record starts now</p>
+                    <p className="text-sm max-w-md mx-auto">Picks are logged the day they&apos;re published and resolved at their own target or stop with real market prices. Check back after the next trading session.</p>
+                  </div>
+                )}
+
+                <p className="text-[11px] text-gray-600 leading-relaxed max-w-3xl">
+                  How scoring works: each pick fills at the next session&apos;s opening price, then exits at its published target or stop (whichever is touched first; a day that touches both counts as a loss), or at the closing price after 21 trading days. Results are for research and education only, not investment advice.
+                </p>
+              </div>
+            )}
+
+            {picksView === "today" && picksData && (
               <p className="mt-8 text-[11px] text-gray-600 leading-relaxed max-w-3xl">
                 Recommendations are generated from historical backtests of technical strategies and are for research and education only, not investment advice. Past win rates don&apos;t guarantee future results. Position sizing and risk are your responsibility — the stop is part of the recommendation.
               </p>

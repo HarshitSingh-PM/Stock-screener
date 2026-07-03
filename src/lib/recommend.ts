@@ -5,6 +5,7 @@ import { STRATEGIES } from "./strategies";
 import { BACKTEST_CACHE } from "./backtestCache";
 import { analyze, LONGTERM_PROFILE, Thesis } from "./botBrain";
 import { getMarketConfig, type Market } from "./markets";
+import { recordPicks } from "./pickLedger";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The recommendation engine. Scans the top-500 universe and ranks stocks by
@@ -192,5 +193,8 @@ export async function buildRecommendations(
     avoid,
   };
   writeCache(set);
+  // Full-universe runs publish to the immutable track record (pickLedger
+  // ignores partial interactive scans).
+  try { recordPicks(set); } catch { /* ledger is best-effort */ }
   return set;
 }
