@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 
 import { BACKTEST_CACHE } from "@/lib/backtestCache";
 import { STRATEGY_CATALOG } from "@/lib/strategyCatalog";
+import { SIGNAL_GROUPS } from "@/lib/signalGroups";
 import { TUTORIAL_INDICATORS, TUTORIAL_CONCEPTS } from "@/lib/tutorials";
 
 const CandlestickChart = dynamic(() => import("@/components/CandlestickChart"), { ssr: false });
@@ -548,7 +549,7 @@ function Spinner() {
 }
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<"home" | "picks" | "market" | "global" | "portfolio" | "bot" | "etfs" | "themes" | "strategies" | "scan" | "search" | "learn">("home");
+  const [activeTab, setActiveTab] = useState<"home" | "dashboard" | "picks" | "market" | "global" | "portfolio" | "bot" | "etfs" | "themes" | "strategies" | "scan" | "search" | "learn">("home");
   const [strategiesSubTab, setStrategiesSubTab] = useState<"screener" | "insider">("screener");
   const [selectedStrategy, setSelectedStrategy] = useState<StrategyInfo | null>(null);
   const [signalFilter, setSignalFilter] = useState("ALL");
@@ -917,6 +918,17 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, market, picksData, picksView, scoreboard]);
 
+  // Master dashboard pulls every verified surface at once; each panel has its
+  // own skeleton so slow feeds (the ETF scan) don't block the fast ones.
+  useEffect(() => {
+    if (activeTab !== "dashboard") return;
+    if (!picksData && !picksLoading) loadPicks();
+    if (!globalData && !globalLoading) loadGlobal();
+    if (!scoreboard && !scoreboardLoading) loadScoreboard();
+    if (!etfData && !etfLoading) loadEtfs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, market, picksData, globalData, scoreboard, etfData]);
+
   const loadBot = useCallback(async () => {
     setBotLoading(true);
     try {
@@ -1021,14 +1033,14 @@ export default function Home() {
           </div>
 
           {/* Desktop tab bar (lg+) */}
-          <nav className="hidden lg:flex items-center gap-1 bg-white/5 rounded-lg p-0.5 overflow-x-auto flex-1 justify-center" aria-label="Primary">
-            {(["home", "picks", "market", "global", "portfolio", "bot", "etfs", "themes", "strategies", "scan", "search", "learn"] as const).map((tab) => (
+          <nav className="hidden lg:flex items-center gap-1 bg-white/5 rounded-lg p-0.5 overflow-x-auto flex-1 [&>button:first-child]:ml-auto [&>button:last-child]:mr-auto" aria-label="Primary">
+            {(["home", "dashboard", "picks", "market", "global", "portfolio", "bot", "etfs", "themes", "strategies", "scan", "search", "learn"] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => { setActiveTab(tab); if (tab === "picks" && !picksData) loadPicks(); if (tab === "global" && !globalData) loadGlobal(); if (tab === "portfolio" && portfolio.length > 0 && portfolioData.length === 0) refreshPortfolio(); if (tab === "etfs" && !etfData) loadEtfs(); if (tab === "themes" && !thematicData) loadThematic(); if (tab === "bot" && !botState) loadBot(); }}
                 className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all whitespace-nowrap ${activeTab === tab ? "bg-white/10 text-white" : "text-gray-400 hover:text-white"}`}
               >
-                {tab === "home" ? "Home" : tab === "picks" ? "Top Picks" : tab === "market" ? "Market" : tab === "global" ? "Global" : tab === "portfolio" ? `Portfolio${portfolio.length > 0 ? ` (${portfolio.length})` : ""}` : tab === "bot" ? "Bot" : tab === "etfs" ? "ETFs" : tab === "themes" ? "Themes" : tab === "strategies" ? "Strategies" : tab === "scan" ? "Scan" : tab === "search" ? "Lookup" : "Learn"}
+                {tab === "home" ? "Home" : tab === "dashboard" ? "Dashboard" : tab === "picks" ? "Top Picks" : tab === "market" ? "Market" : tab === "global" ? "Global" : tab === "portfolio" ? `Portfolio${portfolio.length > 0 ? ` (${portfolio.length})` : ""}` : tab === "bot" ? "Bot" : tab === "etfs" ? "ETFs" : tab === "themes" ? "Themes" : tab === "strategies" ? "Strategies" : tab === "scan" ? "Scan" : tab === "search" ? "Lookup" : "Learn"}
               </button>
             ))}
           </nav>
@@ -1090,14 +1102,14 @@ export default function Home() {
           <div className="lg:hidden border-t border-white/5 bg-[var(--header-bg)]">
             <nav className="max-w-7xl mx-auto px-4 sm:px-6 py-3" aria-label="Mobile primary">
               <div className="grid grid-cols-2 gap-1.5">
-                {(["home", "picks", "market", "global", "portfolio", "bot", "etfs", "themes", "strategies", "scan", "search", "learn"] as const).map((tab) => (
+                {(["home", "dashboard", "picks", "market", "global", "portfolio", "bot", "etfs", "themes", "strategies", "scan", "search", "learn"] as const).map((tab) => (
                   <button
                     key={tab}
                     onClick={() => {
                       setActiveTab(tab);
                       setMobileNavOpen(false);
                       if (tab === "picks" && !picksData) loadPicks();
-                     
+
                       if (tab === "global" && !globalData) loadGlobal();
                       if (tab === "portfolio" && portfolio.length > 0 && portfolioData.length === 0) refreshPortfolio();
                       if (tab === "etfs" && !etfData) loadEtfs();
@@ -1106,7 +1118,7 @@ export default function Home() {
                     }}
                     className={`px-3 py-2.5 rounded-lg text-sm font-medium text-left transition-all ${activeTab === tab ? "bg-white/10 text-white" : "bg-white/[0.02] text-gray-300 hover:bg-white/[0.05]"}`}
                   >
-                    {tab === "home" ? "Home" : tab === "picks" ? "Top Picks" : tab === "market" ? "Market" : tab === "global" ? "Global" : tab === "portfolio" ? `Portfolio${portfolio.length > 0 ? ` (${portfolio.length})` : ""}` : tab === "bot" ? "Bot" : tab === "etfs" ? "ETFs" : tab === "themes" ? "Themes" : tab === "strategies" ? "Strategies" : tab === "scan" ? "Scan" : tab === "search" ? "Lookup" : "Learn"}
+                    {tab === "home" ? "Home" : tab === "dashboard" ? "Dashboard" : tab === "picks" ? "Top Picks" : tab === "market" ? "Market" : tab === "global" ? "Global" : tab === "portfolio" ? `Portfolio${portfolio.length > 0 ? ` (${portfolio.length})` : ""}` : tab === "bot" ? "Bot" : tab === "etfs" ? "ETFs" : tab === "themes" ? "Themes" : tab === "strategies" ? "Strategies" : tab === "scan" ? "Scan" : tab === "search" ? "Lookup" : "Learn"}
                   </button>
                 ))}
               </div>
@@ -1170,6 +1182,12 @@ export default function Home() {
                     className="px-6 py-3 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-black font-bold text-sm shadow-lg shadow-amber-500/20 transition-all"
                   >
                     See Today&apos;s Top Picks →
+                  </button>
+                  <button
+                    onClick={() => { track("cta_click", { label: "open_dashboard", location: "hero" }); setActiveTab("dashboard"); }}
+                    className="px-6 py-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white font-semibold text-sm transition-all"
+                  >
+                    Open the Master Dashboard
                   </button>
                   <button
                     onClick={() => { track("cta_click", { label: "see_bot", location: "hero" }); setActiveTab("bot"); }}
@@ -1454,6 +1472,303 @@ export default function Home() {
         )}
 
         {/* ─── MARKET TAB ─── */}
+        {/* ─── MASTER DASHBOARD TAB ─── */}
+        {activeTab === "dashboard" && (() => {
+          const pred = market === "US" ? globalData?.usPrediction : globalData?.prediction;
+          const gapCombos = globalData?.combos?.[market];
+          const activeComboIds = new Set((picksData?.comboHits ?? []).flatMap((p) => (p.combos ?? []).map((c) => c.id)));
+          const leaderboard = STRATEGIES.map((s) => ({ s, bt: BACKTEST_CACHE[s.id] })).filter((x) => x.bt);
+          const etfAll = etfData ? Object.values(etfData.byTheme).flat() : [];
+          const etfBuys = etfAll
+            .filter((e) => e.recommendation === "STRONG_BUY" || e.recommendation === "BUY")
+            .sort((a, b) => b.score - a.score);
+          const statusChip = (st: LedgerEntryUI["status"]) =>
+            st === "target" ? "bg-emerald-500/15 text-emerald-300" :
+            st === "expired_win" ? "bg-emerald-500/10 text-emerald-400/80" :
+            st === "stop" ? "bg-red-500/15 text-red-300" :
+            st === "expired_loss" ? "bg-red-500/10 text-red-400/80" : "bg-white/5 text-gray-400";
+          const statusLabel = (st: LedgerEntryUI["status"]) =>
+            st === "target" ? "Target" : st === "stop" ? "Stopped" : st === "expired_win" ? "Time exit ▲" : st === "expired_loss" ? "Time exit ▼" : "Open";
+          const PanelHead = ({ title, sub, tab: t }: { title: string; sub?: string; tab: "picks" | "market" | "global" | "strategies" | "etfs" }) => (
+            <div className="flex items-start justify-between gap-2 mb-4">
+              <div className="min-w-0">
+                <h3 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">{title}</h3>
+                {sub && <p className="text-[11px] text-gray-500 mt-0.5">{sub}</p>}
+              </div>
+              <button onClick={() => setActiveTab(t)} className="text-[11px] text-gray-500 hover:text-white transition-colors flex-shrink-0">Full view →</button>
+            </div>
+          );
+          const MiniGauge = ({ score, label }: { score: number; label: string }) => (
+            <div className="relative w-28 h-28 flex-shrink-0">
+              <svg viewBox="0 0 120 120" className="w-full h-full -rotate-90">
+                <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="12" />
+                <circle cx="60" cy="60" r="50" fill="none"
+                  stroke={score >= 65 ? "#10b981" : score >= 55 ? "#22c55e" : score >= 45 ? "#eab308" : score >= 35 ? "#f97316" : "#ef4444"}
+                  strokeWidth="12" strokeLinecap="round" strokeDasharray={`${score * 3.14} 314`} />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className={`text-2xl font-bold ${score >= 55 ? "text-emerald-400" : score >= 45 ? "text-yellow-400" : "text-red-400"}`}>{score}</span>
+                <span className="text-[9px] text-gray-500 uppercase text-center leading-tight px-2">{label}</span>
+              </div>
+            </div>
+          );
+          const anyLoading = picksLoading || globalLoading || etfLoading || scoreboardLoading;
+          return (
+            <div className="space-y-5">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <h1 className="text-2xl font-bold flex items-center gap-2">{market === "US" ? "🇺🇸" : "🇮🇳"} Master Dashboard</h1>
+                  <p className="text-sm text-gray-500 mt-1">Every verified signal on one screen — picks, combos, global cues, strategy performance, ETF calls, and the live track record for {universeLabel}.</p>
+                </div>
+                <button
+                  onClick={() => { track("dashboard_refresh", { market }); loadPicks(); loadGlobal(); loadScoreboard(); loadEtfs(); }}
+                  disabled={anyLoading}
+                  className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold transition-all disabled:opacity-50 flex items-center gap-2"
+                >
+                  {anyLoading ? <><Spinner /> Refreshing…</> : "Refresh all"}
+                </button>
+              </div>
+
+              {/* Stat strip */}
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+                <div className="rounded-xl bg-white/[0.02] border border-white/5 p-4">
+                  <div className="text-[10px] text-gray-500 uppercase tracking-wide">Verified strategies</div>
+                  <div className="text-2xl font-bold mt-1">{STRATEGIES.length}</div>
+                  <div className="text-[10px] text-gray-500 mt-0.5">60-70% win rate over 5y</div>
+                </div>
+                <div className="rounded-xl bg-white/[0.02] border border-white/5 p-4">
+                  <div className="text-[10px] text-gray-500 uppercase tracking-wide">Strategy combos</div>
+                  <div className="text-2xl font-bold mt-1 text-amber-300">{SIGNAL_GROUPS.length}</div>
+                  <div className="text-[10px] text-gray-500 mt-0.5">82-90% win rate · {activeComboIds.size > 0 ? `⚡ ${activeComboIds.size} firing now` : "none firing today"}</div>
+                </div>
+                <div className="rounded-xl bg-white/[0.02] border border-white/5 p-4">
+                  <div className="text-[10px] text-gray-500 uppercase tracking-wide">Live track record</div>
+                  {scoreboard ? (
+                    <>
+                      <div className={`text-2xl font-bold mt-1 ${scoreboard.stats.winRate >= 55 ? "text-emerald-400" : "text-gray-200"}`}>{scoreboard.stats.resolved > 0 ? `${scoreboard.stats.winRate}%` : "—"}</div>
+                      <div className="text-[10px] text-gray-500 mt-0.5">{scoreboard.stats.resolved} picks resolved</div>
+                    </>
+                  ) : <div className="skeleton h-8 w-16 mt-1 rounded" />}
+                </div>
+                <div className="rounded-xl bg-white/[0.02] border border-white/5 p-4">
+                  <div className="text-[10px] text-gray-500 uppercase tracking-wide">Avg return / pick</div>
+                  {scoreboard ? (
+                    <>
+                      <div className={`text-2xl font-bold mt-1 ${scoreboard.stats.avgReturn >= 0 ? "text-emerald-400" : "text-red-400"}`}>{scoreboard.stats.resolved > 0 ? `${scoreboard.stats.avgReturn >= 0 ? "+" : ""}${scoreboard.stats.avgReturn.toFixed(2)}%` : "—"}</div>
+                      <div className="text-[10px] text-gray-500 mt-0.5">across resolved picks</div>
+                    </>
+                  ) : <div className="skeleton h-8 w-16 mt-1 rounded" />}
+                </div>
+                <div className="rounded-xl bg-white/[0.02] border border-white/5 p-4">
+                  <div className="text-[10px] text-gray-500 uppercase tracking-wide">Open picks</div>
+                  {scoreboard ? (
+                    <>
+                      <div className="text-2xl font-bold mt-1">{scoreboard.stats.openCount}</div>
+                      <div className="text-[10px] text-gray-500 mt-0.5">being tracked live</div>
+                    </>
+                  ) : <div className="skeleton h-8 w-16 mt-1 rounded" />}
+                </div>
+                <div className="rounded-xl bg-white/[0.02] border border-white/5 p-4">
+                  <div className="text-[10px] text-gray-500 uppercase tracking-wide">Next-session cue score</div>
+                  {globalData ? (
+                    <>
+                      <div className={`text-2xl font-bold mt-1 ${(pred?.score ?? 50) >= 55 ? "text-emerald-400" : (pred?.score ?? 50) >= 45 ? "text-yellow-400" : "text-red-400"}`}>{pred?.score ?? "—"}</div>
+                      <div className="text-[10px] text-gray-500 mt-0.5">{pred?.label ?? "verified global cues"}</div>
+                    </>
+                  ) : <div className="skeleton h-8 w-16 mt-1 rounded" />}
+                </div>
+              </div>
+
+              {/* Picks + global cues */}
+              <div className="grid xl:grid-cols-3 gap-4">
+                <div className="xl:col-span-2 rounded-2xl bg-white/[0.02] border border-white/5 p-5">
+                  <PanelHead title="Today's top picks" sub={`Win-rate-weighted confluence of ${STRATEGIES.length} verified strategies${picksData ? ` · ${picksData.scanned} of ${picksData.universe} scanned` : ""}`} tab="picks" />
+                  {!picksData && <div className="space-y-2">{[...Array(6)].map((_, i) => <div key={i} className="skeleton h-12 w-full rounded-lg" />)}</div>}
+                  {picksData && picksData.picks.length === 0 && (
+                    <p className="text-sm text-gray-500 py-6 text-center">No high-conviction buys right now — the verified strategies aren&apos;t agreeing on anything today.</p>
+                  )}
+                  {picksData && picksData.picks.length > 0 && (
+                    <div className="space-y-1.5">
+                      {picksData.picks.slice(0, 6).map((p, idx) => (
+                        <div key={p.symbol} className="flex items-center gap-3 rounded-lg bg-white/[0.02] hover:bg-white/[0.04] border border-white/5 px-3 py-2 transition-all">
+                          <span className={`flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center text-[11px] font-bold ${idx < 3 ? "bg-emerald-500/15 text-emerald-300" : "bg-white/5 text-gray-400"}`}>{idx + 1}</span>
+                          <div className="min-w-0 w-28 flex-shrink-0">
+                            <button onClick={() => { track("pick_open", { symbol: p.symbol, market, location: "dashboard" }); setActiveTab("search"); setSearchQuery(p.symbol); searchStock(p.symbol); }} className="text-sm font-bold hover:text-emerald-300 transition-colors truncate block">{p.symbol}</button>
+                            <div className={`text-[10px] font-mono ${p.changePercent >= 0 ? "text-emerald-400" : "text-red-400"}`}>{fmtPrice(p.price)} · {p.changePercent >= 0 ? "+" : ""}{p.changePercent.toFixed(1)}%</div>
+                          </div>
+                          <div className="hidden sm:flex flex-wrap items-center gap-1.5 flex-1 min-w-0">
+                            <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 text-[10px] font-semibold whitespace-nowrap">{p.buyCount}/{p.totalStrategies} agree</span>
+                            <span className="px-1.5 py-0.5 rounded-full bg-white/5 text-gray-400 text-[10px] whitespace-nowrap">~{p.estWinRate}% hist.</span>
+                            {(p.combos?.length ?? 0) > 0 && <span className="px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-300 text-[10px] font-bold whitespace-nowrap">⚡ {p.combos![0].winRate}%</span>}
+                          </div>
+                          <div className="flex items-center gap-2 text-[10px] font-mono flex-shrink-0">
+                            <span className="text-gray-400">E {fmtPrice(p.entry)}</span>
+                            <span className="text-emerald-300">T {fmtPrice(p.target)}</span>
+                            <span className="text-red-300">S {fmtPrice(p.stop)}</span>
+                          </div>
+                        </div>
+                      ))}
+                      {picksData.avoid.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1.5 pt-2">
+                          <span className="text-[10px] text-gray-500 uppercase tracking-wide mr-1">Avoid:</span>
+                          {picksData.avoid.slice(0, 6).map((p) => (
+                            <span key={p.symbol} className="px-2 py-0.5 rounded bg-red-500/[0.06] border border-red-500/15 text-[10px] font-semibold text-red-300">{p.symbol}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-2xl bg-white/[0.02] border border-white/5 p-5">
+                  <PanelHead title="Global cues" sub="Backtest-verified cues for the next session" tab="global" />
+                  {!globalData && <div className="skeleton h-48 w-full rounded-xl" />}
+                  {globalData && (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-4">
+                        {pred ? <MiniGauge score={pred.score} label={pred.label} /> : <p className="text-xs text-gray-500">No verified prediction for this market.</p>}
+                        {pred && (
+                          <div className="flex-1 min-w-0 space-y-1.5">
+                            {pred.factors.slice(0, 4).map((f, i) => (
+                              <div key={i} className="flex items-center gap-2 text-[11px]">
+                                <span className={`w-4 h-4 rounded flex items-center justify-center text-[9px] font-bold flex-shrink-0 ${f.direction === "UP" ? "bg-emerald-500/20 text-emerald-400" : f.direction === "DOWN" ? "bg-red-500/20 text-red-400" : "bg-gray-500/20 text-gray-400"}`}>{f.direction === "UP" ? "▲" : f.direction === "DOWN" ? "▼" : "—"}</span>
+                                <span className="text-gray-300 truncate">{f.factor}</span>
+                                <span className={`ml-auto font-mono flex-shrink-0 ${f.weight > 0 ? "text-emerald-400" : f.weight < 0 ? "text-red-400" : "text-gray-500"}`}>{f.weight > 0 ? "+" : ""}{f.weight}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {gapCombos && gapCombos.catalog.length > 0 && (
+                        <div>
+                          <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-1.5">90%+ gap combos {gapCombos.active.length > 0 ? "— FIRING NOW" : "(none active today)"}</div>
+                          <div className="space-y-1.5">
+                            {(gapCombos.active.length > 0 ? gapCombos.active : gapCombos.catalog.slice(0, 3)).map((c, i) => (
+                              <div key={i} className={`rounded-lg px-2.5 py-1.5 text-[11px] border ${gapCombos.active.length > 0 ? "bg-amber-500/[0.06] border-amber-500/25" : "bg-white/[0.02] border-white/5"}`}>
+                                <span className={`font-bold ${c.direction === "DOWN" ? "text-red-300" : "text-emerald-300"}`}>{c.hitRate}%</span>
+                                <span className="text-gray-400"> · {c.labels.join(" + ")}</span>
+                                <span className="text-gray-600"> · {c.n} times in 5y</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {gapCombos && gapCombos.catalog.length === 0 && (
+                        <p className="text-[11px] text-gray-500">No cue combo cleared the 90% bar for this market in backtesting, so none is shown.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Index charts */}
+              <div className="rounded-2xl bg-white/[0.02] border border-white/5 p-5">
+                <PanelHead title="Index charts & key levels" sub={market === "US" ? "S&P 500, Dow, and Nasdaq with targets and support/resistance" : "Sensex and Nifty 50 with targets and support/resistance"} tab="market" />
+                <MarketChart market={market} />
+              </div>
+
+              {/* Strategy leaderboard + combo catalog */}
+              <div className="grid xl:grid-cols-3 gap-4">
+                <div className="xl:col-span-2 rounded-2xl bg-white/[0.02] border border-white/5 p-5">
+                  <PanelHead title="Strategy leaderboard" sub={`All ${STRATEGIES.length} verified strategies, ranked by 5-year backtest win rate`} tab="strategies" />
+                  <div className="grid md:grid-cols-2 gap-x-6 gap-y-1.5 max-h-96 overflow-y-auto pr-1">
+                    {leaderboard.map(({ s, bt }) => (
+                      <button
+                        key={s.id}
+                        onClick={() => { setActiveTab("strategies"); setStrategiesSubTab("screener"); handleSelectStrategy(s); }}
+                        className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-white/[0.04] transition-all text-left"
+                      >
+                        <div className="w-40 flex-shrink-0 min-w-0">
+                          <div className="text-[11px] font-semibold text-gray-200 truncate">{s.name}</div>
+                          <div className="text-[9px] text-gray-600">{s.category} · {bt.trades.toLocaleString()} trades</div>
+                        </div>
+                        <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full ${bt.winRate >= 65 ? "bg-emerald-500" : "bg-emerald-500/60"}`} style={{ width: `${Math.min(100, Math.max(6, ((bt.winRate - 55) / 15) * 100))}%` }} />
+                        </div>
+                        <span className="text-[11px] font-mono font-bold text-emerald-400 w-11 text-right flex-shrink-0">{bt.winRate}%</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl bg-white/[0.02] border border-white/5 p-5">
+                  <PanelHead title="⚡ Verified combos" sub="Strategy groups that won 80%+ of trades over 5y + holdout" tab="picks" />
+                  <div className="space-y-1.5 max-h-96 overflow-y-auto pr-1">
+                    {SIGNAL_GROUPS.map((g) => {
+                      const firing = activeComboIds.has(g.id);
+                      return (
+                        <div key={g.id} className={`rounded-lg px-2.5 py-2 border text-[11px] ${firing ? "bg-amber-500/[0.08] border-amber-500/30" : "bg-white/[0.02] border-white/5"}`}>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-amber-300">{g.winRate}%</span>
+                            <span className="text-gray-400">{g.members.length}-strategy combo</span>
+                            {firing && <span className="ml-auto px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[9px] font-bold uppercase">Firing</span>}
+                          </div>
+                          <div className="text-[10px] text-gray-600 mt-0.5">{g.trades} trades in 5y · +{g.avgReturn.toFixed(1)}% avg · {g.testWinRate}% holdout</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* ETF calls + track record */}
+              <div className="grid xl:grid-cols-2 gap-4">
+                <div className="rounded-2xl bg-white/[0.02] border border-white/5 p-5">
+                  <PanelHead title="ETF buy calls" sub="Verified buy-side only — sell calls graded worse than a coin flip and were removed" tab="etfs" />
+                  {!etfData && (
+                    <div className="space-y-2">
+                      <p className="text-[11px] text-gray-500">{etfLoading ? "Scanning ETFs — this takes a moment…" : "Loading…"}</p>
+                      {[...Array(5)].map((_, i) => <div key={i} className="skeleton h-10 w-full rounded-lg" />)}
+                    </div>
+                  )}
+                  {etfData && etfBuys.length === 0 && <p className="text-sm text-gray-500 py-6 text-center">No ETF is scoring a verified buy right now.</p>}
+                  {etfData && etfBuys.length > 0 && (
+                    <div className="space-y-1.5">
+                      {etfBuys.slice(0, 8).map((e) => (
+                        <div key={e.symbol} className="flex items-center gap-3 rounded-lg bg-white/[0.02] border border-white/5 px-3 py-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-bold truncate">{e.symbol}</div>
+                            <div className="text-[10px] text-gray-500 truncate">{e.name} · {e.theme}</div>
+                          </div>
+                          <div className={`text-[11px] font-mono flex-shrink-0 ${e.changePercent >= 0 ? "text-emerald-400" : "text-red-400"}`}>{e.changePercent >= 0 ? "+" : ""}{e.changePercent.toFixed(2)}%</div>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold flex-shrink-0 ${e.recommendation === "STRONG_BUY" ? "bg-emerald-500/20 text-emerald-300" : "bg-emerald-500/10 text-emerald-400/90"}`}>{e.recommendation === "STRONG_BUY" ? "STRONG BUY" : "BUY"}</span>
+                        </div>
+                      ))}
+                      {etfData.callStats?.STRONG_BUY && (
+                        <p className="text-[10px] text-gray-600 pt-1">5y backtest: Strong Buy calls profitable {etfData.callStats.STRONG_BUY.hitRate63}% of the time over the next quarter ({etfData.callStats.STRONG_BUY.n.toLocaleString()} calls, +{etfData.callStats.STRONG_BUY.avgReturn63.toFixed(1)}% avg).</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-2xl bg-white/[0.02] border border-white/5 p-5">
+                  <PanelHead title="Track record — latest results" sub="Every published pick, resolved at its own target/stop with real prices" tab="picks" />
+                  {!scoreboard && <div className="space-y-2">{[...Array(5)].map((_, i) => <div key={i} className="skeleton h-10 w-full rounded-lg" />)}</div>}
+                  {scoreboard && scoreboard.resolved.length === 0 && (
+                    <p className="text-sm text-gray-500 py-6 text-center">No picks have resolved yet — the ledger fills as published picks hit their target, stop, or time exit.</p>
+                  )}
+                  {scoreboard && scoreboard.resolved.length > 0 && (
+                    <div className="space-y-1.5">
+                      {scoreboard.resolved.slice(0, 8).map((e) => (
+                        <div key={e.id} className="flex items-center gap-3 rounded-lg bg-white/[0.02] border border-white/5 px-3 py-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-bold truncate">{e.symbol}</div>
+                            <div className="text-[10px] text-gray-500">picked {e.date}</div>
+                          </div>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold flex-shrink-0 ${statusChip(e.status)}`}>{statusLabel(e.status)}</span>
+                          {typeof e.pnlPercent === "number" && (
+                            <span className={`text-[11px] font-mono font-bold w-14 text-right flex-shrink-0 ${e.pnlPercent >= 0 ? "text-emerald-400" : "text-red-400"}`}>{e.pnlPercent >= 0 ? "+" : ""}{e.pnlPercent.toFixed(2)}%</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
         {activeTab === "market" && (
           <div>
             <div className="mb-6">
