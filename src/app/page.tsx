@@ -1798,7 +1798,7 @@ export default function Home() {
             c === "high" ? "Confirmed" : c === "medium" ? "Reported" : "Rumored";
           const hostOf = (url: string) => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return "source"; } };
           const usListed = (s: Supplier) => /NASDAQ|NYSE/i.test(s.exchange) && /^[A-Z][A-Z.]{0,5}$/.test(s.ticker);
-          const openChart = (t: string) => { track("intel_chart_open", { ticker: t }); setActiveTab("search"); setSearchQuery(t); searchStock(t); };
+          const chartUrl = (t: string) => `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(t)}`;
 
           const matchSupplier = (s: Supplier) =>
             !q || [s.name, s.ticker, s.supplies, s.relationship, s.deal?.summary, s.hiddenSignal?.note]
@@ -1843,7 +1843,7 @@ export default function Home() {
                     <span className="px-1.5 py-0.5 rounded bg-white/[0.03] border border-white/10 text-[10px] text-gray-500 whitespace-nowrap">{s.exchange === "—" ? "Private" : s.exchange}</span>
                   )}
                   {usListed(s) && (
-                    <button onClick={() => openChart(s.ticker)} className="px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-[10px] font-semibold text-amber-300 hover:bg-amber-500/20 transition-colors whitespace-nowrap">Open chart ↗</button>
+                    <a href={chartUrl(s.ticker)} target="_blank" rel="noopener noreferrer" onClick={() => track("intel_chart_open", { ticker: s.ticker })} className="px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-[10px] font-semibold text-amber-300 hover:bg-amber-500/20 transition-colors whitespace-nowrap">Open chart ↗</a>
                   )}
                 </div>
                 <span className={`px-1.5 py-0.5 rounded-full border text-[10px] font-semibold whitespace-nowrap ${confBadge(s.confidence)}`}>{confLabel(s.confidence)}</span>
