@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import { BACKTEST_CACHE } from "@/lib/backtestCache";
 import { STRATEGY_CATALOG } from "@/lib/strategyCatalog";
 import { SIGNAL_GROUPS } from "@/lib/signalGroups";
+import { AI_TECH_INTEL, INTEL_META, intelCounts, supplierRollup, type Confidence, type Supplier, type AnchorCompany } from "@/lib/aiTechIntel";
 import { TUTORIAL_INDICATORS, TUTORIAL_CONCEPTS } from "@/lib/tutorials";
 
 const CandlestickChart = dynamic(() => import("@/components/CandlestickChart"), { ssr: false });
@@ -549,7 +550,18 @@ function Spinner() {
 }
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<"home" | "dashboard" | "picks" | "market" | "global" | "portfolio" | "bot" | "etfs" | "themes" | "strategies" | "scan" | "search" | "learn">("home");
+  const [activeTab, setActiveTab] = useState<"home" | "dashboard" | "picks" | "intel" | "market" | "global" | "portfolio" | "bot" | "etfs" | "themes" | "strategies" | "scan" | "search" | "learn">("home");
+  // AI & Tech Intelligence tab state
+  const [intelSector, setIntelSector] = useState<string>("all");
+  const [intelSearch, setIntelSearch] = useState("");
+  const [intelView, setIntelView] = useState<"buyers" | "suppliers">("buyers");
+  const [intelExpanded, setIntelExpanded] = useState<Set<string>>(new Set());
+  const toggleIntel = (id: string) =>
+    setIntelExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
   const [strategiesSubTab, setStrategiesSubTab] = useState<"screener" | "insider">("screener");
   const [selectedStrategy, setSelectedStrategy] = useState<StrategyInfo | null>(null);
   const [signalFilter, setSignalFilter] = useState("ALL");
@@ -1034,13 +1046,13 @@ export default function Home() {
 
           {/* Desktop tab bar (lg+) */}
           <nav className="hidden lg:flex items-center gap-1 bg-white/5 rounded-lg p-0.5 overflow-x-auto flex-1 [&>button:first-child]:ml-auto [&>button:last-child]:mr-auto" aria-label="Primary">
-            {(["home", "dashboard", "picks", "market", "global", "portfolio", "bot", "etfs", "themes", "strategies", "scan", "search", "learn"] as const).map((tab) => (
+            {(["home", "dashboard", "picks", "intel", "market", "global", "portfolio", "bot", "etfs", "themes", "strategies", "scan", "search", "learn"] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => { setActiveTab(tab); if (tab === "picks" && !picksData) loadPicks(); if (tab === "global" && !globalData) loadGlobal(); if (tab === "portfolio" && portfolio.length > 0 && portfolioData.length === 0) refreshPortfolio(); if (tab === "etfs" && !etfData) loadEtfs(); if (tab === "themes" && !thematicData) loadThematic(); if (tab === "bot" && !botState) loadBot(); }}
                 className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all whitespace-nowrap ${activeTab === tab ? "bg-white/10 text-white" : "text-gray-400 hover:text-white"}`}
               >
-                {tab === "home" ? "Home" : tab === "dashboard" ? "Dashboard" : tab === "picks" ? "Top Picks" : tab === "market" ? "Market" : tab === "global" ? "Global" : tab === "portfolio" ? `Portfolio${portfolio.length > 0 ? ` (${portfolio.length})` : ""}` : tab === "bot" ? "Bot" : tab === "etfs" ? "ETFs" : tab === "themes" ? "Themes" : tab === "strategies" ? "Strategies" : tab === "scan" ? "Scan" : tab === "search" ? "Lookup" : "Learn"}
+                {tab === "home" ? "Home" : tab === "dashboard" ? "Dashboard" : tab === "picks" ? "Top Picks" : tab === "intel" ? "AI Intel" : tab === "market" ? "Market" : tab === "global" ? "Global" : tab === "portfolio" ? `Portfolio${portfolio.length > 0 ? ` (${portfolio.length})` : ""}` : tab === "bot" ? "Bot" : tab === "etfs" ? "ETFs" : tab === "themes" ? "Themes" : tab === "strategies" ? "Strategies" : tab === "scan" ? "Scan" : tab === "search" ? "Lookup" : "Learn"}
               </button>
             ))}
           </nav>
@@ -1102,7 +1114,7 @@ export default function Home() {
           <div className="lg:hidden border-t border-white/5 bg-[var(--header-bg)]">
             <nav className="max-w-7xl mx-auto px-4 sm:px-6 py-3" aria-label="Mobile primary">
               <div className="grid grid-cols-2 gap-1.5">
-                {(["home", "dashboard", "picks", "market", "global", "portfolio", "bot", "etfs", "themes", "strategies", "scan", "search", "learn"] as const).map((tab) => (
+                {(["home", "dashboard", "picks", "intel", "market", "global", "portfolio", "bot", "etfs", "themes", "strategies", "scan", "search", "learn"] as const).map((tab) => (
                   <button
                     key={tab}
                     onClick={() => {
@@ -1118,7 +1130,7 @@ export default function Home() {
                     }}
                     className={`px-3 py-2.5 rounded-lg text-sm font-medium text-left transition-all ${activeTab === tab ? "bg-white/10 text-white" : "bg-white/[0.02] text-gray-300 hover:bg-white/[0.05]"}`}
                   >
-                    {tab === "home" ? "Home" : tab === "dashboard" ? "Dashboard" : tab === "picks" ? "Top Picks" : tab === "market" ? "Market" : tab === "global" ? "Global" : tab === "portfolio" ? `Portfolio${portfolio.length > 0 ? ` (${portfolio.length})` : ""}` : tab === "bot" ? "Bot" : tab === "etfs" ? "ETFs" : tab === "themes" ? "Themes" : tab === "strategies" ? "Strategies" : tab === "scan" ? "Scan" : tab === "search" ? "Lookup" : "Learn"}
+                    {tab === "home" ? "Home" : tab === "dashboard" ? "Dashboard" : tab === "picks" ? "Top Picks" : tab === "intel" ? "AI Intel" : tab === "market" ? "Market" : tab === "global" ? "Global" : tab === "portfolio" ? `Portfolio${portfolio.length > 0 ? ` (${portfolio.length})` : ""}` : tab === "bot" ? "Bot" : tab === "etfs" ? "ETFs" : tab === "themes" ? "Themes" : tab === "strategies" ? "Strategies" : tab === "scan" ? "Scan" : tab === "search" ? "Lookup" : "Learn"}
                   </button>
                 ))}
               </div>
@@ -1765,6 +1777,278 @@ export default function Home() {
                   )}
                 </div>
               </div>
+            </div>
+          );
+        })()}
+
+        {/* ─── AI & TECH INTELLIGENCE TAB ─── */}
+        {activeTab === "intel" && (() => {
+          const counts = intelCounts();
+          const rollupAll = supplierRollup();
+          const q = intelSearch.trim().toLowerCase();
+          const hiddenCount = AI_TECH_INTEL.reduce(
+            (n, s) => n + s.anchors.reduce((m, a) => m + a.suppliers.filter((x) => x.hiddenSignal).length, 0),
+            0,
+          );
+          const confBadge = (c: Confidence) =>
+            c === "high" ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/20"
+            : c === "medium" ? "bg-yellow-500/15 text-yellow-300 border-yellow-500/20"
+            : "bg-white/5 text-gray-400 border-white/10";
+          const confLabel = (c: Confidence) =>
+            c === "high" ? "Confirmed" : c === "medium" ? "Reported" : "Rumored";
+          const hostOf = (url: string) => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return "source"; } };
+          const usListed = (s: Supplier) => /NASDAQ|NYSE/i.test(s.exchange) && /^[A-Z][A-Z.]{0,5}$/.test(s.ticker);
+          const openChart = (t: string) => { track("intel_chart_open", { ticker: t }); setActiveTab("search"); setSearchQuery(t); searchStock(t); };
+
+          const matchSupplier = (s: Supplier) =>
+            !q || [s.name, s.ticker, s.supplies, s.relationship, s.deal?.summary, s.hiddenSignal?.note]
+              .filter(Boolean).some((t) => (t as string).toLowerCase().includes(q));
+          const matchAnchor = (a: AnchorCompany) =>
+            !q || a.anchor.toLowerCase().includes(q) || a.category.toLowerCase().includes(q) ||
+            a.whatTheyMake.toLowerCase().includes(q) || a.suppliers.some(matchSupplier);
+
+          const sectorsFiltered = AI_TECH_INTEL
+            .filter((sec) => intelSector === "all" || sec.id === intelSector)
+            .map((sec) => ({ ...sec, anchors: sec.anchors.filter(matchAnchor) }))
+            .filter((sec) => sec.anchors.length > 0);
+
+          const rollupFiltered = rollupAll
+            .filter((r) => matchSupplier(r.supplier))
+            .sort((a, b) => {
+              const rank = (c: Confidence) => (c === "high" ? 0 : c === "medium" ? 1 : 2);
+              const cr = rank(a.supplier.confidence) - rank(b.supplier.confidence);
+              if (cr !== 0) return cr;
+              return b.servesAnchors.length - a.servesAnchors.length;
+            });
+
+          const StockChip = ({ s }: { s: Supplier }) => s.stock ? (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] mt-1.5">
+              <span className="font-mono font-semibold text-gray-200">{s.stock.approxPrice}</span>
+              <span className="text-gray-500">·</span>
+              <span className="text-gray-400">{s.stock.marketCap} mkt cap</span>
+              <span className="text-gray-600">·</span>
+              <span className="text-gray-500 italic">{s.stock.note}</span>
+              <span className="text-gray-700">({s.stock.asOf})</span>
+            </div>
+          ) : null;
+
+          const SupplierCard = ({ s }: { s: Supplier }) => (
+            <div className="rounded-xl bg-white/[0.02] border border-white/5 p-3.5 hover:border-white/10 transition-colors">
+              <div className="flex items-start justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                  <span className="font-semibold text-sm text-white">{s.name}</span>
+                  {s.listed ? (
+                    <span className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-[10px] font-mono text-gray-300 whitespace-nowrap">{s.ticker} · {s.exchange}</span>
+                  ) : (
+                    <span className="px-1.5 py-0.5 rounded bg-white/[0.03] border border-white/10 text-[10px] text-gray-500 whitespace-nowrap">{s.exchange === "—" ? "Private" : s.exchange}</span>
+                  )}
+                  {usListed(s) && (
+                    <button onClick={() => openChart(s.ticker)} className="px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-[10px] font-semibold text-amber-300 hover:bg-amber-500/20 transition-colors whitespace-nowrap">Open chart ↗</button>
+                  )}
+                </div>
+                <span className={`px-1.5 py-0.5 rounded-full border text-[10px] font-semibold whitespace-nowrap ${confBadge(s.confidence)}`}>{confLabel(s.confidence)}</span>
+              </div>
+              <p className="text-[12.5px] text-gray-300 mt-1.5 leading-snug"><span className="text-gray-500">Supplies:</span> {s.supplies}</p>
+              <p className="text-[11.5px] text-gray-500 mt-1 leading-snug"><span className="text-gray-600">Relationship:</span> {s.relationship}</p>
+              {s.deal && (
+                <div className="mt-2 rounded-lg bg-emerald-500/[0.06] border border-emerald-500/15 px-2.5 py-2">
+                  <div className="flex items-baseline justify-between gap-2 flex-wrap">
+                    <span className="text-[11px] font-semibold text-emerald-300">💰 {s.deal.sizeUSD}</span>
+                    <span className="text-[10px] text-gray-500">{s.deal.date}</span>
+                  </div>
+                  <p className="text-[11.5px] text-gray-300 mt-0.5 leading-snug">{s.deal.summary}</p>
+                  {s.deal.source && (/^https?:\/\//i.test(s.deal.source)
+                    ? <a href={s.deal.source} target="_blank" rel="noopener noreferrer" className="text-[10px] text-gray-500 hover:text-emerald-300 underline decoration-dotted">source: {hostOf(s.deal.source)} ↗</a>
+                    : <span className="text-[10px] text-gray-600 italic">{s.deal.source}</span>)}
+                </div>
+              )}
+              <StockChip s={s} />
+              {s.hiddenSignal && (
+                <div className="mt-2 rounded-lg bg-amber-500/[0.05] border border-amber-500/15 px-2.5 py-2">
+                  <p className="text-[11.5px] text-amber-200/90 leading-snug"><span className="font-semibold text-amber-300">🔍 Hidden signal:</span> {s.hiddenSignal.note}</p>
+                  {s.hiddenSignal.source && (/^https?:\/\//i.test(s.hiddenSignal.source)
+                    ? <a href={s.hiddenSignal.source} target="_blank" rel="noopener noreferrer" className="text-[10px] text-gray-500 hover:text-amber-300 underline decoration-dotted">source: {hostOf(s.hiddenSignal.source)} ↗</a>
+                    : <span className="text-[10px] text-gray-600 italic">{s.hiddenSignal.source}</span>)}
+                </div>
+              )}
+            </div>
+          );
+
+          return (
+            <div className="space-y-5">
+              {/* Header */}
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div className="min-w-0">
+                  <h1 className="text-2xl font-bold flex items-center gap-2">🛰️ AI &amp; Tech Intelligence</h1>
+                  <p className="text-sm text-gray-500 mt-1 max-w-3xl">The supply chains behind the world&apos;s leading hardware-technology and physical-AI companies — who supplies them, what they supply, the deals on record, and the supplier&apos;s stock. Built to spot the second-order opportunity: the listed suppliers that ride each big AI hardware deal.</p>
+                </div>
+                <span className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-[11px] text-gray-400 whitespace-nowrap">Updated {INTEL_META.lastUpdated}</span>
+              </div>
+
+              {AI_TECH_INTEL.length === 0 ? (
+                <div className="rounded-2xl bg-white/[0.02] border border-white/5 p-10 text-center text-gray-500">
+                  Intelligence dataset is being compiled.
+                </div>
+              ) : (
+                <>
+                  {/* Stat strip */}
+                  <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+                    <div className="rounded-xl bg-white/[0.02] border border-white/5 p-4">
+                      <div className="text-[10px] text-gray-500 uppercase tracking-wide">Sectors</div>
+                      <div className="text-2xl font-bold mt-1">{counts.sectors}</div>
+                      <div className="text-[10px] text-gray-500 mt-0.5">hardware &amp; physical AI</div>
+                    </div>
+                    <div className="rounded-xl bg-white/[0.02] border border-white/5 p-4">
+                      <div className="text-[10px] text-gray-500 uppercase tracking-wide">Buyer companies</div>
+                      <div className="text-2xl font-bold mt-1">{counts.anchors}</div>
+                      <div className="text-[10px] text-gray-500 mt-0.5">Fortune-1000-class OEMs</div>
+                    </div>
+                    <div className="rounded-xl bg-white/[0.02] border border-white/5 p-4">
+                      <div className="text-[10px] text-gray-500 uppercase tracking-wide">Suppliers mapped</div>
+                      <div className="text-2xl font-bold mt-1 text-amber-300">{counts.suppliers}</div>
+                      <div className="text-[10px] text-gray-500 mt-0.5">across the value chain</div>
+                    </div>
+                    <div className="rounded-xl bg-white/[0.02] border border-white/5 p-4">
+                      <div className="text-[10px] text-gray-500 uppercase tracking-wide">Investable</div>
+                      <div className="text-2xl font-bold mt-1 text-emerald-400">{counts.listed}</div>
+                      <div className="text-[10px] text-gray-500 mt-0.5">publicly-listed suppliers</div>
+                    </div>
+                    <div className="rounded-xl bg-white/[0.02] border border-white/5 p-4">
+                      <div className="text-[10px] text-gray-500 uppercase tracking-wide">Tracked deals</div>
+                      <div className="text-2xl font-bold mt-1">{counts.deals}</div>
+                      <div className="text-[10px] text-gray-500 mt-0.5">contracts / orders on record</div>
+                    </div>
+                    <div className="rounded-xl bg-white/[0.02] border border-white/5 p-4">
+                      <div className="text-[10px] text-gray-500 uppercase tracking-wide">Hidden signals</div>
+                      <div className="text-2xl font-bold mt-1 text-amber-300">{hiddenCount}</div>
+                      <div className="text-[10px] text-gray-500 mt-0.5">non-obvious, sourced</div>
+                    </div>
+                  </div>
+
+                  {/* Disclaimer */}
+                  <div className="rounded-xl bg-amber-500/[0.05] border border-amber-500/15 px-4 py-2.5 text-[11.5px] text-amber-200/80 leading-snug">
+                    {INTEL_META.disclaimer}
+                  </div>
+
+                  {/* Controls */}
+                  <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+                    <div className="flex items-center gap-1 bg-white/5 rounded-lg p-0.5 flex-wrap">
+                      <button onClick={() => setIntelSector("all")} className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-all whitespace-nowrap ${intelSector === "all" ? "bg-white/10 text-white" : "text-gray-400 hover:text-white"}`}>All sectors</button>
+                      {AI_TECH_INTEL.map((sec) => (
+                        <button key={sec.id} onClick={() => setIntelSector(sec.id)} className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-all whitespace-nowrap ${intelSector === sec.id ? "bg-white/10 text-white" : "text-gray-400 hover:text-white"}`}>{sec.glyph} {sec.name}</button>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2 lg:ml-auto">
+                      <div className="flex items-center bg-white/5 rounded-lg p-0.5">
+                        <button onClick={() => setIntelView("buyers")} className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${intelView === "buyers" ? "bg-white/10 text-white" : "text-gray-400 hover:text-white"}`}>By buyer</button>
+                        <button onClick={() => setIntelView("suppliers")} className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${intelView === "suppliers" ? "bg-white/10 text-white" : "text-gray-400 hover:text-white"}`}>By supplier</button>
+                      </div>
+                      <input
+                        value={intelSearch}
+                        onChange={(e) => setIntelSearch(e.target.value)}
+                        placeholder="Search company, ticker, part…"
+                        className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-sm placeholder:text-gray-600 focus:outline-none focus:border-white/20 w-full lg:w-56"
+                      />
+                    </div>
+                  </div>
+
+                  {/* By-buyer view */}
+                  {intelView === "buyers" && (
+                    <div className="space-y-6">
+                      {sectorsFiltered.length === 0 && (
+                        <div className="rounded-2xl bg-white/[0.02] border border-white/5 p-10 text-center text-gray-500">No matches for “{intelSearch}”.</div>
+                      )}
+                      {sectorsFiltered.map((sec) => (
+                        <div key={sec.id}>
+                          <div className="flex items-baseline gap-2 mb-3">
+                            <h2 className="text-lg font-bold">{sec.glyph} {sec.name}</h2>
+                            <p className="text-[11px] text-gray-500 hidden sm:block">{sec.blurb}</p>
+                          </div>
+                          <div className="grid lg:grid-cols-2 gap-4">
+                            {sec.anchors.map((a) => {
+                              const key = `${sec.id}:${a.anchor}`;
+                              const open = intelExpanded.has(key) || q.length > 0;
+                              const shown = q ? a.suppliers.filter(matchSupplier) : a.suppliers;
+                              return (
+                                <div key={key} className="rounded-2xl bg-white/[0.02] border border-white/5 overflow-hidden">
+                                  <button onClick={() => toggleIntel(key)} className="w-full text-left p-4 hover:bg-white/[0.02] transition-colors">
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <span className="font-bold text-base">{a.anchor}</span>
+                                          <span className="px-1.5 py-0.5 rounded bg-white/5 border border-white/10 text-[10px] font-mono text-gray-300">{a.ticker}{a.exchange && a.exchange !== "—" ? ` · ${a.exchange}` : ""}</span>
+                                        </div>
+                                        <p className="text-[11px] text-amber-300/80 mt-0.5 uppercase tracking-wide">{a.category}</p>
+                                        <p className="text-[12.5px] text-gray-400 mt-1 leading-snug">{a.whatTheyMake}</p>
+                                        {a.stock && (a.stock.approxPrice || a.stock.marketCap) && (
+                                          <p className="text-[11px] text-gray-500 mt-1.5">
+                                            {a.stock.approxPrice && <span className="font-mono text-gray-300">{a.stock.approxPrice}</span>}
+                                            {a.stock.marketCap && <span> · {a.stock.marketCap}</span>}
+                                            {a.stock.note && <span className="text-gray-600"> · {a.stock.note}</span>}
+                                          </p>
+                                        )}
+                                      </div>
+                                      <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                                        <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 text-[11px] font-semibold whitespace-nowrap">{shown.length} supplier{shown.length === 1 ? "" : "s"}</span>
+                                        <span className="text-gray-500 text-xs">{open ? "▲ hide" : "▼ show"}</span>
+                                      </div>
+                                    </div>
+                                  </button>
+                                  {a.demandNote && (
+                                    <div className="mx-4 -mt-0.5 mb-1 rounded-lg bg-indigo-500/[0.07] border border-indigo-500/20 px-2.5 py-1.5">
+                                      <p className="text-[11.5px] text-indigo-200/90 leading-snug"><span className="font-semibold text-indigo-300">📈 Headline deal:</span> {a.demandNote.summary}</p>
+                                      <div className="flex items-center gap-2 mt-0.5">
+                                        {a.demandNote.date && <span className="text-[10px] text-gray-500">{a.demandNote.date}</span>}
+                                        {a.demandNote.source && /^https?:\/\//i.test(a.demandNote.source) && <a href={a.demandNote.source} target="_blank" rel="noopener noreferrer" className="text-[10px] text-gray-500 hover:text-indigo-300 underline decoration-dotted">source ↗</a>}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {open && (
+                                    <div className="px-4 pb-4 space-y-2.5 border-t border-white/5 pt-3">
+                                      {shown.map((s, i) => <SupplierCard key={`${s.name}-${i}`} s={s} />)}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* By-supplier view */}
+                  {intelView === "suppliers" && (
+                    <div>
+                      <p className="text-[11px] text-gray-500 mb-3">{rollupFiltered.length} suppliers, ranked by evidence strength then breadth of exposure. A supplier serving several buyers rides more than one deal.</p>
+                      <div className="grid lg:grid-cols-2 gap-4">
+                        {rollupFiltered.map((r, i) => (
+                          <div key={`${r.supplier.ticker || r.supplier.name}-${i}`} className="rounded-2xl bg-white/[0.02] border border-white/5 p-4">
+                            <div className="flex items-center justify-between gap-2 flex-wrap mb-2">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                {r.servesAnchors.map((an) => (
+                                  <span key={an} className="px-1.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-[10px] text-gray-400 whitespace-nowrap">supplies {an}</span>
+                                ))}
+                              </div>
+                              <span className="text-[10px] text-gray-600">{r.sectors.join(" · ")}</span>
+                            </div>
+                            <SupplierCard s={r.supplier} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Legend / footer */}
+                  <div className="rounded-xl bg-white/[0.02] border border-white/5 p-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-[11px] text-gray-500">
+                    <span className="font-semibold text-gray-400 uppercase tracking-wide">Confidence</span>
+                    <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400" /> Confirmed — primary source (filing / PR / gov award)</span>
+                    <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-yellow-400" /> Reported — reputable press</span>
+                    <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-gray-500" /> Rumored — forum / social, treat as a lead</span>
+                    <span className="w-full text-[10.5px] text-gray-600 mt-1">Every deal size and hidden signal links to its source. Dollar figures marked “est.” are estimates. Not investment advice.</span>
+                  </div>
+                </>
+              )}
             </div>
           );
         })()}
